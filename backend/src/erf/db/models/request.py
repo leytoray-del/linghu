@@ -23,7 +23,7 @@ from erf.domain.enums import RequestStatus
 if TYPE_CHECKING:
     from erf.db.models.team import SupportType, Team
     from erf.db.models.user import User
-    from erf.db.models.workflow import ApprovalTask, RequestEvent, ResourceAllocation
+    from erf.db.models.workflow import ApprovalTask, RequestChange, RequestEvent, ResourceAllocation
 
 
 class ResourceRequest(TimestampMixin, Base):
@@ -91,6 +91,10 @@ class ResourceRequest(TimestampMixin, Base):
     )
     events: Mapped[list[RequestEvent]] = relationship(
         back_populates="request", lazy="selectin", order_by="RequestEvent.id", cascade="all, delete-orphan"
+    )
+
+    changes: Mapped[list[RequestChange]] = relationship(
+        back_populates="request", lazy="selectin", order_by="RequestChange.id", cascade="all, delete-orphan"
     )
 
     @property

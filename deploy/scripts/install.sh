@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 # One-time server preparation. Safe to run again; it never overwrites /etc/erf/erf.env.
 #
-#   sudo bash deploy/scripts/install.sh --domain erf-example.duckdns.org
+#   sudo bash deploy/scripts/install.sh --domain erf-example.duckdns.org [--mail-env /tmp/erf-mail.env]
 #
 # It creates the "erf" system user and directories, installs uv, the systemd units and the
 # Caddy site file, and validates and reloads Caddy. Other sites served by Caddy are not touched.
+#
+# --mail-env merges email settings (ERF_MAIL_* and ERF_SMTP_* lines) into /etc/erf/erf.env and then
+# deletes that file. The deployment pipeline uses it to pass the email password from GitHub Secrets.
 set -euo pipefail
 
 DOMAIN=""
+MAIL_ENV=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --domain) DOMAIN="$2"; shift 2 ;;
+    --mail-env) MAIL_ENV="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -35,6 +40,10 @@ if [[ ! -f /etc/erf/erf.env ]]; then
   echo "Wrote /etc/erf/erf.env. Review it, especially the email settings."
 else
   echo "Keeping the existing /etc/erf/erf.env."
+fi
+if [[ -n "$MAIL_ENV" ]]; then
+  python3 "$SRC/scripts/merge_env.py" "$MAIL_ENV" /etc/erf/erf.env
+  rm -f -- "$MAIL_ENV"
 fi
 chown root:erf /etc/erf/erf.env
 chmod 640 /etc/erf/erf.env

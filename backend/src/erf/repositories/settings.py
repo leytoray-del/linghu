@@ -15,8 +15,11 @@ SETTING_DEFAULTS: dict[str, tuple[str, str]] = {
     "tl_due_working_days": ("2", "Working days a team leader has before a reminder is sent."),
     "director_due_working_days": ("2", "Working days the director has before a reminder is sent."),
     "urgent_due_hours": ("4", "Hours an approver has for an urgent request before a reminder is sent."),
-    "reminder_interval_hours": ("24", "Minimum hours between two reminders for the same task."),
-    "escalate_after_reminders": ("2", "From this reminder onwards, the director is copied."),
+    "reminder_interval_hours": ("24", "Minimum hours between two reminders for the same urgent task."),
+    "escalate_after_reminders": (
+        "2",
+        "From this reminder of an urgent task onwards, the director is copied.",
+    ),
     "request_no_prefix": ("ERR", "Prefix of request numbers, for example ERR-2026-0001."),
 }
 

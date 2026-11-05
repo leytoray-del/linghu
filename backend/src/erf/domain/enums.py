@@ -45,6 +45,15 @@ class RequestStatus(StrEnum):
 class ApprovalStep(StrEnum):
     TL_REVIEW = "TL_REVIEW"
     DIRECTOR_APPROVAL = "DIRECTOR_APPROVAL"
+    CHANGE_REVIEW = "CHANGE_REVIEW"
+    """Team leader review of a change to an approved request."""
+
+
+class ChangeStatus(StrEnum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    WITHDRAWN = "WITHDRAWN"
 
 
 class TaskStatus(StrEnum):

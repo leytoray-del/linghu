@@ -56,8 +56,11 @@ function open(item: TaskInboxItem): void {
         <el-table-column label="Start" width="120">
           <template #default="{ row }">{{ fmtDate(row.request.planned_start) }}</template>
         </el-table-column>
-        <el-table-column label="Your step" width="170">
-          <template #default="{ row }">{{ STEP_LABEL[row.step] }}</template>
+        <el-table-column label="Your step" min-width="170">
+          <template #default="{ row }">
+            {{ STEP_LABEL[row.step] }}
+            <div v-if="row.change_summary" class="muted meta">{{ row.change_summary }}</div>
+          </template>
         </el-table-column>
         <el-table-column label="Due" width="190">
           <template #default="{ row }">

@@ -57,11 +57,32 @@ class CommentIn(Schema):
     comment: str | None = Field(default=None, max_length=5000)
 
 
+class AllocationIn(Schema):
+    engineer_id: int
+    allocation_pct: int = Field(default=100, ge=25, le=100)
+
+
 class DecisionIn(Schema):
     action: Action
     version: int
     comment: str | None = Field(default=None, max_length=5000)
     engineer_ids: list[int] = Field(default_factory=list, max_length=50)
+    """Engineers assigned full time. Use ``allocations`` to set a percentage per engineer."""
+    allocations: list[AllocationIn] = Field(default_factory=list, max_length=50)
+
+
+class ChangeIn(Schema):
+    version: int
+    new_start: date
+    new_end: date
+    new_headcount: int = Field(ge=1, le=50)
+    reason: str = Field(max_length=5000)
+
+
+class ChangeDecisionIn(Schema):
+    action: Action
+    comment: str | None = Field(default=None, max_length=5000)
+    allocations: list[AllocationIn] = Field(default_factory=list, max_length=50)
 
 
 class NoticePreviewIn(Schema):
@@ -100,7 +121,26 @@ class AllocationOut(Schema):
     engineer: UserRef
     start_date: date
     end_date: date
+    allocation_pct: int
     status: str
+
+
+class ChangeOut(Schema):
+    id: int
+    status: str
+    summary: str
+    reason: str
+    old_start: date
+    old_end: date
+    old_headcount: int | None
+    new_start: date
+    new_end: date
+    new_headcount: int | None
+    requested_by: UserRef
+    decided_by: UserRef | None
+    decision_comment: str | None
+    decided_at: datetime | None
+    created_at: datetime
 
 
 class TaskOut(Schema):
@@ -167,6 +207,10 @@ class RequestDetail(RequestSummary):
     available_actions: list[Action]
     can_edit: bool
     can_delete: bool
+    changes: list[ChangeOut]
+    can_request_change: bool
+    change_awaiting_me: int | None
+    """Id of a pending change the current user can approve or reject."""
 
 
 class CandidateAssignment(Schema):
@@ -175,6 +219,7 @@ class CandidateAssignment(Schema):
     project_name: str | None
     start_date: date
     end_date: date
+    allocation_pct: int
     status: str
 
 
@@ -183,6 +228,8 @@ class AllocationCandidate(Schema):
     skills: str | None
     is_preferred: bool
     overlapping: list[CandidateAssignment]
+    peak_pct: int
+    """Highest weekly booking from other requests within this request's period."""
 
 
 class TaskInboxItem(Schema):
@@ -191,3 +238,4 @@ class TaskInboxItem(Schema):
     due_at: datetime | None
     is_overdue: bool
     request: RequestSummary
+    change_summary: str | None = None

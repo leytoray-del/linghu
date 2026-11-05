@@ -9,6 +9,7 @@ from erf.domain.enums import RequestStatus, TaskStatus
 from erf.schemas.common import UserRef
 from erf.schemas.requests import (
     AllocationOut,
+    ChangeOut,
     EventOut,
     RequestDetail,
     RequestSummary,
@@ -16,6 +17,7 @@ from erf.schemas.requests import (
     TaskOut,
     TeamRef,
 )
+from erf.services.workflow_service import WorkflowService
 
 
 def user_ref(u: User) -> UserRef:
@@ -62,6 +64,8 @@ def detail(
     available_actions: list[str],
     can_edit: bool,
     can_delete: bool,
+    can_request_change: bool = False,
+    change_awaiting_me: int | None = None,
 ) -> RequestDetail:
     base = summary(r).model_dump()
     return RequestDetail(
@@ -84,6 +88,7 @@ def detail(
                 engineer=user_ref(a.engineer),
                 start_date=a.start_date,
                 end_date=a.end_date,
+                allocation_pct=a.allocation_pct,
                 status=a.status,
             )
             for a in r.allocations
@@ -119,4 +124,26 @@ def detail(
         available_actions=available_actions,
         can_edit=can_edit,
         can_delete=can_delete,
+        changes=[
+            ChangeOut(
+                id=c.id,
+                status=c.status,
+                summary=WorkflowService.describe_change(c),
+                reason=c.reason,
+                old_start=c.old_start,
+                old_end=c.old_end,
+                old_headcount=c.old_headcount,
+                new_start=c.new_start,
+                new_end=c.new_end,
+                new_headcount=c.new_headcount,
+                requested_by=user_ref(c.requested_by),
+                decided_by=user_ref(c.decided_by) if c.decided_by else None,
+                decision_comment=c.decision_comment,
+                decided_at=c.decided_at,
+                created_at=c.created_at,
+            )
+            for c in r.changes
+        ],
+        can_request_change=can_request_change,
+        change_awaiting_me=change_awaiting_me,
     )

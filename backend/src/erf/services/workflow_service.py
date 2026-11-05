@@ -8,15 +8,23 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from erf.core.errors import Conflict, Forbidden, ValidationFailed
-from erf.db.models import ApprovalTask, RequestEvent, ResourceAllocation, ResourceRequest, User
+from erf.db.models import (
+    ApprovalTask,
+    RequestChange,
+    RequestEvent,
+    ResourceAllocation,
+    ResourceRequest,
+    User,
+)
 from erf.domain.enums import (
     Action,
     AllocationStatus,
     ApprovalStep,
+    ChangeStatus,
     Priority,
     RequestStatus,
     RequestType,
@@ -26,11 +34,18 @@ from erf.domain.enums import (
 from erf.domain.urgency import evaluate_urgency
 from erf.domain.validation import SubmissionFields, validate_submission
 from erf.domain.workflow import STEP_FOR_STATUS, Actor, Transition, find_transition
+from erf.infrastructure.calendar_ics import assignment_event
+from erf.infrastructure.mail.senders import Attachment
 from erf.repositories.settings import SupportTypeRepository
 from erf.repositories.users import TeamRepository, UserRepository
 from erf.services.access import AccessPolicy
 from erf.services.context import ServiceContext
 from erf.services.notifications import Event, NotificationService
+
+AllocationSpec = tuple[int, int]
+"""(engineer id, allocation percentage)."""
+
+ALLOWED_PCTS = frozenset({25, 50, 75, 100})
 
 TASK_RESULT = {
     Action.APPROVE: TaskStatus.APPROVED,
@@ -258,6 +273,7 @@ class WorkflowService:
         comment: str | None,
         version: int | None,
         engineer_ids: list[int] | None = None,
+        allocations: list[AllocationSpec] | None = None,
     ) -> ResourceRequest:
         if action not in TASK_RESULT:
             raise ValidationFailed("Choose approve, return or reject.")
@@ -280,7 +296,12 @@ class WorkflowService:
 
         allocation_names: list[str] = []
         if step == ApprovalStep.TL_REVIEW and action == Action.APPROVE:
-            allocation_names = self._propose_allocations(user, request, engineer_ids or [], comment)
+            specs = self._specs(engineer_ids, allocations)
+            self._check_allocation(request, specs, request.headcount, comment)
+            assert request.planned_start and request.planned_end
+            allocation_names = self._set_allocations(
+                user, request, specs, AllocationStatus.PROPOSED, request.planned_start, request.planned_end
+            )
 
         from_status = request.status
         now = self.ctx.clock.now()
@@ -318,6 +339,7 @@ class WorkflowService:
                 cc=self._team_approvers(request),
                 actor=user,
                 comment=comment,
+                attachments=[self._calendar_file(request)],
             )
         elif transition.target == RequestStatus.RETURNED:
             self._release_allocations(request)
@@ -346,52 +368,104 @@ class WorkflowService:
             )
         return request
 
-    def _propose_allocations(
-        self, user: User, request: ResourceRequest, engineer_ids: list[int], comment: str | None
-    ) -> list[str]:
-        unique_ids = list(dict.fromkeys(engineer_ids))
-        if not unique_ids:
+    @staticmethod
+    def _specs(
+        engineer_ids: list[int] | None, allocations: list[AllocationSpec] | None
+    ) -> list[AllocationSpec]:
+        """Allocations as (engineer, percentage). A plain list of engineers means full-time assignment."""
+        if allocations:
+            return list({e: pct for e, pct in allocations}.items())
+        return [(e, 100) for e in dict.fromkeys(engineer_ids or [])]
+
+    def _check_allocation(
+        self,
+        request: ResourceRequest,
+        specs: list[AllocationSpec],
+        headcount: int | None,
+        comment: str | None,
+    ) -> None:
+        if not specs:
             raise ValidationFailed(
                 "Assign at least one engineer before approving.",
                 details={"fields": {"engineer_ids": "Select at least one engineer."}},
             )
-        engineers = {u.id: u for u in self.users.get_many(unique_ids)}
-        problems = [
-            i
-            for i in unique_ids
-            if i not in engineers
-            or not engineers[i].is_active
-            or not engineers[i].has_role(Role.ENGINEER)
-            or engineers[i].team_id != request.team_id
-        ]
-        if problems:
+        if any(pct not in ALLOWED_PCTS for _, pct in specs):
+            raise ValidationFailed("Choose an allocation of 25%, 50%, 75% or 100% for each engineer.")
+        engineers = {u.id: u for u in self.users.get_many([e for e, _ in specs])}
+        if any(
+            e not in engineers
+            or not engineers[e].is_active
+            or not engineers[e].has_role(Role.ENGINEER)
+            or engineers[e].team_id != request.team_id
+            for e, _ in specs
+        ):
             raise ValidationFailed(
                 "Some selected people are not active engineers in this team.",
                 details={
                     "fields": {"engineer_ids": "Choose engineers from the team that handles this request."}
                 },
             )
-        if request.headcount and len(unique_ids) < request.headcount and not comment:
+        if headcount and len(specs) < headcount and not comment:
             raise ValidationFailed(
-                f"You assigned {len(unique_ids)} of {request.headcount} requested engineers. "
+                f"You assigned {len(specs)} of {headcount} requested engineers. "
                 "Add a comment that explains the shortfall.",
                 details={"fields": {"comment": "Explain why fewer engineers are assigned."}},
             )
-        self._release_allocations(request)
-        assert request.planned_start and request.planned_end
-        for i in unique_ids:
+
+    def _set_allocations(
+        self,
+        user: User,
+        request: ResourceRequest,
+        specs: list[AllocationSpec],
+        status: AllocationStatus,
+        start: date,
+        end: date,
+    ) -> list[str]:
+        """Make the active allocations match ``specs``: keep and update listed engineers, add new ones and
+        release the rest. Returns "Name (pct%)" labels for the audit trail."""
+        wanted = dict(specs)
+        engineers = {u.id: u for u in self.users.get_many(list(wanted))}
+        for a in self._active_allocations(request):
+            if a.engineer_id in wanted:
+                a.allocation_pct = wanted.pop(a.engineer_id)
+                a.start_date, a.end_date, a.status = start, end, status.value
+            else:
+                a.status = AllocationStatus.RELEASED.value
+        for engineer_id, pct in wanted.items():
             request.allocations.append(
                 ResourceAllocation(
-                    engineer_id=i,
-                    engineer=engineers[i],
-                    start_date=request.planned_start,
-                    end_date=request.planned_end,
-                    status=AllocationStatus.PROPOSED.value,
+                    engineer_id=engineer_id,
+                    engineer=engineers[engineer_id],
+                    start_date=start,
+                    end_date=end,
+                    allocation_pct=pct,
+                    status=status.value,
                     allocated_by_id=user.id,
                 )
             )
         self.s.flush()
-        return [engineers[i].display_name for i in unique_ids]
+        return [f"{a.engineer.display_name} ({a.allocation_pct}%)" for a in self._active_allocations(request)]
+
+    def _calendar_file(self, request: ResourceRequest) -> Attachment:
+        approved_changes = sum(1 for c in request.changes if c.status == ChangeStatus.APPROVED.value)
+        return Attachment(
+            filename=f"{request.display_no}.ics",
+            content_type="text/calendar; method=PUBLISH; charset=UTF-8",
+            content=assignment_event(
+                request,
+                now_utc=self.ctx.clock.now(),
+                link=f"{self.ctx.settings.base_url.rstrip('/')}/requests/{request.id}",
+                sequence=approved_changes,
+            ),
+        )
+
+    def _drop_pending_changes(self, request: ResourceRequest) -> None:
+        """A cancelled or closed request cannot be changed any more."""
+        now = self.ctx.clock.now()
+        for change in request.changes:
+            if change.status == ChangeStatus.PENDING.value:
+                change.status = ChangeStatus.WITHDRAWN.value
+                change.decided_at = now
 
     # ------------------------------------------------------------------ requester and system actions
 
@@ -432,6 +506,8 @@ class WorkflowService:
                 details={"fields": {"comment": "A comment is required."}},
             )
         from_status = request.status
+        self._drop_pending_changes(request)
+        self._close_pending_tasks(request)
         released = self._release_allocations(request)
         request.status = transition.target.value
         self.s.flush()
@@ -453,6 +529,8 @@ class WorkflowService:
         transition = find_transition(request.status_enum, Action.CLOSE)
         self._authorise(user, request, transition)
         from_status = request.status
+        self._drop_pending_changes(request)
+        self._close_pending_tasks(request)
         request.status = transition.target.value
         self.s.flush()
         self._event(
@@ -463,3 +541,233 @@ class WorkflowService:
             None if user else "Closed automatically after the planned end date.",
         )
         return request
+
+    # ------------------------------------------------------------------ changes to approved requests
+
+    def pending_change(self, request: ResourceRequest) -> RequestChange | None:
+        return next((c for c in request.changes if c.status == ChangeStatus.PENDING.value), None)
+
+    @staticmethod
+    def describe_change(change: RequestChange) -> str:
+        def period(a: date, b: date) -> str:
+            return f"{a.strftime('%d %b %Y')} - {b.strftime('%d %b %Y')}"
+
+        parts = []
+        if (change.old_start, change.old_end) != (change.new_start, change.new_end):
+            parts.append(
+                f"period {period(change.old_start, change.old_end)} to {period(change.new_start, change.new_end)}"
+            )
+        if change.old_headcount != change.new_headcount:
+            parts.append(f"engineers {change.old_headcount} to {change.new_headcount}")
+        return "; ".join(parts) or "no change"
+
+    def request_change(
+        self,
+        user: User,
+        request: ResourceRequest,
+        *,
+        new_start: date,
+        new_end: date,
+        new_headcount: int,
+        reason: str | None,
+        version: int | None,
+    ) -> RequestChange:
+        """The requester asks to move the dates or change the headcount of an approved request."""
+        self.check_version(request, version)
+        if request.status_enum != RequestStatus.APPROVED:
+            raise ValidationFailed("Only approved requests can be changed.")
+        if request.requester_id != user.id:
+            raise Forbidden("Only the requester can ask for a change.")
+        if self.pending_change(request):
+            raise Conflict("A change is already waiting for review. Withdraw it before asking for another.")
+        reason = (reason or "").strip()
+        today = self.ctx.clock.today()
+        assert request.planned_start and request.planned_end
+        errors: dict[str, str] = {}
+        if not reason:
+            errors["reason"] = "Explain why the change is needed."
+        if new_end < new_start:
+            errors["new_end"] = "The end date must be on or after the start date."
+        if new_start != request.planned_start and new_start < today:
+            errors["new_start"] = "A new start date cannot be in the past."
+        if new_end < today:
+            errors["new_end"] = "The end date cannot be in the past."
+        if not 1 <= new_headcount <= 50:
+            errors["new_headcount"] = "Enter between 1 and 50 engineers."
+        if (new_start, new_end, new_headcount) == (
+            request.planned_start,
+            request.planned_end,
+            request.headcount,
+        ):
+            errors["new_start"] = "Change the dates or the number of engineers."
+        if errors:
+            raise ValidationFailed("Some fields need attention.", details={"fields": errors})
+        approvers = self._team_approvers(request)
+        if not approvers:
+            raise ValidationFailed("No team leader is set up for this team. Ask an administrator.")
+
+        change = RequestChange(
+            requested_by_id=user.id,
+            requested_by=user,
+            status=ChangeStatus.PENDING.value,
+            reason=reason,
+            old_start=request.planned_start,
+            old_end=request.planned_end,
+            old_headcount=request.headcount,
+            new_start=new_start,
+            new_end=new_end,
+            new_headcount=new_headcount,
+        )
+        request.changes.append(change)
+        self.s.flush()
+        due = self.ctx.clock.now() + timedelta(
+            days=(
+                self.ctx.calendar.add_working_days(today, self.ctx.config.get_int("tl_due_working_days"))
+                - today
+            ).days
+        )
+        for approver in approvers:
+            request.tasks.append(
+                ApprovalTask(
+                    round=request.round,
+                    step=ApprovalStep.CHANGE_REVIEW.value,
+                    assignee_id=approver.id,
+                    assignee=approver,
+                    status=TaskStatus.PENDING.value,
+                    due_at=due,
+                    change_id=change.id,
+                )
+            )
+        self.s.flush()
+        summary = self.describe_change(change)
+        self._event(request, user, "CHANGE_REQUEST", request.status, reason, {"change": summary})
+        self.notifications.notify(
+            Event.CHANGE_REQUESTED,
+            request,
+            to=approvers,
+            cc=[user],
+            actor=user,
+            comment=reason,
+            extra={"change": summary},
+        )
+        return change
+
+    def decide_change(
+        self,
+        user: User,
+        request: ResourceRequest,
+        change_id: int,
+        action: Action,
+        *,
+        comment: str | None,
+        allocations: list[AllocationSpec] | None = None,
+    ) -> RequestChange:
+        """The team leader approves (with the final list of engineers) or rejects a change."""
+        change = next((c for c in request.changes if c.id == change_id), None)
+        if change is None:
+            raise ValidationFailed("This change does not belong to the request.")
+        if change.status != ChangeStatus.PENDING.value:
+            raise Conflict("This change has already been handled. Refresh the page to see its outcome.")
+        if action not in (Action.APPROVE, Action.REJECT):
+            raise ValidationFailed("Choose approve or reject.")
+        task = next(
+            (
+                t
+                for t in request.tasks
+                if t.change_id == change.id
+                and t.assignee_id == user.id
+                and t.status == TaskStatus.PENDING.value
+            ),
+            None,
+        )
+        if task is None:
+            raise Forbidden("This change is not waiting for your decision.")
+        comment = (comment or "").strip() or None
+        now = self.ctx.clock.now()
+        summary = self.describe_change(change)
+
+        if action == Action.REJECT:
+            if not comment:
+                raise ValidationFailed(
+                    "Add a comment that explains why the change is rejected.",
+                    details={"fields": {"comment": "A comment is required."}},
+                )
+            change.status = ChangeStatus.REJECTED.value
+            task.status = TaskStatus.REJECTED.value
+        else:
+            specs = self._specs(None, allocations)
+            self._check_allocation(request, specs, change.new_headcount, comment)
+            before = {a.engineer_id for a in self._active_allocations(request)}
+            request.planned_start = change.new_start
+            request.planned_end = change.new_end
+            request.headcount = change.new_headcount
+            names = self._set_allocations(
+                user, request, specs, AllocationStatus.CONFIRMED, change.new_start, change.new_end
+            )
+            released = [u for u in self.users.get_many(list(before - dict(specs).keys()))]
+            change.status = ChangeStatus.APPROVED.value
+            task.status = TaskStatus.APPROVED.value
+
+        change.decided_by_id = user.id
+        change.decided_by = user
+        change.decision_comment = comment
+        change.decided_at = now
+        task.decision_comment = comment
+        task.acted_at = now
+        for other in request.tasks:
+            if other.change_id == change.id and other.status == TaskStatus.PENDING.value:
+                other.status = TaskStatus.CLOSED.value
+                other.acted_at = now
+        self.s.flush()
+
+        if action == Action.REJECT:
+            self._event(request, user, "CHANGE_REJECT", request.status, comment, {"change": summary})
+            self.notifications.notify(
+                Event.CHANGE_REJECTED,
+                request,
+                to=[request.requester],
+                cc=[user],
+                actor=user,
+                comment=comment,
+                extra={"change": summary},
+            )
+        else:
+            self._event(
+                request,
+                user,
+                "CHANGE_APPROVE",
+                request.status,
+                comment,
+                {"change": summary, "engineers": names},
+            )
+            engineers = [a.engineer for a in self._active_allocations(request)]
+            self.notifications.notify(
+                Event.CHANGE_APPROVED,
+                request,
+                to=[request.requester, *engineers, *released],
+                cc=self._team_approvers(request),
+                actor=user,
+                comment=comment,
+                extra={"change": summary},
+                attachments=[self._calendar_file(request)],
+            )
+        return change
+
+    def withdraw_change(self, user: User, request: ResourceRequest, change_id: int) -> RequestChange:
+        change = next((c for c in request.changes if c.id == change_id), None)
+        if change is None or change.status != ChangeStatus.PENDING.value:
+            raise Conflict("This change is no longer waiting for review.")
+        if change.requested_by_id != user.id:
+            raise Forbidden("Only the person who asked for the change can withdraw it.")
+        now = self.ctx.clock.now()
+        change.status = ChangeStatus.WITHDRAWN.value
+        change.decided_at = now
+        for t in request.tasks:
+            if t.change_id == change.id and t.status == TaskStatus.PENDING.value:
+                t.status = TaskStatus.CLOSED.value
+                t.acted_at = now
+        self.s.flush()
+        self._event(
+            request, user, "CHANGE_WITHDRAW", request.status, None, {"change": self.describe_change(change)}
+        )
+        return change

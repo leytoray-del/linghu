@@ -15,6 +15,7 @@ const lookups = useLookupStore()
 
 const editingId = computed(() => (route.params.id ? Number(route.params.id) : null))
 const existing = ref<RequestDetail | null>(null)
+const copiedFrom = ref<string | null>(null)
 const loading = ref(true)
 const saving = ref<'draft' | 'submit' | null>(null)
 const errors = ref<Record<string, string>>({})
@@ -135,6 +136,23 @@ onMounted(async () => {
         task_schedule: r.task_schedule,
         urgent_justification: r.urgent_justification,
       })
+    } else if (route.query.copy) {
+      // Copy the content of an earlier request. Dates, priority and justification start fresh.
+      const src = await requestApi.get(Number(route.query.copy))
+      copiedFrom.value = src.display_no
+      Object.assign(form, {
+        request_type: src.request_type,
+        project_name: src.project_name,
+        wbs_code: src.wbs_code,
+        client_name: src.client_name,
+        support_type_id: lookups.supportType(src.support_type?.id ?? null) ? src.support_type?.id ?? null : null,
+        headcount: src.headcount,
+        preferred_engineer_ids: src.preferred_engineers.map((u) => u.id),
+        preferred_engineers_note: src.preferred_engineers_note,
+        man_days: src.man_days,
+        scope_description: src.scope_description,
+        task_schedule: src.task_schedule,
+      })
     }
   } catch (e) {
     showError(e)
@@ -189,7 +207,9 @@ async function save(submit: boolean): Promise<void> {
           {{
             isReturned
               ? 'Update the request based on the comment below, then resubmit it. It will go back to the team leader.'
-              : 'Submit at least 5 working days before the planned start date. Fields marked * are required.'
+              : copiedFrom
+                ? `Copied from ${copiedFrom}. Check every field and choose new dates before you submit.`
+                : 'Submit at least 5 working days before the planned start date. Fields marked * are required.'
           }}
         </p>
       </div>

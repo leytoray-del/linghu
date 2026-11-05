@@ -43,6 +43,14 @@ def register_jobs(
         id="send_reminders", **common,
     )  # fmt: skip
     scheduler.add_job(
+        _safe, "cron", day_of_week="mon-fri", hour=8, minute=30, timezone=settings.timezone,
+        args=["daily_digest", tasks.send_daily_digest, factory, clock, settings], id="daily_digest", **common,
+    )  # fmt: skip
+    scheduler.add_job(
+        _safe, "cron", day_of_week="mon", hour=8, minute=45, timezone=settings.timezone,
+        args=["weekly_summary", tasks.send_weekly_summary, factory, clock, settings], id="weekly_summary", **common,
+    )  # fmt: skip
+    scheduler.add_job(
         _safe, "cron", hour=0, minute=20, timezone=settings.timezone,
         args=["auto_close", tasks.auto_close, factory, clock, settings], id="auto_close", **common,
     )  # fmt: skip

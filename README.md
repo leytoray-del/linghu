@@ -13,7 +13,16 @@ and implements the department's resource request policy:
   The director then gives the final approval, which confirms the allocation.
 - Every step sends an email and is recorded in an append-only history. Overdue approvals trigger
   reminders, and approved requests close automatically after their planned end date.
-- Team leaders and the director see a weekly resource load view, yearly reports and an Excel export.
+- Team leaders assign engineers full time or part time (25%, 50% or 75%). The resource load view shows
+  each engineer's weekly booking in percent, so overbooking is visible before it happens.
+- Requesters can ask to move the dates or change the headcount of an approved request. The team leader
+  reviews the change against availability in the new period, and the allocation is updated in place.
+- Approval emails carry a calendar file, so engineers add their assignment to Outlook in one click.
+- Approvers receive one digest email each working morning, and directors receive a weekly summary of
+  activity, waiting approvals and work starting in the next two weeks. Urgent requests still trigger
+  individual reminders.
+- "Copy as new request" prefills a new request from an earlier one.
+- Team leaders and the director see yearly reports and an Excel export.
 
 ## Repository layout
 

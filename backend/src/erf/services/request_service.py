@@ -6,7 +6,7 @@ from datetime import date
 
 from erf.core.errors import Forbidden, NotFound, ValidationFailed
 from erf.db.models import RequestEvent, RequestPreferredEngineer, ResourceRequest, User
-from erf.domain.enums import RequestStatus, Role
+from erf.domain.enums import RequestStatus, Role, TaskStatus
 from erf.domain.workflow import available_actions
 from erf.repositories.requests import RequestFilter, RequestRepository, TaskRepository
 from erf.repositories.settings import HolidayRepository, SupportTypeRepository
@@ -53,12 +53,21 @@ class RequestService:
         caps = self.access.capacities(user, request)
         is_owner = request.requester_id == user.id
         preferred = list(UserRepository(self.s).get_many(request.preferred_engineer_ids))
+        pending = self.workflow.pending_change(request)
+        awaiting = None
+        if pending and any(
+            t.change_id == pending.id and t.assignee_id == user.id and t.status == TaskStatus.PENDING.value
+            for t in request.tasks
+        ):
+            awaiting = pending.id
         return presenters.detail(
             request,
             preferred=preferred,
             available_actions=[a.value for a in available_actions(request.status_enum, caps)],
             can_edit=is_owner and request.status_enum in EDITABLE_STATUSES,
             can_delete=is_owner and request.status_enum == RequestStatus.DRAFT,
+            can_request_change=is_owner and request.status_enum == RequestStatus.APPROVED and pending is None,
+            change_awaiting_me=awaiting,
         )
 
     # ------------------------------------------------------------------ drafting
@@ -175,6 +184,7 @@ class RequestService:
         items = []
         for task in TaskRepository(self.s).pending_for_user(user.id):
             r = task.request
+            change = next((c for c in r.changes if c.id == task.change_id), None) if task.change_id else None
             items.append(
                 TaskInboxItem(
                     task_id=task.id,
@@ -182,6 +192,7 @@ class RequestService:
                     due_at=task.due_at,
                     is_overdue=bool(task.due_at and task.due_at < now),
                     request=presenters.summary(r),
+                    change_summary=self.workflow.describe_change(change) if change else None,
                 )
             )
         items.sort(key=lambda i: (not i.request.is_urgent, i.request.planned_start or date.max))

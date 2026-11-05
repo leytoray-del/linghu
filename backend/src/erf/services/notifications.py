@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import StrEnum
 from pathlib import Path
 
@@ -12,6 +12,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from erf.db.models import NotificationOutbox, ResourceRequest, User
 from erf.domain.enums import OutboxStatus, RequestType
+from erf.infrastructure.mail.senders import Attachment
 from erf.repositories.requests import OutboxRepository
 from erf.services.context import ServiceContext
 
@@ -27,6 +28,9 @@ class Event(StrEnum):
     REQUEST_WITHDRAWN = "REQUEST_WITHDRAWN"
     REQUEST_CANCELLED = "REQUEST_CANCELLED"
     TASK_REMINDER = "TASK_REMINDER"
+    CHANGE_REQUESTED = "CHANGE_REQUESTED"
+    CHANGE_APPROVED = "CHANGE_APPROVED"
+    CHANGE_REJECTED = "CHANGE_REJECTED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +42,25 @@ class EventText:
 
 
 EVENT_TEXT: dict[Event, EventText] = {
+    Event.CHANGE_REQUESTED: EventText(
+        "{no} change needs your review: {project}",
+        "A change to an approved request needs your review",
+        "{actor} asked to change this approved request: {change}. Review the engineers and approve or reject "
+        "the change.",
+        "Review change",
+    ),
+    Event.CHANGE_APPROVED: EventText(
+        "{no} change approved: {project}",
+        "A change to an approved request was approved",
+        "{actor} approved the change: {change}. The allocation below is now confirmed.",
+        "View request",
+    ),
+    Event.CHANGE_REJECTED: EventText(
+        "{no} change rejected: {project}",
+        "Your change request was rejected",
+        "{actor} rejected the change: {change}. The request keeps its current dates and engineers.",
+        "View request",
+    ),
     Event.REQUEST_SUBMITTED: EventText(
         "{no} needs your review: {project}",
         "A resource request needs your review",
@@ -113,6 +136,7 @@ class NotificationService:
         actor: User | None = None,
         comment: str | None = None,
         extra: dict[str, str] | None = None,
+        attachments: list[Attachment] | None = None,
     ) -> NotificationOutbox | None:
         to_list = _addresses(to)
         cc_list = [a for a in _addresses(cc) if a not in to_list]
@@ -152,6 +176,7 @@ class NotificationService:
             body_text=self._env.get_template("notification.txt").render(**context),
             status=OutboxStatus.PENDING.value,
             next_attempt_at=self.ctx.clock.now(),
+            attachments=json.dumps([asdict(a) for a in attachments]) if attachments else None,
         )
         self.outbox.add(row)
         return row

@@ -80,16 +80,43 @@ jobs:
           HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DOMAIN: ${{ vars.ERF_DOMAIN }}
+          SMTP_USER: ${{ vars.ERF_SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.ERF_SMTP_PASSWORD }}
         run: |
           SSH_OPTS="-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes"
           NAME="$(basename "$ARCHIVE")"
           scp $SSH_OPTS "$ARCHIVE" "$DEPLOY_USER@$HOST:/tmp/$NAME"
-          ssh $SSH_OPTS "$DEPLOY_USER@$HOST" bash -s -- "$NAME" "$DOMAIN" "$DEMO_MODE" <<'REMOTE'
+
+          # Email settings travel in a private file that install.sh merges into /etc/erf/erf.env and
+          # deletes. Without the ERF_SMTP_PASSWORD secret, the server keeps its current email settings.
+          # In demo mode every email goes to the sender's own mailbox, because demo accounts are fake.
+          MAIL_FILE=""
+          if [ -n "$SMTP_USER" ] && [ -n "$SMTP_PASSWORD" ]; then
+            REDIRECT=""
+            if [ "$DEMO_MODE" = "true" ]; then REDIRECT="$SMTP_USER"; fi
+            ( umask 077
+              printf '%s\n' \
+                "ERF_MAIL_BACKEND=smtp" \
+                "ERF_SMTP_HOST=smtp.gmail.com" \
+                "ERF_SMTP_PORT=587" \
+                "ERF_SMTP_USERNAME=$SMTP_USER" \
+                "ERF_SMTP_PASSWORD=${SMTP_PASSWORD// /}" \
+                "ERF_MAIL_FROM=Engineering Resource Requests <$SMTP_USER>" \
+                "ERF_MAIL_REDIRECT_TO=$REDIRECT" > erf-mail.env )
+            scp -p $SSH_OPTS erf-mail.env "$DEPLOY_USER@$HOST:/tmp/erf-mail.env"
+            MAIL_FILE=/tmp/erf-mail.env
+          fi
+
+          ssh $SSH_OPTS "$DEPLOY_USER@$HOST" bash -s -- "$NAME" "$DOMAIN" "$DEMO_MODE" "$MAIL_FILE" <<'REMOTE'
           set -euo pipefail
-          NAME="$1"; DOMAIN="$2"; DEMO="$3"
+          NAME="$1"; DOMAIN="$2"; DEMO="$3"; MAIL_FILE="${4:-}"
           WORK="$(mktemp -d)"
           tar -xzf "/tmp/$NAME" -C "$WORK"
-          sudo bash "$WORK/deploy/scripts/install.sh" --domain "$DOMAIN"
+          if [ -n "$MAIL_FILE" ]; then
+            sudo bash "$WORK/deploy/scripts/install.sh" --domain "$DOMAIN" --mail-env "$MAIL_FILE"
+          else
+            sudo bash "$WORK/deploy/scripts/install.sh" --domain "$DOMAIN"
+          fi
           if [ "$DEMO" = "true" ]; then
             sudo bash "$WORK/deploy/scripts/release.sh" "/tmp/$NAME" --seed-demo
           else

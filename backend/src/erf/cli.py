@@ -99,6 +99,7 @@ def cmd_run_jobs(_: argparse.Namespace) -> None:
     settings = get_settings()
     c = Container.build(settings)
     print("reminders:", tasks.send_reminders(c.factory, c.clock, settings))
+    print("daily digests:", tasks.send_daily_digest(c.factory, c.clock, settings))
     print("auto-closed:", tasks.auto_close(c.factory, c.clock, settings))
     print("emails sent:", tasks.dispatch_outbox(c.factory, c.clock, build_sender(settings), batch=100))
 

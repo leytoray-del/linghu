@@ -2,6 +2,7 @@ import { http } from './http'
 import type {
   Action,
   AdminHoliday,
+  AllocationInput,
   AdminSetting,
   AdminSupportType,
   AdminTeam,
@@ -64,18 +65,34 @@ export const requestApi = {
   remove: (id: number) => http.delete(`/requests/${id}`),
   submit: (id: number, version: number) =>
     http.post<RequestDetail>(`/requests/${id}/submit`, { version }).then((r) => r.data),
-  decide: (id: number, action: Action, version: number, comment: string | null, engineer_ids: number[] = []) =>
+  decide: (id: number, action: Action, version: number, comment: string | null, allocations: AllocationInput[] = []) =>
     http
-      .post<RequestDetail>(`/requests/${id}/decision`, { action, version, comment, engineer_ids })
+      .post<RequestDetail>(`/requests/${id}/decision`, { action, version, comment, allocations })
       .then((r) => r.data),
+  requestChange: (
+    id: number,
+    body: { version: number; new_start: string; new_end: string; new_headcount: number; reason: string },
+  ) => http.post<RequestDetail>(`/requests/${id}/changes`, body).then((r) => r.data),
+  decideChange: (
+    id: number,
+    changeId: number,
+    action: 'APPROVE' | 'REJECT',
+    comment: string | null,
+    allocations: AllocationInput[] = [],
+  ) =>
+    http
+      .post<RequestDetail>(`/requests/${id}/changes/${changeId}/decision`, { action, comment, allocations })
+      .then((r) => r.data),
+  withdrawChange: (id: number, changeId: number) =>
+    http.post<RequestDetail>(`/requests/${id}/changes/${changeId}/withdraw`).then((r) => r.data),
   withdraw: (id: number, version: number, comment: string | null) =>
     http.post<RequestDetail>(`/requests/${id}/withdraw`, { version, comment }).then((r) => r.data),
   cancel: (id: number, version: number, comment: string) =>
     http.post<RequestDetail>(`/requests/${id}/cancel`, { version, comment }).then((r) => r.data),
   close: (id: number, version: number) =>
     http.post<RequestDetail>(`/requests/${id}/close`, { version }).then((r) => r.data),
-  candidates: (id: number) =>
-    http.get<AllocationCandidate[]>(`/requests/${id}/candidates`).then((r) => r.data),
+  candidates: (id: number, period?: { start: string; end: string }) =>
+    http.get<AllocationCandidate[]>(`/requests/${id}/candidates`, { params: period }).then((r) => r.data),
   noticePreview: (planned_start: string) =>
     http.post<NoticePreview>('/requests/notice-preview', { planned_start }).then((r) => r.data),
   myTasks: () => http.get<TaskInboxItem[]>('/tasks/mine').then((r) => r.data),

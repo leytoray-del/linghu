@@ -1,0 +1,16 @@
+Weekly resource summary, {{ week_start }} - {{ week_end }}
+
+Submitted: {{ submitted }}   Urgent: {{ urgent }}   Approved: {{ approved }}   Rejected: {{ rejected }}   Changes approved: {{ changes }}
+
+WAITING FOR APPROVAL ({{ waiting|length }})
+{% for w in waiting %}- {{ w.r.display_no }} {{ w.r.project_name }}{% if w.r.is_urgent %} URGENT{% endif %} · with {{ w.with or '-' }} · {{ w.days }} d{% if w.overdue %} OVERDUE{% endif %}
+{% else %}Nothing is waiting.
+{% endfor %}
+STARTING IN THE NEXT 14 DAYS ({{ starting|length }})
+{% for s in starting %}- {{ s.r.planned_start.strftime('%a %d %b') }} {{ s.r.display_no }} {{ s.r.project_name }} · {{ 'Resources confirmed' if s.confirmed else 'NOT YET APPROVED' }}
+{% else %}No requests start in the next two weeks.
+{% endfor %}{% if short_notice %}
+SHORT-NOTICE SUBMISSIONS THIS WEEK ({{ short_notice|length }})
+{% for r in short_notice %}- {{ r.display_no }} {{ r.project_name }} · {{ r.requester.display_name }} · {{ r.notice_working_days }} working days notice
+{% endfor %}{% endif %}
+Reports: {{ dashboard }}

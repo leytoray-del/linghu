@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 
 from erf.core.errors import Forbidden, ValidationFailed
 from erf.db.models import ResourceAllocation, User
@@ -28,19 +28,22 @@ class ResourceService:
         self.users = UserRepository(ctx.session)
         self.allocations = AllocationRepository(ctx.session)
 
-    def candidates(self, user: User, request_id: int) -> list[AllocationCandidate]:
+    def candidates(
+        self, user: User, request_id: int, start: date | None = None, end: date | None = None
+    ) -> list[AllocationCandidate]:
+        """Engineers of the request's team with their other bookings. ``start`` and ``end`` override the
+        request's own period, which is how a proposed date change is checked."""
         request = RequestService(self.ctx).load_visible(user, request_id)
         if not self.access.can_plan_resources(user, request.team_id):
             raise Forbidden("Only the team leader or director can see allocation candidates.")
-        if request.team_id is None or request.planned_start is None or request.planned_end is None:
+        first = start or request.planned_start
+        last = end or request.planned_end
+        if request.team_id is None or first is None or last is None or last < first:
             return []
         engineers = list(self.users.with_role(Role.ENGINEER, team_id=request.team_id))
         busy = self._group(
             self.allocations.active_in_period(
-                [e.id for e in engineers],
-                request.planned_start,
-                request.planned_end,
-                exclude_request_id=request.id,
+                [e.id for e in engineers], first, last, exclude_request_id=request.id
             )
         )
         preferred = set(request.preferred_engineer_ids)
@@ -56,14 +59,16 @@ class ResourceService:
                         project_name=a.request.project_name,
                         start_date=a.start_date,
                         end_date=a.end_date,
+                        allocation_pct=a.allocation_pct,
                         status=a.status,
                     )
                     for a in busy.get(e.id, [])
                 ],
+                peak_pct=peak_weekly_pct(busy.get(e.id, []), first, last),
             )
             for e in engineers
         ]
-        result.sort(key=lambda c: (not c.is_preferred, len(c.overlapping), c.engineer.display_name))
+        result.sort(key=lambda c: (not c.is_preferred, c.peak_pct, c.engineer.display_name))
         return result
 
     def load(self, user: User, start: date, end: date, team_id: int | None) -> LoadOut:
@@ -102,6 +107,7 @@ class ResourceService:
                             client_name=a.request.client_name,
                             start_date=a.start_date,
                             end_date=a.end_date,
+                            allocation_pct=a.allocation_pct,
                             status=a.status,
                         )
                         for a in busy.get(e.id, [])
@@ -117,3 +123,18 @@ class ResourceService:
         for a in rows:  # type: ignore[attr-defined]
             grouped[a.engineer_id].append(a)
         return grouped
+
+
+def peak_weekly_pct(allocations: list[ResourceAllocation], first: date, last: date) -> int:
+    """The highest total booking in any working week of [first, last]. Summing every overlapping
+    allocation would overstate the load when those allocations do not overlap each other."""
+    if not allocations:
+        return 0
+    peak = 0
+    week = first - timedelta(days=first.weekday())
+    while week <= last:
+        friday = week + timedelta(days=4)
+        total = sum(a.allocation_pct for a in allocations if a.start_date <= friday and a.end_date >= week)
+        peak = max(peak, total)
+        week += timedelta(weeks=1)
+    return peak

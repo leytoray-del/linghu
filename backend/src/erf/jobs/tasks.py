@@ -12,10 +12,11 @@ from erf.core.clock import Clock
 from erf.core.config import Settings
 from erf.db.session import session_scope
 from erf.domain.enums import ApprovalStep, OutboxStatus, TaskStatus
-from erf.infrastructure.mail.senders import MailSender, OutgoingMail
+from erf.infrastructure.mail.senders import Attachment, MailSender, OutgoingMail
 from erf.repositories.requests import OutboxRepository, RequestRepository, TaskRepository
 from erf.repositories.users import SessionRepository
 from erf.services.context import ServiceContext
+from erf.services.digest_service import DigestService
 from erf.services.notifications import Event, NotificationService
 from erf.services.workflow_service import WorkflowService
 
@@ -35,6 +36,7 @@ def dispatch_outbox(factory: sessionmaker[Session], clock: Clock, sender: MailSe
                 subject=row.subject,
                 html=row.body_html,
                 text=row.body_text,
+                attachments=[Attachment(**x) for x in json.loads(row.attachments or "[]")],
             )
             row.attempts += 1
             try:
@@ -57,7 +59,8 @@ def dispatch_outbox(factory: sessionmaker[Session], clock: Clock, sender: MailSe
 
 
 def send_reminders(factory: sessionmaker[Session], clock: Clock, settings: Settings) -> int:
-    """Remind approvers about overdue tasks. From the configured reminder onwards, copy the director."""
+    """Remind approvers about overdue urgent tasks, which cannot wait for the next daily digest.
+    From the configured reminder onwards, copy the director."""
     count = 0
     with session_scope(factory) as session:
         ctx = ServiceContext(session, clock, settings)
@@ -67,7 +70,7 @@ def send_reminders(factory: sessionmaker[Session], clock: Clock, settings: Setti
         workflow = WorkflowService(ctx)
         now = clock.now()
         for task in TaskRepository(session).overdue(now):
-            if task.status != TaskStatus.PENDING.value:
+            if task.status != TaskStatus.PENDING.value or not task.request.is_urgent:
                 continue
             if task.last_reminded_at and now - task.last_reminded_at < interval:
                 continue
@@ -91,10 +94,24 @@ def auto_close(factory: sessionmaker[Session], clock: Clock, settings: Settings)
     with session_scope(factory) as session:
         ctx = ServiceContext(session, clock, settings)
         workflow = WorkflowService(ctx)
-        due = RequestRepository(session).due_for_close(clock.today())
+        due = [
+            r
+            for r in RequestRepository(session).due_for_close(clock.today())
+            if not workflow.pending_change(r)
+        ]
         for request in due:
             workflow.close(None, request)
         return len(due)
+
+
+def send_daily_digest(factory: sessionmaker[Session], clock: Clock, settings: Settings) -> int:
+    with session_scope(factory) as session:
+        return DigestService(ServiceContext(session, clock, settings)).daily()
+
+
+def send_weekly_summary(factory: sessionmaker[Session], clock: Clock, settings: Settings) -> int:
+    with session_scope(factory) as session:
+        return DigestService(ServiceContext(session, clock, settings)).weekly()
 
 
 def purge_sessions(factory: sessionmaker[Session], clock: Clock) -> int:

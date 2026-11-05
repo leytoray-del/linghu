@@ -32,6 +32,10 @@ class ApprovalTask(TimestampMixin, Base):
     reminded_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_reminded_at: Mapped[datetime | None] = mapped_column(DateTime)
     acted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    change_id: Mapped[int | None] = mapped_column(
+        ForeignKey("request_changes.id", ondelete="CASCADE"), index=True
+    )
+    """Set for CHANGE_REVIEW tasks: the change being reviewed."""
 
     request: Mapped[ResourceRequest] = relationship(back_populates="tasks")
     assignee: Mapped[User] = relationship(lazy="joined")
@@ -106,3 +110,32 @@ class NotificationOutbox(TimestampMixin, Base):
     next_attempt_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     last_error: Mapped[str | None] = mapped_column(Text)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    attachments: Mapped[str | None] = mapped_column(Text)
+    """JSON list of {filename, content_type, content} text attachments, such as calendar files."""
+
+
+class RequestChange(TimestampMixin, Base):
+    """A requested change to the dates or headcount of an approved request, reviewed by the team leader."""
+
+    __tablename__ = "request_changes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_id: Mapped[int] = mapped_column(
+        ForeignKey("resource_requests.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    requested_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    old_start: Mapped[date] = mapped_column(Date, nullable=False)
+    old_end: Mapped[date] = mapped_column(Date, nullable=False)
+    old_headcount: Mapped[int | None] = mapped_column(Integer)
+    new_start: Mapped[date] = mapped_column(Date, nullable=False)
+    new_end: Mapped[date] = mapped_column(Date, nullable=False)
+    new_headcount: Mapped[int | None] = mapped_column(Integer)
+    decided_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    decision_comment: Mapped[str | None] = mapped_column(Text)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    request: Mapped[ResourceRequest] = relationship(back_populates="changes")
+    requested_by: Mapped[User] = relationship(lazy="joined", foreign_keys=[requested_by_id])
+    decided_by: Mapped[User | None] = relationship(lazy="joined", foreign_keys=[decided_by_id])

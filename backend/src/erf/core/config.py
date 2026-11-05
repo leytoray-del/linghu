@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_starttls: bool = True
     smtp_timeout_seconds: int = 20
+    mail_redirect_to: str | None = None
+    """Demo and test installations: deliver every email to this address instead of the real recipients."""
 
     # Static frontend (optional; in production Caddy serves it)
     frontend_dist: Path | None = None

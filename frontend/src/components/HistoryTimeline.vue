@@ -9,6 +9,10 @@ const ordered = computed(() => [...props.events].reverse())
 
 function detail(e: EventOut): string {
   const p = e.payload ?? {}
+  if (typeof p.change === 'string') {
+    const names = Array.isArray(p.engineers) ? ` · ${(p.engineers as string[]).join(', ')}` : ''
+    return `${p.change}${names}`
+  }
   if (Array.isArray(p.engineers)) return (p.engineers as string[]).join(', ')
   if (e.action === 'SUBMIT' || e.action === 'RESUBMIT') {
     const days = p.notice_working_days as number | undefined

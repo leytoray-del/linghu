@@ -4,12 +4,19 @@ from erf.db.models.request import RequestPreferredEngineer, ResourceRequest
 from erf.db.models.settings import Holiday, Sequence, SystemSetting
 from erf.db.models.team import SupportType, Team, TeamApprover
 from erf.db.models.user import User, UserRole, UserSession
-from erf.db.models.workflow import ApprovalTask, NotificationOutbox, RequestEvent, ResourceAllocation
+from erf.db.models.workflow import (
+    ApprovalTask,
+    NotificationOutbox,
+    RequestChange,
+    RequestEvent,
+    ResourceAllocation,
+)
 
 __all__ = [
     "ApprovalTask",
     "Holiday",
     "NotificationOutbox",
+    "RequestChange",
     "RequestEvent",
     "RequestPreferredEngineer",
     "ResourceAllocation",

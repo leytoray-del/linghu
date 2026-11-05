@@ -53,14 +53,18 @@ def test_outbox_delivery_and_retry(login, lookups, container, clock) -> None:  #
 
 
 def test_reminders_for_overdue_tasks(container, clock, settings) -> None:  # type: ignore[no-untyped-def]
-    # The seeded "Helpdesk Platform Cut-over" task has been waiting since five days ago.
+    # Only urgent tasks get individual reminders. The seeded urgent "CSPL Data Migration Phase 2" was
+    # submitted yesterday afternoon with a four-hour deadline, so it is overdue now.
     assert tasks.send_reminders(container.factory, clock, settings) >= 1
     assert tasks.send_reminders(container.factory, clock, settings) == 0, "not again within the interval"
     with session_scope(container.factory) as s:
         rows = s.scalars(
             select(NotificationOutbox).where(NotificationOutbox.event_type == "TASK_REMINDER")
         ).all()
-        assert any("Helpdesk Platform Cut-over" in r.subject for r in rows)
+        assert any("CSPL Data Migration Phase 2" in r.subject for r in rows)
+        assert not any("Helpdesk Platform Cut-over" in r.subject for r in rows), (
+            "normal tasks go in the digest"
+        )
 
 
 def test_auto_close_after_planned_end(container, clock, settings) -> None:  # type: ignore[no-untyped-def]
@@ -87,6 +91,18 @@ def test_migrations_match_models(tmp_path: Path, monkeypatch) -> None:  # type: 
         engine = build_engine(url)
         with engine.connect() as conn:
             diff = compare_metadata(MigrationContext.configure(conn), Base.metadata)
+        # Migration 0002 adds approval_tasks.change_id in place with a column-level foreign key, so no
+        # table is rebuilt. SQLAlchemy cannot read the name of such a constraint back from SQLite and
+        # reports it as removed and re-added; the constraint itself exists.
+        diff = [
+            d
+            for d in diff
+            if not (
+                d[0] in ("add_fk", "remove_fk")
+                and d[1].parent.name == "approval_tasks"
+                and [c.name for c in d[1].columns] == ["change_id"]
+            )
+        ]
         assert diff == [], diff
         command.downgrade(cfg, "base")
     finally:

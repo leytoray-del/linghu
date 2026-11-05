@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Response, status
@@ -9,6 +10,8 @@ from erf.domain.enums import Action, RequestStatus
 from erf.schemas.common import Page
 from erf.schemas.requests import (
     AllocationCandidate,
+    ChangeDecisionIn,
+    ChangeIn,
     CommentIn,
     DecisionIn,
     NoticePreviewIn,
@@ -110,6 +113,7 @@ def decide(request_id: int, body: DecisionIn, user: CurrentUser, ctx: Ctx) -> Re
         comment=body.comment,
         version=body.version,
         engineer_ids=body.engineer_ids,
+        allocations=[(a.engineer_id, a.allocation_pct) for a in body.allocations],
     )
     return service.to_detail(user, request)
 
@@ -139,9 +143,52 @@ def close(request_id: int, body: VersionIn, user: CurrentUser, ctx: Ctx) -> Requ
     return service.to_detail(user, request)
 
 
+@router.post("/{request_id}/changes", response_model=RequestDetail, status_code=status.HTTP_201_CREATED)
+def request_change(request_id: int, body: ChangeIn, user: CurrentUser, ctx: Ctx) -> RequestDetail:
+    service = RequestService(ctx)
+    request = service.load_visible(user, request_id)
+    WorkflowService(ctx).request_change(
+        user,
+        request,
+        new_start=body.new_start,
+        new_end=body.new_end,
+        new_headcount=body.new_headcount,
+        reason=body.reason,
+        version=body.version,
+    )
+    return service.to_detail(user, request)
+
+
+@router.post("/{request_id}/changes/{change_id}/decision", response_model=RequestDetail)
+def decide_change(
+    request_id: int, change_id: int, body: ChangeDecisionIn, user: CurrentUser, ctx: Ctx
+) -> RequestDetail:
+    service = RequestService(ctx)
+    request = service.load_visible(user, request_id)
+    WorkflowService(ctx).decide_change(
+        user,
+        request,
+        change_id,
+        body.action,
+        comment=body.comment,
+        allocations=[(a.engineer_id, a.allocation_pct) for a in body.allocations],
+    )
+    return service.to_detail(user, request)
+
+
+@router.post("/{request_id}/changes/{change_id}/withdraw", response_model=RequestDetail)
+def withdraw_change(request_id: int, change_id: int, user: CurrentUser, ctx: Ctx) -> RequestDetail:
+    service = RequestService(ctx)
+    request = service.load_visible(user, request_id)
+    WorkflowService(ctx).withdraw_change(user, request, change_id)
+    return service.to_detail(user, request)
+
+
 @router.get("/{request_id}/candidates", response_model=list[AllocationCandidate])
-def allocation_candidates(request_id: int, user: CurrentUser, ctx: Ctx) -> list[AllocationCandidate]:
-    return ResourceService(ctx).candidates(user, request_id)
+def allocation_candidates(
+    request_id: int, user: CurrentUser, ctx: Ctx, start: date | None = None, end: date | None = None
+) -> list[AllocationCandidate]:
+    return ResourceService(ctx).candidates(user, request_id, start, end)
 
 
 @tasks_router.get("/mine", response_model=list[TaskInboxItem])

@@ -1,0 +1,8 @@
+{{ rows|length }} request{{ '' if rows|length == 1 else 's' }} waiting for your decision{% if overdue %} ({{ overdue }} overdue){% endif %}
+
+{% for row in rows %}- {{ row.no }} {{ row.project }} ({{ row.client }}, {{ row.requester }}){% if row.urgent %} URGENT{% endif %}
+  {{ row.step }} · starts {{ row.start.strftime('%d %b') if row.start else '-' }} · waiting {{ row.waiting_days }} d · due {{ row.due }}{% if row.overdue %} OVERDUE{% endif %}
+{% if row.note %}  {{ row.note }}
+{% endif %}  {{ row.link }}
+{% endfor %}
+Open approvals: {{ inbox }}

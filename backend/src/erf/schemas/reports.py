@@ -21,6 +21,7 @@ class LoadAssignment(Schema):
     client_name: str | None
     start_date: date
     end_date: date
+    allocation_pct: int
     status: str
 
 

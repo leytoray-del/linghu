@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Weekly resource summary</title></head>
+<body style="margin:0;padding:24px;background:#f3f5f8;font-family:Segoe UI,Arial,sans-serif;color:#17202c;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #d9dfe8;border-radius:6px;">
+    <tr><td style="padding:20px 24px;border-bottom:1px solid #d9dfe8;">
+      <div style="font-size:12px;color:#5a6577;letter-spacing:.04em;text-transform:uppercase;">{{ app_name }}</div>
+      <div style="font-size:18px;font-weight:600;margin-top:4px;">Weekly resource summary, {{ week_start }} – {{ week_end }}</div>
+    </td></tr>
+    <tr><td style="padding:16px 24px;">
+      <table role="presentation" cellpadding="10" cellspacing="0" style="width:100%;border-collapse:collapse;text-align:center;font-size:13px;">
+        <tr>
+          <td style="border:1px solid #d9dfe8;"><div style="font-size:22px;font-weight:600;">{{ submitted }}</div>submitted</td>
+          <td style="border:1px solid #d9dfe8;{% if urgent %}color:#b3261e;{% endif %}"><div style="font-size:22px;font-weight:600;">{{ urgent }}</div>urgent</td>
+          <td style="border:1px solid #d9dfe8;"><div style="font-size:22px;font-weight:600;">{{ approved }}</div>approved</td>
+          <td style="border:1px solid #d9dfe8;"><div style="font-size:22px;font-weight:600;">{{ rejected }}</div>rejected</td>
+          <td style="border:1px solid #d9dfe8;"><div style="font-size:22px;font-weight:600;">{{ changes }}</div>changes approved</td>
+        </tr>
+      </table>
+
+      <h3 style="font-size:15px;margin:22px 0 8px;">Waiting for approval ({{ waiting|length }})</h3>
+      {% if waiting %}
+      <table role="presentation" cellpadding="7" cellspacing="0" style="width:100%;font-size:13px;border-collapse:collapse;">
+        {% for w in waiting %}
+        <tr style="border-bottom:1px solid #d9dfe8;">
+          <td><a href="{{ w.link }}" style="color:#2254c5;">{{ w.r.display_no }}</a> {{ w.r.project_name }}{% if w.r.is_urgent %}<span style="color:#b3261e;"> · URGENT</span>{% endif %}</td>
+          <td style="color:#5a6577;">with {{ w.with or '-' }}</td>
+          <td style="white-space:nowrap;{% if w.overdue %}color:#b3261e;font-weight:600;{% endif %}">{{ w.days }} d{% if w.overdue %} · overdue{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<p style="margin:0;color:#5a6577;">Nothing is waiting.</p>{% endif %}
+
+      <h3 style="font-size:15px;margin:22px 0 8px;">Starting in the next 14 days ({{ starting|length }})</h3>
+      {% if starting %}
+      <table role="presentation" cellpadding="7" cellspacing="0" style="width:100%;font-size:13px;border-collapse:collapse;">
+        {% for s in starting %}
+        <tr style="border-bottom:1px solid #d9dfe8;">
+          <td style="white-space:nowrap;">{{ s.r.planned_start.strftime('%a %d %b') }}</td>
+          <td><a href="{{ s.link }}" style="color:#2254c5;">{{ s.r.display_no }}</a> {{ s.r.project_name }} · {{ s.r.client_name }}</td>
+          <td style="white-space:nowrap;{% if not s.confirmed %}color:#a35c00;font-weight:600;{% endif %}">{{ 'Resources confirmed' if s.confirmed else 'Not yet approved' }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<p style="margin:0;color:#5a6577;">No requests start in the next two weeks.</p>{% endif %}
+
+      {% if short_notice %}
+      <h3 style="font-size:15px;margin:22px 0 8px;">Short-notice submissions this week ({{ short_notice|length }})</h3>
+      <table role="presentation" cellpadding="7" cellspacing="0" style="width:100%;font-size:13px;border-collapse:collapse;">
+        {% for r in short_notice %}
+        <tr style="border-bottom:1px solid #d9dfe8;">
+          <td>{{ r.display_no }} {{ r.project_name }}</td>
+          <td style="color:#5a6577;">{{ r.requester.display_name }}</td>
+          <td style="white-space:nowrap;color:#b3261e;">{{ r.notice_working_days }} working days notice</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+
+      <p style="margin:22px 0 0;"><a href="{{ dashboard }}" style="display:inline-block;background:#2254c5;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:4px;font-weight:600;">Open reports</a></p>
+    </td></tr>
+    <tr><td style="padding:14px 24px;border-top:1px solid #d9dfe8;font-size:12px;color:#5a6577;">Sent to directors every Monday morning.</td></tr>
+  </table>
+</body>
+</html>

@@ -37,6 +37,7 @@ export const TYPE_LABEL: Record<RequestType, string> = {
 export const STEP_LABEL: Record<string, string> = {
   TL_REVIEW: 'Team leader review',
   DIRECTOR_APPROVAL: 'Director approval',
+  CHANGE_REVIEW: 'Change review',
 }
 
 export const EVENT_LABEL: Record<string, string> = {
@@ -50,7 +51,13 @@ export const EVENT_LABEL: Record<string, string> = {
   WITHDRAW: 'Withdrew the request',
   CANCEL: 'Cancelled the request',
   CLOSE: 'Closed',
+  CHANGE_REQUEST: 'Asked for a change',
+  CHANGE_APPROVE: 'Approved the change',
+  CHANGE_REJECT: 'Rejected the change',
+  CHANGE_WITHDRAW: 'Withdrew the change request',
 }
+
+export const PCT_OPTIONS = [100, 75, 50, 25]
 
 /** Backend timestamps are naive UTC; dates are plain YYYY-MM-DD. */
 export function parseUtc(value: string): dayjs.Dayjs {

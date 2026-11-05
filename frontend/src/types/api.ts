@@ -95,13 +95,41 @@ export interface AllocationOut {
   engineer: UserRef
   start_date: string
   end_date: string
+  allocation_pct: number
   status: 'PROPOSED' | 'CONFIRMED' | 'RELEASED'
+}
+
+export type ChangeStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN'
+
+export interface ChangeOut {
+  id: number
+  status: ChangeStatus
+  summary: string
+  reason: string
+  old_start: string
+  old_end: string
+  old_headcount: number | null
+  new_start: string
+  new_end: string
+  new_headcount: number | null
+  requested_by: UserRef
+  decided_by: UserRef | null
+  decision_comment: string | null
+  decided_at: string | null
+  created_at: string
+}
+
+export type Step = 'TL_REVIEW' | 'DIRECTOR_APPROVAL' | 'CHANGE_REVIEW'
+
+export interface AllocationInput {
+  engineer_id: number
+  allocation_pct: number
 }
 
 export interface TaskOut {
   id: number
   round: number
-  step: 'TL_REVIEW' | 'DIRECTOR_APPROVAL'
+  step: Step
   assignee: UserRef
   status: 'PENDING' | 'APPROVED' | 'RETURNED' | 'REJECTED' | 'CLOSED'
   decision_comment: string | null
@@ -140,6 +168,9 @@ export interface RequestDetail extends RequestSummary {
   available_actions: Action[]
   can_edit: boolean
   can_delete: boolean
+  changes: ChangeOut[]
+  can_request_change: boolean
+  change_awaiting_me: number | null
 }
 
 export interface RequestInput {
@@ -182,6 +213,7 @@ export interface CandidateAssignment {
   project_name: string | null
   start_date: string
   end_date: string
+  allocation_pct: number
   status: string
 }
 
@@ -190,14 +222,16 @@ export interface AllocationCandidate {
   skills: string | null
   is_preferred: boolean
   overlapping: CandidateAssignment[]
+  peak_pct: number
 }
 
 export interface TaskInboxItem {
   task_id: number
-  step: 'TL_REVIEW' | 'DIRECTOR_APPROVAL'
+  step: Step
   due_at: string | null
   is_overdue: boolean
   request: RequestSummary
+  change_summary: string | null
 }
 
 export interface Dashboard {
@@ -220,6 +254,7 @@ export interface LoadAssignment {
   client_name: string | null
   start_date: string
   end_date: string
+  allocation_pct: number
   status: string
 }
 

@@ -49,9 +49,13 @@ function inWeek(assignments: LoadAssignment[], w: { start: string; end: string }
   return assignments.filter((a) => a.start_date <= w.end && a.end_date >= w.start)
 }
 
+function weekPct(list: LoadAssignment[]): number {
+  return list.reduce((sum, a) => sum + a.allocation_pct, 0)
+}
+
 function cellClass(list: LoadAssignment[]): string[] {
-  const n = list.length
-  const classes = [n === 0 ? '' : n === 1 ? 'l1' : n === 2 ? 'l2' : 'l3']
+  const pct = weekPct(list)
+  const classes = [pct === 0 ? '' : pct <= 100 ? 'l1' : pct <= 150 ? 'l2' : 'l3']
   if (list.some((a) => a.status === 'PROPOSED')) classes.push('pending')
   return classes
 }
@@ -73,8 +77,8 @@ onMounted(async () => {
       <div>
         <h1>Resource load</h1>
         <p class="sub">
-          Active assignments per engineer per week, including allocations that are still waiting for the director. Use
-          it to spot conflicts before you assign engineers.
+          How much of each engineer's time is booked per week, including allocations that are still waiting for the
+          director. Use it to spot overbooking before you assign engineers.
         </p>
       </div>
       <div class="controls">
@@ -90,9 +94,9 @@ onMounted(async () => {
     </div>
 
     <div class="legend">
-      <span><i class="l1"></i>1 assignment</span>
-      <span><i class="l2"></i>2 assignments</span>
-      <span><i class="l3"></i>3 or more</span>
+      <span><i class="l1"></i>Up to 100% booked</span>
+      <span><i class="l2"></i>101–150%</span>
+      <span><i class="l3"></i>Over 150%</span>
       <span><i class="pending"></i>Includes pending approval</span>
     </div>
 
@@ -115,10 +119,10 @@ onMounted(async () => {
                 <el-tooltip v-if="inWeek(e.assignments, w).length" placement="top">
                   <template #content>
                     <div v-for="a in inWeek(e.assignments, w)" :key="a.request_id">
-                      {{ a.display_no }} {{ a.project_name }} · {{ fmtRange(a.start_date, a.end_date) }}{{ a.status === 'PROPOSED' ? ' (pending)' : '' }}
+                      {{ a.display_no }} {{ a.project_name }} · {{ a.allocation_pct }}% · {{ fmtRange(a.start_date, a.end_date) }}{{ a.status === 'PROPOSED' ? ' (pending)' : '' }}
                     </div>
                   </template>
-                  <span>{{ inWeek(e.assignments, w).length }}</span>
+                  <span>{{ weekPct(inWeek(e.assignments, w)) }}%</span>
                 </el-tooltip>
               </td>
             </tr>

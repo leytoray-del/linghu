@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Approvals waiting for you</title></head>
+<body style="margin:0;padding:24px;background:#f3f5f8;font-family:Segoe UI,Arial,sans-serif;color:#17202c;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #d9dfe8;border-radius:6px;">
+    <tr><td style="padding:20px 24px;border-bottom:1px solid #d9dfe8;">
+      <div style="font-size:12px;color:#5a6577;letter-spacing:.04em;text-transform:uppercase;">{{ app_name }}</div>
+      <div style="font-size:18px;font-weight:600;margin-top:4px;">{{ rows|length }} request{{ '' if rows|length == 1 else 's' }} waiting for your decision</div>
+    </td></tr>
+    <tr><td style="padding:16px 24px;">
+      <p style="margin:0 0 14px;">Good morning {{ user.display_name.split(' ')[0] }}.{% if overdue %} <strong style="color:#b3261e;">{{ overdue }} {{ 'is' if overdue == 1 else 'are' }} past the deadline.</strong>{% endif %}</p>
+      <table role="presentation" cellpadding="8" cellspacing="0" style="width:100%;font-size:13px;border-collapse:collapse;">
+        <tr style="background:#edf0f5;color:#5a6577;text-align:left;">
+          <th>Request</th><th>Step</th><th>Start</th><th>Waiting</th><th>Due</th>
+        </tr>
+        {% for row in rows %}
+        <tr style="border-bottom:1px solid #d9dfe8;vertical-align:top;">
+          <td><a href="{{ row.link }}" style="color:#2254c5;">{{ row.no }}</a> {{ row.project }}<br>
+            <span style="color:#5a6577;">{{ row.client }} · {{ row.requester }}</span>
+            {% if row.urgent %}<span style="color:#b3261e;font-weight:600;"> · URGENT</span>{% endif %}
+            {% if row.note %}<br><span style="color:#5a6577;">{{ row.note }}</span>{% endif %}</td>
+          <td>{{ row.step }}</td>
+          <td style="white-space:nowrap;">{{ row.start.strftime('%d %b') if row.start else '-' }}</td>
+          <td>{{ row.waiting_days }} d</td>
+          <td style="white-space:nowrap;{% if row.overdue %}color:#b3261e;font-weight:600;{% endif %}">{{ row.due }}{% if row.overdue %}<br>overdue{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      <p style="margin:18px 0 0;"><a href="{{ inbox }}" style="display:inline-block;background:#2254c5;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:4px;font-weight:600;">Open approvals</a></p>
+    </td></tr>
+    <tr><td style="padding:14px 24px;border-top:1px solid #d9dfe8;font-size:12px;color:#5a6577;">Sent every working day at 08:30 while requests are waiting for you.</td></tr>
+  </table>
+</body>
+</html>
