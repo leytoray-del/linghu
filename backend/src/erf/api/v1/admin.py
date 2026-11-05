@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Response, status
+
+from erf.api.deps import Ctx, require_roles
+from erf.db.models import User
+from erf.domain.enums import OutboxStatus, Role
+from erf.repositories.settings import SupportTypeRepository
+from erf.repositories.users import TeamRepository, UserRepository
+from erf.schemas.admin import (
+    HolidayAdminOut,
+    HolidayIn,
+    OutboxSummary,
+    SettingIn,
+    SettingOut,
+    SupportTypeIn,
+    SupportTypeOut,
+    TeamApproversIn,
+    TeamOut,
+    TemporaryPasswordOut,
+    UserCreateIn,
+    UserOut,
+    UserUpdateIn,
+)
+from erf.schemas.auth import TeamBrief
+from erf.services.admin_service import AdminService
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+Admin = Annotated[User, Depends(require_roles(Role.ADMIN))]
+
+
+def user_out(u: User) -> UserOut:
+    return UserOut(
+        id=u.id,
+        email=u.email,
+        display_name=u.display_name,
+        job_title=u.job_title,
+        team=TeamBrief.model_validate(u.team) if u.team else None,
+        skills=u.skills,
+        roles=sorted(u.roles),
+        is_active=u.is_active,
+        must_change_password=u.must_change_password,
+        last_login_at=u.last_login_at,
+    )
+
+
+@router.get("/users", response_model=list[UserOut])
+def list_users(admin: Admin, ctx: Ctx) -> list[UserOut]:
+    return [user_out(u) for u in UserRepository(ctx.session).list_all()]
+
+
+@router.post("/users", response_model=TemporaryPasswordOut, status_code=status.HTTP_201_CREATED)
+def create_user(body: UserCreateIn, admin: Admin, ctx: Ctx) -> TemporaryPasswordOut:
+    user, password = AdminService(ctx, admin).create_user(body)
+    ctx.session.flush()
+    return TemporaryPasswordOut(user=user_out(user), temporary_password=password)
+
+
+@router.put("/users/{user_id}", response_model=UserOut)
+def update_user(user_id: int, body: UserUpdateIn, admin: Admin, ctx: Ctx) -> UserOut:
+    return user_out(AdminService(ctx, admin).update_user(user_id, body))
+
+
+@router.post("/users/{user_id}/reset-password", response_model=TemporaryPasswordOut)
+def reset_password(user_id: int, admin: Admin, ctx: Ctx) -> TemporaryPasswordOut:
+    user, password = AdminService(ctx, admin).reset_password(user_id)
+    return TemporaryPasswordOut(user=user_out(user), temporary_password=password)
+
+
+@router.get("/teams", response_model=list[TeamOut])
+def list_teams(admin: Admin, ctx: Ctx) -> list[TeamOut]:
+    service = AdminService(ctx, admin)
+    return [service.team_out(t.id) for t in TeamRepository(ctx.session).list_all()]
+
+
+@router.put("/teams/{team_id}/approvers", response_model=TeamOut)
+def set_approvers(team_id: int, body: TeamApproversIn, admin: Admin, ctx: Ctx) -> TeamOut:
+    return AdminService(ctx, admin).set_team_approvers(team_id, body.approver_ids)
+
+
+@router.get("/support-types", response_model=list[SupportTypeOut])
+def list_support_types(admin: Admin, ctx: Ctx) -> list[SupportTypeOut]:
+    return [SupportTypeOut.model_validate(s) for s in SupportTypeRepository(ctx.session).list_all()]
+
+
+@router.post("/support-types", response_model=SupportTypeOut, status_code=status.HTTP_201_CREATED)
+def create_support_type(body: SupportTypeIn, admin: Admin, ctx: Ctx) -> SupportTypeOut:
+    return SupportTypeOut.model_validate(AdminService(ctx, admin).save_support_type(body))
+
+
+@router.put("/support-types/{type_id}", response_model=SupportTypeOut)
+def update_support_type(type_id: int, body: SupportTypeIn, admin: Admin, ctx: Ctx) -> SupportTypeOut:
+    return SupportTypeOut.model_validate(AdminService(ctx, admin).save_support_type(body, type_id))
+
+
+@router.get("/holidays", response_model=list[HolidayAdminOut])
+def list_holidays(admin: Admin, ctx: Ctx, year: int | None = None) -> list[HolidayAdminOut]:
+    return [HolidayAdminOut.model_validate(h) for h in AdminService(ctx, admin).holidays(year)]
+
+
+@router.post("/holidays", response_model=HolidayAdminOut, status_code=status.HTTP_201_CREATED)
+def add_holiday(body: HolidayIn, admin: Admin, ctx: Ctx) -> HolidayAdminOut:
+    return HolidayAdminOut.model_validate(AdminService(ctx, admin).add_holiday(body))
+
+
+@router.delete("/holidays/{holiday_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_holiday(holiday_id: int, admin: Admin, ctx: Ctx) -> Response:
+    AdminService(ctx, admin).delete_holiday(holiday_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/settings", response_model=list[SettingOut])
+def list_settings(admin: Admin, ctx: Ctx) -> list[SettingOut]:
+    return AdminService(ctx, admin).settings()
+
+
+@router.put("/settings/{key}", response_model=list[SettingOut])
+def update_setting(key: str, body: SettingIn, admin: Admin, ctx: Ctx) -> list[SettingOut]:
+    return AdminService(ctx, admin).set_setting(key, body.value)
+
+
+@router.get("/outbox", response_model=OutboxSummary)
+def outbox(admin: Admin, ctx: Ctx, status_filter: OutboxStatus | None = None) -> OutboxSummary:
+    return AdminService(ctx, admin).outbox(status_filter)
+
+
+@router.post("/outbox/{row_id}/retry", status_code=status.HTTP_204_NO_CONTENT)
+def retry_outbox(row_id: int, admin: Admin, ctx: Ctx) -> Response:
+    AdminService(ctx, admin).retry_email(row_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

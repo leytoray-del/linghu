@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>{{ heading }}</title></head>
+<body style="margin:0;padding:24px;background:#f3f5f8;font-family:Segoe UI,Arial,sans-serif;color:#17202c;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #d9dfe8;border-radius:6px;">
+    <tr><td style="padding:20px 24px;border-bottom:1px solid #d9dfe8;">
+      <div style="font-size:12px;color:#5a6577;letter-spacing:.04em;text-transform:uppercase;">{{ app_name }}</div>
+      <div style="font-size:18px;font-weight:600;margin-top:4px;">{{ heading }}</div>
+    </td></tr>
+    <tr><td style="padding:20px 24px;">
+      {% if r.is_urgent %}<p style="margin:0 0 12px;color:#b3261e;font-weight:600;">Urgent request{% if r.notice_working_days is not none %} ({{ r.notice_working_days }} working days notice){% endif %}</p>{% endif %}
+      <p style="margin:0 0 16px;line-height:1.5;">{{ message }}</p>
+      {% if comment %}<p style="margin:0 0 16px;padding:10px 12px;background:#edf0f5;border-radius:4px;line-height:1.5;"><strong>{{ actor }}:</strong> {{ comment }}</p>{% endif %}
+      <table role="presentation" cellpadding="6" cellspacing="0" style="width:100%;font-size:14px;border-collapse:collapse;">
+        <tr><td style="color:#5a6577;width:180px;">Request</td><td>{{ r.display_no }}</td></tr>
+        <tr><td style="color:#5a6577;">Project / opportunity</td><td>{{ r.project_name }}</td></tr>
+        <tr><td style="color:#5a6577;">Client</td><td>{{ r.client_name }}</td></tr>
+        <tr><td style="color:#5a6577;">Request type</td><td>{{ request_type }}</td></tr>
+        <tr><td style="color:#5a6577;">Support needed</td><td>{{ r.headcount }} × {{ r.support_type.name if r.support_type else "" }}</td></tr>
+        <tr><td style="color:#5a6577;">Planned period</td><td>{{ r.planned_start.strftime('%d %b %Y') if r.planned_start }} – {{ r.planned_end.strftime('%d %b %Y') if r.planned_end }}</td></tr>
+        <tr><td style="color:#5a6577;">Requested by</td><td>{{ r.requester.display_name }}</td></tr>
+        {% if allocations %}<tr><td style="color:#5a6577;">Engineers</td><td>{% for a in allocations %}{{ a.engineer.display_name }}{% if not loop.last %}, {% endif %}{% endfor %}</td></tr>{% endif %}
+      </table>
+      <p style="margin:20px 0 0;"><a href="{{ link }}" style="display:inline-block;background:#2254c5;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:4px;font-weight:600;">{{ button }}</a></p>
+    </td></tr>
+    <tr><td style="padding:14px 24px;border-top:1px solid #d9dfe8;font-size:12px;color:#5a6577;">This message was sent automatically. Sign in to the system to act on the request.</td></tr>
+  </table>
+</body>
+</html>

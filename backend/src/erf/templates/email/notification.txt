@@ -1,0 +1,18 @@
+{{ heading }}
+
+{% if r.is_urgent %}URGENT REQUEST{% if r.notice_working_days is not none %} ({{ r.notice_working_days }} working days notice){% endif %}
+
+{% endif %}{{ message }}
+{% if comment %}
+{{ actor }}: {{ comment }}
+{% endif %}
+Request:               {{ r.display_no }}
+Project / opportunity: {{ r.project_name }}
+Client:                {{ r.client_name }}
+Request type:          {{ request_type }}
+Support needed:        {{ r.headcount }} x {{ r.support_type.name if r.support_type else "" }}
+Planned period:        {{ r.planned_start.strftime('%d %b %Y') if r.planned_start }} - {{ r.planned_end.strftime('%d %b %Y') if r.planned_end }}
+Requested by:          {{ r.requester.display_name }}
+{% if allocations %}Engineers:             {% for a in allocations %}{{ a.engineer.display_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+{% endif %}
+{{ button }}: {{ link }}
