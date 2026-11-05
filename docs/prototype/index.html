@@ -1,0 +1,754 @@
+<title>Engineering Resource Requests</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: internal workflow tool. Fixed left rail for navigation, top bar with role switcher, content column of panels. */
+:root {
+  --bg: #F3F5F8;
+  --surface: #FFFFFF;
+  --surface-2: #EDF0F5;
+  --fg: #17202C;
+  --muted: #5A6577;
+  --line: #D9DFE8;
+  --accent: #2254C5;
+  --accent-fg: #FFFFFF;
+  --ok: #17784A;
+  --warn: #A35C00;
+  --bad: #B3261E;
+  --rail: #1B2533;
+  --rail-fg: #C9D2DF;
+  --rail-active: #2B3A50;
+  --font-ui: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F141B; --surface: #161D27; --surface-2: #1C2531; --fg: #E4E9F0; --muted: #96A2B4; --line: #2A3442;
+    --accent: #7AA2F7; --accent-fg: #0F141B; --ok: #4FC48A; --warn: #E9A94A; --bad: #F0776D;
+    --rail: #0B1016; --rail-fg: #AEB9C9; --rail-active: #1E2938; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F141B; --surface: #161D27; --surface-2: #1C2531; --fg: #E4E9F0; --muted: #96A2B4; --line: #2A3442;
+  --accent: #7AA2F7; --accent-fg: #0F141B; --ok: #4FC48A; --warn: #E9A94A; --bad: #F0776D;
+  --rail: #0B1016; --rail-fg: #AEB9C9; --rail-active: #1E2938; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 14px; line-height: 1.5; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100%; }
+.rail { background: var(--rail); color: var(--rail-fg); padding-block: 20px; padding-inline: 14px; display: flex; flex-direction: column; gap: 22px; }
+.brand { display: flex; flex-direction: column; gap: 2px; padding-inline: 8px; }
+.brand b { color: #FFFFFF; font-size: 15px; letter-spacing: .01em; }
+.brand span { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; opacity: .7; }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav button { background: none; border: 0; text-align: left; padding: 8px 10px; border-radius: var(--r); color: var(--rail-fg); cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.nav button:hover { background: var(--rail-active); color: #FFFFFF; }
+.nav button[aria-current="page"] { background: var(--rail-active); color: #FFFFFF; font-weight: 600; }
+.nav .count { font-family: var(--font-mono); font-size: 11px; background: #E9A94A; color: #1B2533; border-radius: 10px; padding: 0 7px; font-weight: 500; }
+.rail-note { margin-top: auto; font-size: 12px; opacity: .75; padding-inline: 8px; }
+.main { min-width: 0; display: flex; flex-direction: column; }
+.topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-block: 12px; padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); background: var(--surface); border-bottom: 1px solid var(--line); }
+.proto { font-size: 12px; color: var(--muted); }
+.proto b { color: var(--fg); font-weight: 600; }
+.persona { display: flex; align-items: center; gap: 8px; }
+.persona label { font-size: 12px; color: var(--muted); }
+.persona select { padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); min-width: 0; max-width: 100%; }
+.content { padding-block: 24px 48px; padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 20px; max-width: 1180px; width: 100%; }
+h1 { font-size: 22px; line-height: 1.25; margin: 0; text-wrap: balance; font-weight: 600; }
+h2 { font-size: 15px; margin: 0; font-weight: 600; }
+.sub { color: var(--muted); margin: 4px 0 0; }
+.pagehead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+.tile .lbl { font-size: 12px; color: var(--muted); }
+.tile .num { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tile.attn .num { color: var(--warn); }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: var(--r); cursor: pointer; font-weight: 500; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.btn.link { border: 0; background: none; color: var(--accent); padding: 0; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); }
+table { border-collapse: collapse; width: 100%; min-width: 760px; background: var(--surface); }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; background: var(--surface-2); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+tbody tr.click { cursor: pointer; }
+tbody tr.click:hover td { background: var(--surface-2); }
+.mono { font-family: var(--font-mono); font-size: 12.5px; }
+.nowrap { white-space: nowrap; }
+.muted { color: var(--muted); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 2px 9px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.s-DRAFT { color: var(--muted); background: var(--surface-2); }
+.s-PENDING_TL, .s-PENDING_DIR { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.s-RETURNED { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.s-APPROVED { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.s-REJECTED { color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+.s-WITHDRAWN { color: var(--muted); background: var(--surface-2); }
+.urgent { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; color: var(--bad); border: 1px solid color-mix(in srgb, var(--bad) 50%, transparent); padding: 0 6px; border-radius: 4px; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--surface); padding: 4px 11px; border-radius: 999px; cursor: pointer; font-size: 13px; }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+/* form */
+.form { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.fieldset { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 18px; }
+.fieldset h2 { grid-column: 1 / -1; }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field.full { grid-column: 1 / -1; }
+.field > label, .field > .lbl { font-weight: 500; font-size: 13px; }
+.req { color: var(--bad); }
+.hint { font-size: 12px; color: var(--muted); }
+.field input[type=text], .field input[type=number], .field input[type=date], .field select, .field textarea, .action textarea { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; background: var(--surface); width: 100%; }
+.field textarea, .action textarea { min-height: 92px; resize: vertical; }
+.radios { display: flex; flex-wrap: wrap; gap: 6px; }
+.radios label { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); padding: 6px 12px; border-radius: var(--r); cursor: pointer; background: var(--surface); }
+.radios label:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.radios label:has(input:disabled) { opacity: .5; cursor: not-allowed; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.side { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 16px; }
+.notice { border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); background: var(--surface); }
+.notice .big { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.notice.is-urgent { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); background: color-mix(in srgb, var(--bad) 7%, var(--surface)); }
+.notice.is-urgent .big { color: var(--bad); }
+.notice.is-normal .big { color: var(--ok); }
+.cal-days { display: flex; flex-wrap: wrap; gap: 3px; }
+.cal-days i { width: 14px; height: 14px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--line); }
+.cal-days i.w { background: color-mix(in srgb, var(--ok) 55%, transparent); border-color: transparent; }
+.cal-days i.h { background: color-mix(in srgb, var(--warn) 55%, transparent); border-color: transparent; }
+.route { display: flex; flex-direction: column; gap: 8px; }
+.route-step { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: start; }
+.route-step .dot { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; background: var(--surface-2); border: 1px solid var(--line); }
+.error { color: var(--bad); font-size: 13px; background: color-mix(in srgb, var(--bad) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--bad) 35%, var(--line)); padding: 8px 12px; border-radius: var(--r); }
+.form-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; grid-column: 1 / -1; }
+/* detail */
+.detail { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.dl { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 10px 16px; margin: 0; }
+.dl dt { color: var(--muted); font-size: 13px; }
+.dl dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.stepper { display: flex; flex-direction: column; gap: 0; }
+.step { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding-bottom: 14px; position: relative; }
+.step::after { content: ""; position: absolute; left: 11px; top: 24px; bottom: 0; width: 2px; background: var(--line); }
+.step:last-child::after { display: none; }
+.step .mk { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); display: grid; place-items: center; font-size: 12px; font-weight: 700; z-index: 1; }
+.step.done .mk { background: var(--ok); border-color: var(--ok); color: var(--surface); }
+.step.current .mk { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
+.step.stopped .mk { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+.step .t { font-weight: 500; }
+.step .w { font-size: 12px; color: var(--muted); }
+.timeline { display: flex; flex-direction: column; gap: 12px; }
+.ev { display: flex; flex-direction: column; gap: 2px; padding-left: 12px; border-left: 2px solid var(--line); }
+.ev .meta { font-size: 12px; color: var(--muted); }
+.ev .cmt { background: var(--surface-2); padding: 6px 10px; border-radius: var(--r); font-size: 13px; margin-top: 4px; white-space: pre-wrap; }
+.action { border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.alloc { display: flex; flex-direction: column; gap: 6px; }
+.alloc label { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; }
+.alloc label:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.load { font-family: var(--font-mono); font-size: 11.5px; white-space: nowrap; }
+.load.hi { color: var(--bad); }
+.load.mid { color: var(--warn); }
+.load.lo { color: var(--ok); }
+.tag { font-size: 11px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); padding: 0 6px; border-radius: 4px; margin-left: 6px; }
+.confirm-box { border: 1px dashed var(--bad); border-radius: var(--r); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+/* load grid */
+.heat td.c { text-align: center; font-family: var(--font-mono); font-size: 12px; min-width: 64px; }
+.heat td.c.l1 { background: color-mix(in srgb, var(--ok) 18%, transparent); }
+.heat td.c.l2 { background: color-mix(in srgb, var(--warn) 28%, transparent); }
+.heat td.c.l3 { background: color-mix(in srgb, var(--bad) 30%, transparent); }
+.heat td.c.p { background-image: repeating-linear-gradient(45deg, transparent 0 5px, color-mix(in srgb, var(--accent) 22%, transparent) 5px 7px); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid var(--line); }
+/* bars */
+.bars { display: flex; flex-direction: column; gap: 8px; }
+.bar { display: grid; grid-template-columns: 130px minmax(0, 1fr) 40px; gap: 10px; align-items: center; font-size: 13px; }
+.bar .track { height: 14px; background: var(--surface-2); border-radius: 3px; overflow: hidden; display: flex; }
+.bar .fill { height: 100%; background: var(--accent); }
+.bar .fill.u { background: var(--bad); }
+.bar .v { font-family: var(--font-mono); font-size: 12px; text-align: right; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.kv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; font-size: 13px; }
+.kv span:nth-child(even) { font-family: var(--font-mono); text-align: right; }
+.toast { position: fixed; right: max(20px, env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); padding: 12px 16px; border-radius: var(--r); max-width: min(420px, calc(100vw - 40px)); font-size: 13px; box-shadow: 0 6px 24px rgba(0,0,0,.25); z-index: 20; }
+.toast b { display: block; margin-bottom: 2px; }
+.empty { color: var(--muted); padding: 18px; text-align: center; border: 1px dashed var(--line); border-radius: var(--r); }
+@media (max-width: 1020px) {
+  .form, .detail { grid-template-columns: minmax(0, 1fr); }
+  .side { position: static; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .rail { padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); gap: 10px; }
+  .nav { flex-direction: row; overflow-x: auto; }
+  .nav button { white-space: nowrap; }
+  .rail-note { display: none; }
+  .topbar, .content { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .fieldset { grid-template-columns: minmax(0, 1fr); }
+  .dl { grid-template-columns: minmax(0, 1fr); gap: 2px 0; }
+  .dl dd { margin-bottom: 8px; }
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+  .bar { grid-template-columns: 96px minmax(0, 1fr) 34px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><b>Resource Requests</b><span>Engineering · 2026</span></div>
+    <nav class="nav" id="nav" aria-label="Main"></nav>
+    <div class="rail-note">Prototype with sample data. Nothing here is sent or saved.</div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="proto"><b>UI prototype.</b> Switch the role on the right to walk a request through PM → Team Leader → Director.</div>
+      <div class="persona">
+        <label for="persona">Viewing as</label>
+        <select id="persona"></select>
+      </div>
+    </header>
+    <main class="content" id="content"></main>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- Reference data (sample) ----------
+  const TODAY = '2026-11-05';
+  const MIN_NOTICE = 5;
+  const HOLIDAYS = { '2026-11-09': 'Deepavali (observed)', '2026-12-25': 'Christmas Day', '2027-01-01': "New Year's Day", '2027-02-17': 'Chinese New Year', '2027-02-18': 'Chinese New Year (day 2)' };
+  const USERS = {
+    pm1: { name: 'Alex Tan', title: 'Project Manager', role: 'PM' },
+    pm2: { name: 'Serene Koh', title: 'Project Manager', role: 'PM' },
+    tlS: { name: 'Priya Nair', title: 'Team Leader, Support', role: 'TL', team: 'SUPPORT' },
+    tlD: { name: 'Daniel Lim', title: 'Team Leader, Development', role: 'TL', team: 'DEV' },
+    dir: { name: 'Grace Wong', title: 'Director, Engineering', role: 'DIRECTOR' },
+    adm: { name: 'Lee Wei Jie', title: 'System Administrator', role: 'ADMIN' }
+  };
+  const PERSONAS = ['pm1', 'tlS', 'tlD', 'dir', 'adm'];
+  const TEAMS = { SUPPORT: { name: 'Support Team', leader: 'tlS' }, DEV: { name: 'Development Team', leader: 'tlD' } };
+  const DIRECTOR = 'dir';
+  const ENGINEERS = [
+    { id: 'e1', name: 'Ahmad Rahman', team: 'SUPPORT', skill: 'Network, on-site' },
+    { id: 'e2', name: 'Chua Mei Ling', team: 'SUPPORT', skill: 'Data migration' },
+    { id: 'e3', name: 'Kevin Ong', team: 'SUPPORT', skill: 'Server, storage' },
+    { id: 'e4', name: 'Nurul Huda', team: 'SUPPORT', skill: 'Service desk' },
+    { id: 'e5', name: 'Ravi Kumar', team: 'DEV', skill: 'Java, integration' },
+    { id: 'e6', name: 'Jason Teo', team: 'DEV', skill: '.NET, web portal' },
+    { id: 'e7', name: 'Siti Aminah', team: 'DEV', skill: 'Solution design' },
+    { id: 'e8', name: 'Marcus Lee', team: 'DEV', skill: 'Python, ETL' }
+  ];
+  const SUPPORT_TYPES = [
+    { code: 'PE', name: 'Project Engineer', team: 'SUPPORT' },
+    { code: 'SE', name: 'Support Engineer', team: 'SUPPORT' },
+    { code: 'ONSITE', name: 'On-site Support', team: 'SUPPORT' },
+    { code: 'DEV', name: 'Developer', team: 'DEV' },
+    { code: 'SA', name: 'Solution Architect', team: 'DEV' }
+  ];
+  const REQ_TYPES = { PROJECT: 'Project', PRESALES: 'Pre-sales', OTHER: 'Other' };
+  const STATUS = {
+    DRAFT: 'Draft', PENDING_TL: 'Pending TL review', PENDING_DIR: 'Pending director approval',
+    RETURNED: 'Returned for revision', APPROVED: 'Approved', REJECTED: 'Rejected', WITHDRAWN: 'Withdrawn'
+  };
+
+  // ---------- Date helpers ----------
+  function parse(s) { const p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function fmt(s) { if (!s) return '—'; const d = parse(s); return d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear(); }
+  function isWorking(d) { const w = d.getDay(); return w !== 0 && w !== 6 && !HOLIDAYS[iso(d)]; }
+  // Working days strictly after the submission date and strictly before the planned start date.
+  function noticeDays(submitted, start) {
+    const days = []; let d = addDays(parse(submitted), 1); const end = parse(start); let n = 0; let guard = 0;
+    while (d < end && guard < 400) {
+      const k = iso(d); const w = d.getDay();
+      const kind = (w === 0 || w === 6) ? 'x' : (HOLIDAYS[k] ? 'h' : 'w');
+      if (kind === 'w') n++;
+      days.push({ k: k, kind: kind });
+      d = addDays(d, 1); guard++;
+    }
+    return { n: n, days: days };
+  }
+  function overlaps(a1, a2, b1, b2) { return a1 <= b2 && b1 <= a2; }
+
+  // ---------- Sample requests ----------
+  const SCOPE_SAMPLE = '• Configure the extraction script to limit processing to 100,000 records, based on the file list provided in the Excel source.\n• Enhance the extraction program, where necessary, to ingest and process the CSV output generated from the initial extraction step.\n• Coordinate with the ATFM team to securely transfer the required files for migration.\n• Perform reconciliation by tallying and validating the extracted and decrypted files.\nEstimated duration: 2–3 months';
+  let seq = 144;
+  const requests = [
+    mk({ id: 'ERR-2026-0143', requester: 'pm2', type: 'PROJECT', st: 'DEV', project: 'Permit Portal Integration', wbs: 'P26-0418', client: 'HSA', headcount: 1, manDays: 25, start: '2026-11-30', end: '2027-01-15', submitted: '2026-11-04', status: 'PENDING_TL', declared: 'NORMAL', scope: 'Build the REST integration between the permit portal and the licensing back end, including error handling and retry.', schedule: 'Full time for 7 weeks. Code freeze on 8 Jan 2027.', preferred: ['e5'] }),
+    mk({ id: 'ERR-2026-0141', requester: 'pm1', type: 'PROJECT', st: 'PE', project: 'CSPL Data Migration Phase 2', wbs: 'P26-0392', client: 'NLB', headcount: 2, manDays: 40, start: '2026-11-12', end: '2027-01-29', submitted: '2026-11-04', status: 'PENDING_TL', declared: 'URGENT', scope: SCOPE_SAMPLE, schedule: 'To support NLB on site 3 times per week for 2 to 3 months.', justification: 'Customer brought the cut-over forward by two weeks after their steering committee on 3 Nov. The migration window cannot move because the source system licence expires on 31 Jan 2027.', preferred: ['e2'] }),
+    mk({ id: 'ERR-2026-0139', requester: 'pm2', type: 'PROJECT', st: 'DEV', project: 'HSA Lab Portal Enhancement', wbs: 'P26-0377', client: 'HSA', headcount: 2, manDays: 60, start: '2026-11-23', end: '2027-02-26', submitted: '2026-10-30', status: 'PENDING_DIR', declared: 'NORMAL', scope: 'Enhance the lab results portal with the new sample-tracking module and role-based dashboards.', schedule: 'Two developers full time from 23 Nov. UAT starts 8 Feb 2027.', alloc: [['e5', 'PROPOSED'], ['e6', 'PROPOSED']], tlBy: 'tlD', tlComment: 'Ravi and Jason are both free from 23 Nov. Ravi rolls off the permit work by mid-January.' }),
+    mk({ id: 'ERR-2026-0137', requester: 'pm1', type: 'PRESALES', st: 'SA', project: 'Smart Library Kiosk PoC', wbs: '', client: 'NLB', headcount: 1, manDays: null, start: '2026-11-16', end: '2026-11-27', submitted: '2026-10-27', status: 'APPROVED', declared: 'NORMAL', scope: 'Prepare the solution architecture and a working proof of concept for the self-service kiosk tender.', schedule: '2 weeks, presentation to the customer on 27 Nov.', alloc: [['e7', 'CONFIRMED']], tlBy: 'tlD', tlComment: 'Siti will lead the PoC.' }),
+    mk({ id: 'ERR-2026-0135', requester: 'pm1', type: 'PROJECT', st: 'ONSITE', project: 'Branch Network Refresh', wbs: 'P26-0351', client: 'CSPL', headcount: 3, manDays: 30, start: '2026-11-30', end: '2026-12-18', submitted: '2026-10-26', status: 'RETURNED', declared: 'NORMAL', scope: 'Replace access switches at 12 branches and verify connectivity after each cut-over.', schedule: 'Night work, two branches per night.', returnedBy: 'tlS', returnComment: 'Please split the on-site schedule by branch and confirm whether weekend work is required. I cannot release three engineers for nights without that.' }),
+    mk({ id: 'ERR-2026-0130', requester: 'pm2', type: 'PROJECT', st: 'SE', project: 'Archive Storage Upgrade', wbs: 'P26-0310', client: 'NLB', headcount: 2, manDays: 35, start: '2026-11-02', end: '2026-12-18', submitted: '2026-10-19', status: 'APPROVED', declared: 'NORMAL', scope: 'Upgrade the archive storage cluster and migrate 40 TB of digitised material.', schedule: 'Two engineers, 4 days per week.', alloc: [['e1', 'CONFIRMED'], ['e3', 'CONFIRMED']], tlBy: 'tlS', tlComment: 'Ahmad and Kevin assigned.' }),
+    mk({ id: 'ERR-2026-0128', requester: 'pm2', type: 'OTHER', st: 'SE', project: 'Internal Asset Audit', wbs: '', client: 'Internal', headcount: 1, manDays: null, start: '2026-11-09', end: '2026-11-13', submitted: '2026-11-03', status: 'REJECTED', declared: 'NORMAL', scope: 'Physical audit of lab equipment.', schedule: 'One week.', justification: 'Audit deadline set by finance.', rejectedBy: 'tlS', rejectComment: 'This is an operations task and should go through the facilities team, not engineering resources.' })
+  ];
+  function mk(o) {
+    const nd = noticeDays(o.submitted, o.start).n;
+    const urgent = o.declared === 'URGENT' || nd < MIN_NOTICE;
+    const r = {
+      id: o.id, requester: o.requester, type: o.type, supportType: o.st, team: SUPPORT_TYPES.find(s => s.code === o.st).team,
+      project: o.project, wbs: o.wbs, client: o.client, headcount: o.headcount, manDays: o.manDays, start: o.start, end: o.end,
+      submitted: o.submitted, status: o.status, declared: o.declared, urgent: urgent, notice: nd, scope: o.scope, schedule: o.schedule,
+      justification: o.justification || '', preferred: o.preferred || [], preferredNote: '', round: 1, stoppedAt: null,
+      alloc: (o.alloc || []).map(a => ({ eng: a[0], status: a[1] })), history: []
+    };
+    r.history.push({ at: o.submitted + ' 09:12', who: o.requester, action: 'Submitted', note: urgent ? 'Classified as urgent (' + nd + ' working days notice)' : nd + ' working days notice' });
+    if (o.tlBy) r.history.push({ at: addIso(o.submitted, 2) + ' 14:30', who: o.tlBy, action: 'Approved and proposed allocation', comment: o.tlComment });
+    if (o.status === 'APPROVED') r.history.push({ at: addIso(o.submitted, 3) + ' 10:05', who: DIRECTOR, action: 'Approved', note: 'Allocation confirmed. Engineers notified.' });
+    if (o.returnedBy) { r.stoppedAt = 1; r.history.push({ at: addIso(o.submitted, 1) + ' 16:40', who: o.returnedBy, action: 'Returned for revision', comment: o.returnComment }); }
+    if (o.rejectedBy) { r.stoppedAt = 1; r.history.push({ at: addIso(o.submitted, 1) + ' 11:20', who: o.rejectedBy, action: 'Rejected', comment: o.rejectComment }); }
+    return r;
+  }
+  function addIso(s, n) { return iso(addDays(parse(s), n)); }
+
+  // ---------- State ----------
+  const state = { user: 'pm1', view: 'dashboard', detailId: null, filter: 'ALL', editingId: null, formError: null, actionError: null, confirmWithdraw: false };
+  const me = () => USERS[state.user];
+  const byId = id => requests.find(r => r.id === id);
+  const eng = id => ENGINEERS.find(e => e.id === id);
+
+  function h(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function stName(code) { const s = SUPPORT_TYPES.find(x => x.code === code); return s ? s.name : code; }
+  function pill(st) { return '<span class="pill s-' + st + '">' + STATUS[st] + '</span>'; }
+  function handler(r) {
+    if (r.status === 'PENDING_TL') return USERS[TEAMS[r.team].leader].name;
+    if (r.status === 'PENDING_DIR') return USERS[DIRECTOR].name;
+    if (r.status === 'RETURNED' || r.status === 'DRAFT') return USERS[r.requester].name;
+    return '—';
+  }
+  function inbox() {
+    const u = me();
+    if (u.role === 'TL') return requests.filter(r => r.status === 'PENDING_TL' && r.team === u.team);
+    if (u.role === 'DIRECTOR') return requests.filter(r => r.status === 'PENDING_DIR');
+    return [];
+  }
+  function visible() {
+    const u = me();
+    if (u.role === 'PM') return requests.filter(r => r.requester === state.user);
+    if (u.role === 'TL') return requests.filter(r => r.team === u.team && r.status !== 'DRAFT');
+    return requests.filter(r => r.status !== 'DRAFT');
+  }
+  function engLoad(engId, s, e, excludeId) {
+    let c = 0, p = 0;
+    requests.forEach(r => {
+      if (r.id === excludeId) return;
+      if (!(r.status === 'APPROVED' || r.status === 'PENDING_DIR')) return;
+      r.alloc.forEach(a => { if (a.eng === engId && overlaps(r.start, r.end, s, e)) { if (a.status === 'CONFIRMED') c++; else p++; } });
+    });
+    return { c: c, p: p };
+  }
+
+  let toastTimer = null;
+  function toast(title, body) {
+    const t = document.getElementById('toast');
+    t.innerHTML = '<b>' + h(title) + '</b>' + h(body);
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 6000);
+  }
+
+  // ---------- Navigation ----------
+  function navItems() {
+    const r = me().role;
+    const n = inbox().length;
+    if (r === 'PM') return [['dashboard', 'Dashboard'], ['new', 'New request'], ['list', 'My requests']];
+    if (r === 'TL') return [['dashboard', 'Dashboard'], ['inbox', 'Approvals', n], ['list', 'Team requests'], ['load', 'Resource load'], ['reports', 'Reports']];
+    if (r === 'DIRECTOR') return [['dashboard', 'Dashboard'], ['inbox', 'Approvals', n], ['list', 'All requests'], ['load', 'Resource load'], ['reports', 'Reports']];
+    return [['admin', 'Settings'], ['list', 'All requests'], ['reports', 'Reports']];
+  }
+  function renderNav() {
+    const cur = state.view === 'detail' ? (me().role === 'PM' ? 'list' : (inbox().some(r => r.id === state.detailId) ? 'inbox' : 'list')) : state.view;
+    document.getElementById('nav').innerHTML = navItems().map(i =>
+      '<button type="button" data-nav="' + i[0] + '"' + (cur === i[0] ? ' aria-current="page"' : '') + '><span>' + i[1] + '</span>' + (i[2] ? '<span class="count">' + i[2] + '</span>' : '') + '</button>'
+    ).join('');
+  }
+
+  // ---------- Views ----------
+  function rowsTable(list, opts) {
+    opts = opts || {};
+    if (!list.length) return '<div class="empty">' + (opts.empty || 'No requests to show.') + '</div>';
+    return '<div class="tbl-wrap"><table><thead><tr><th>Request no.</th><th>Project / opportunity</th><th>Client</th><th>Support type</th><th>Start</th><th>Notice</th><th>Status</th><th>With</th></tr></thead><tbody>' +
+      list.map(r => '<tr class="click" data-open="' + r.id + '" tabindex="0"><td class="mono nowrap">' + r.id + '</td><td><div>' + h(r.project) + '</div><div class="muted" style="font-size:12px">' + REQ_TYPES[r.type] + (r.urgent ? ' · <span class="urgent">URGENT</span>' : '') + '</div></td><td>' + h(r.client) + '</td><td>' + stName(r.supportType) + ' × ' + r.headcount + '</td><td class="nowrap">' + fmt(r.start) + '</td><td class="mono">' + r.notice + ' wd</td><td>' + pill(r.status) + '</td><td class="nowrap">' + h(handler(r)) + '</td></tr>').join('') +
+      '</tbody></table></div>';
+  }
+
+  function vDashboard() {
+    const u = me();
+    if (u.role === 'PM') {
+      const mine = visible();
+      const open = mine.filter(r => r.status === 'PENDING_TL' || r.status === 'PENDING_DIR').length;
+      const ret = mine.filter(r => r.status === 'RETURNED');
+      const appr = mine.filter(r => r.status === 'APPROVED').length;
+      return '<div class="pagehead"><div><h1>Good morning, ' + h(u.name.split(' ')[0]) + '</h1><p class="sub">Requests need at least ' + MIN_NOTICE + ' working days before the planned start date. Anything shorter is treated as urgent.</p></div><button class="btn primary" data-nav="new">New request</button></div>' +
+        '<div class="tiles"><div class="tile"><span class="lbl">Awaiting approval</span><span class="num">' + open + '</span></div><div class="tile' + (ret.length ? ' attn' : '') + '"><span class="lbl">Returned to you</span><span class="num">' + ret.length + '</span></div><div class="tile"><span class="lbl">Approved</span><span class="num">' + appr + '</span></div><div class="tile"><span class="lbl">Total this year</span><span class="num">' + mine.length + '</span></div></div>' +
+        (ret.length ? '<section class="panel"><div class="panel-head"><h2>Needs your action</h2></div>' + rowsTable(ret) + '</section>' : '') +
+        '<section class="panel"><div class="panel-head"><h2>My recent requests</h2><button class="btn link" data-nav="list">View all</button></div>' + rowsTable(mine.slice(0, 5)) + '</section>';
+    }
+    if (u.role === 'TL' || u.role === 'DIRECTOR') {
+      const ib = inbox();
+      const urgent = ib.filter(r => r.urgent).length;
+      const scope = u.role === 'TL' ? requests.filter(r => r.team === u.team) : requests;
+      const appr = scope.filter(r => r.status === 'APPROVED').length;
+      const engs = ENGINEERS.filter(e => u.role === 'DIRECTOR' || e.team === u.team);
+      const two = iso(addDays(parse(TODAY), 14));
+      const busy = engs.filter(e => { const l = engLoad(e.id, TODAY, two); return l.c + l.p > 0; }).length;
+      return '<div class="pagehead"><div><h1>' + (u.role === 'TL' ? TEAMS[u.team].name : 'Engineering') + ' overview</h1><p class="sub">' + (ib.length ? 'You have ' + ib.length + ' request' + (ib.length > 1 ? 's' : '') + ' waiting for your decision.' : 'Nothing is waiting for you.') + '</p></div></div>' +
+        '<div class="tiles"><div class="tile' + (ib.length ? ' attn' : '') + '"><span class="lbl">Waiting for you</span><span class="num">' + ib.length + '</span></div><div class="tile' + (urgent ? ' attn' : '') + '"><span class="lbl">Of which urgent</span><span class="num">' + urgent + '</span></div><div class="tile"><span class="lbl">Engineers booked, next 2 weeks</span><span class="num">' + busy + ' / ' + engs.length + '</span></div><div class="tile"><span class="lbl">Approved requests</span><span class="num">' + appr + '</span></div></div>' +
+        '<section class="panel"><div class="panel-head"><h2>Approvals</h2><button class="btn link" data-nav="inbox">Open inbox</button></div>' + rowsTable(ib, { empty: 'No requests are waiting for your approval.' }) + '</section>';
+    }
+    return vAdmin();
+  }
+
+  function vList() {
+    const u = me();
+    let list = visible();
+    const filters = [['ALL', 'All'], ['OPEN', 'In approval'], ['RETURNED', 'Returned'], ['APPROVED', 'Approved'], ['CLOSED', 'Rejected or withdrawn']];
+    if (state.filter === 'OPEN') list = list.filter(r => r.status === 'PENDING_TL' || r.status === 'PENDING_DIR');
+    else if (state.filter === 'CLOSED') list = list.filter(r => r.status === 'REJECTED' || r.status === 'WITHDRAWN');
+    else if (state.filter !== 'ALL') list = list.filter(r => r.status === state.filter);
+    const title = u.role === 'PM' ? 'My requests' : u.role === 'TL' ? TEAMS[u.team].name + ' requests' : 'All requests';
+    return '<div class="pagehead"><div><h1>' + title + '</h1><p class="sub">Every request is kept with its full approval history.</p></div>' + (u.role === 'PM' ? '<button class="btn primary" data-nav="new">New request</button>' : '<button class="btn" data-export>Export to Excel</button>') + '</div>' +
+      '<div class="chips" role="group" aria-label="Filter by status">' + filters.map(f => '<button type="button" class="chip" data-filter="' + f[0] + '" aria-pressed="' + (state.filter === f[0]) + '">' + f[1] + '</button>').join('') + '</div>' +
+      rowsTable(list);
+  }
+
+  function vInbox() {
+    const ib = inbox();
+    return '<div class="pagehead"><div><h1>Approvals</h1><p class="sub">' + (me().role === 'TL' ? 'Review each request, assign engineers from your team, then approve, return or reject.' : 'Requests reviewed by team leaders, with their proposed allocation.') + ' Urgent requests are listed first.</p></div></div>' +
+      rowsTable(ib.slice().sort((a, b) => (b.urgent - a.urgent) || a.start.localeCompare(b.start)), { empty: 'No requests are waiting for your approval.' });
+  }
+
+  function vForm() {
+    const r = state.editingId ? byId(state.editingId) : null;
+    const v = r || { type: 'PROJECT', declared: 'NORMAL', project: '', wbs: '', client: '', supportType: '', headcount: 1, manDays: '', start: iso(addDays(parse(TODAY), 7)), end: '', scope: '', schedule: '', justification: '', preferred: [] };
+    const radio = (name, val, label, cur) => '<label><input type="radio" name="' + name + '" value="' + val + '"' + (cur === val ? ' checked' : '') + '> ' + label + '</label>';
+    return '<div class="pagehead"><div><h1>' + (r ? 'Revise ' + r.id : 'New resource request') + '</h1><p class="sub">' + (r ? 'Update the request based on the reviewer\'s comments, then resubmit. It will go back to the team leader.' : 'Submit at least ' + MIN_NOTICE + ' working days before the planned start date.') + '</p></div></div>' +
+      (r && r.status === 'RETURNED' ? '<div class="error" style="color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,var(--line));background:color-mix(in srgb,var(--warn) 8%,var(--surface))"><b>Returned by ' + h(USERS[r.history[r.history.length - 1].who].name) + ':</b> ' + h(r.history[r.history.length - 1].comment) + '</div>' : '') +
+      '<form class="form" id="reqForm" novalidate><div style="display:flex;flex-direction:column;gap:16px;min-width:0">' +
+      '<section class="fieldset"><h2>Project / opportunity</h2>' +
+      '<div class="field full"><span class="lbl">Request type <span class="req">*</span></span><div class="radios">' + radio('type', 'PROJECT', 'Project', v.type) + radio('type', 'PRESALES', 'Pre-sales', v.type) + radio('type', 'OTHER', 'Other', v.type) + '</div></div>' +
+      '<div class="field full"><label for="f-project">Project / opportunity name <span class="req">*</span></label><input type="text" id="f-project" value="' + h(v.project) + '" placeholder="e.g. CSPL Data Migration Phase 2"></div>' +
+      '<div class="field"><label for="f-wbs">Project / WBS code</label><input type="text" id="f-wbs" value="' + h(v.wbs) + '" placeholder="If any"></div>' +
+      '<div class="field"><label for="f-client">Client name <span class="req">*</span></label><input type="text" id="f-client" value="' + h(v.client) + '"></div>' +
+      '</section>' +
+      '<section class="fieldset"><h2>Resources</h2>' +
+      '<div class="field"><label for="f-st">Type of support <span class="req">*</span></label><select id="f-st"><option value="">Select…</option>' + SUPPORT_TYPES.map(s => '<option value="' + s.code + '"' + (v.supportType === s.code ? ' selected' : '') + '>' + s.name + '</option>').join('') + '</select><span class="hint" id="f-st-hint">Decides which team leader reviews the request.</span></div>' +
+      '<div class="field"><label for="f-hc">Number of engineers / developers <span class="req">*</span></label><input type="number" id="f-hc" min="1" max="20" value="' + h(v.headcount) + '"></div>' +
+      '<div class="field full"><span class="lbl">Preferred engineers / developers</span><div class="chips" id="f-pref"></div><span class="hint">Optional. The team leader sees your preference when assigning.</span></div>' +
+      '<div class="field" id="md-field"><label for="f-md">Man-days awarded / approved allocation <span class="req" id="md-req">*</span></label><input type="number" id="f-md" min="0.5" step="0.5" value="' + h(v.manDays == null ? '' : v.manDays) + '"><span class="hint" id="md-hint">Required for project requests.</span></div>' +
+      '<div class="field"></div>' +
+      '<div class="field"><label for="f-start">Planned start date <span class="req">*</span></label><input type="date" id="f-start" value="' + h(v.start) + '" min="' + TODAY + '"></div>' +
+      '<div class="field"><label for="f-end">Planned end date <span class="req">*</span></label><input type="date" id="f-end" value="' + h(v.end) + '"></div>' +
+      '</section>' +
+      '<section class="fieldset"><h2>Scope and schedule</h2>' +
+      '<div class="field full"><label for="f-scope">Scope description <span class="req">*</span></label><textarea id="f-scope" placeholder="List the work items and the estimated duration.">' + h(v.scope) + '</textarea></div>' +
+      '<div class="field full"><label for="f-sched">Detailed task schedule with timing <span class="req">*</span></label><textarea id="f-sched" placeholder="e.g. To support HSA on site 3 times per week for 2 to 3 months.">' + h(v.schedule) + '</textarea></div>' +
+      '<div class="field full"><span class="lbl">Priority <span class="req">*</span></span><div class="radios">' + radio('prio', 'NORMAL', 'Normal', v.declared) + radio('prio', 'URGENT', 'Urgent', v.declared) + '</div><span class="hint" id="prio-hint"></span></div>' +
+      '<div class="field full" id="just-field"><label for="f-just">Justification for urgent request <span class="req">*</span></label><textarea id="f-just" placeholder="Explain why the request could not be raised 5 working days in advance.">' + h(v.justification) + '</textarea></div>' +
+      '</section>' +
+      '<div id="formErr" class="error" role="alert" hidden></div>' +
+      '<div class="form-actions"><button type="button" class="btn" data-nav="' + (r ? 'list' : 'dashboard') + '">Cancel</button>' + (r ? '' : '<button type="button" class="btn" data-draft>Save draft</button>') + '<button type="submit" class="btn primary">' + (r ? 'Resubmit' : 'Submit request') + '</button></div>' +
+      '</div>' +
+      '<aside class="side"><div class="notice" id="notice"></div><div class="panel"><h2>Approval route</h2><div class="route" id="route"></div></div></aside>' +
+      '</form>';
+  }
+
+  function bindForm() {
+    const f = document.getElementById('reqForm');
+    if (!f) return;
+    const r = state.editingId ? byId(state.editingId) : null;
+    const pref = new Set(r ? r.preferred : []);
+    function drawPref() {
+      const st = SUPPORT_TYPES.find(s => s.code === f.querySelector('#f-st').value);
+      const box = f.querySelector('#f-pref');
+      if (!st) { box.innerHTML = '<span class="hint">Choose a type of support first.</span>'; return; }
+      box.innerHTML = ENGINEERS.filter(e => e.team === st.team).map(e => '<button type="button" class="chip" data-pref="' + e.id + '" aria-pressed="' + pref.has(e.id) + '">' + e.name + '</button>').join('');
+    }
+    function update() {
+      const type = f.querySelector('input[name=type]:checked').value;
+      const start = f.querySelector('#f-start').value;
+      const st = SUPPORT_TYPES.find(s => s.code === f.querySelector('#f-st').value);
+      const isProject = type === 'PROJECT';
+      f.querySelector('#md-req').hidden = !isProject;
+      f.querySelector('#md-hint').textContent = isProject ? 'Required for project requests.' : 'Not required for ' + REQ_TYPES[type].toLowerCase() + ' requests. Leave blank if not applicable.';
+      const nt = document.getElementById('notice');
+      let forced = false;
+      if (start) {
+        const res = noticeDays(TODAY, start);
+        forced = res.n < MIN_NOTICE;
+        nt.className = 'notice ' + (forced ? 'is-urgent' : 'is-normal');
+        nt.innerHTML = '<span class="hint">Notice period if submitted today (' + fmt(TODAY) + ')</span><span class="big">' + res.n + ' working day' + (res.n === 1 ? '' : 's') + '</span>' +
+          '<div class="cal-days" aria-hidden="true">' + res.days.slice(0, 40).map(d => '<i class="' + d.kind + '" title="' + d.k + (HOLIDAYS[d.k] ? ' · ' + HOLIDAYS[d.k] : '') + '"></i>').join('') + '</div>' +
+          (res.days.some(d => d.kind === 'h') ? '<span class="hint">Excludes ' + res.days.filter(d => d.kind === 'h').map(d => HOLIDAYS[d.k]).join(', ') + '.</span>' : '<span class="hint">Weekends and public holidays are excluded.</span>') +
+          '<span>' + (forced ? '<b>This will be an urgent request.</b> The minimum is ' + MIN_NOTICE + ' working days, so a justification is required and support depends on availability.' : 'Meets the ' + MIN_NOTICE + '-working-day notice period.') + '</span>';
+      } else {
+        nt.className = 'notice'; nt.innerHTML = '<span class="hint">Pick a planned start date to see the notice period.</span>';
+      }
+      const nRadio = f.querySelector('input[name=prio][value=NORMAL]');
+      const uRadio = f.querySelector('input[name=prio][value=URGENT]');
+      nRadio.disabled = forced;
+      if (forced) uRadio.checked = true;
+      f.querySelector('#prio-hint').textContent = forced ? 'Set to Urgent automatically because the notice is shorter than ' + MIN_NOTICE + ' working days.' : 'Choose Urgent only if there is a business reason. A justification will be required.';
+      f.querySelector('#just-field').hidden = !uRadio.checked;
+      f.querySelector('#f-st-hint').textContent = st ? 'Routed to the ' + TEAMS[st.team].name + '.' : 'Decides which team leader reviews the request.';
+      const tl = st ? USERS[TEAMS[st.team].leader] : null;
+      document.getElementById('route').innerHTML =
+        '<div class="route-step"><span class="dot">1</span><div><div>' + (tl ? h(tl.name) : 'Team leader') + '</div><div class="hint">' + (tl ? h(tl.title) + ' · reviews and assigns engineers' : 'Set by the type of support') + '</div></div></div>' +
+        '<div class="route-step"><span class="dot">2</span><div><div>' + h(USERS[DIRECTOR].name) + '</div><div class="hint">' + h(USERS[DIRECTOR].title) + ' · final approval</div></div></div>' +
+        '<div class="hint">Each step sends an email automatically. You are copied on every decision.</div>';
+    }
+    f.addEventListener('input', update);
+    f.addEventListener('change', e => { if (e.target.id === 'f-st') { pref.clear(); drawPref(); } update(); });
+    f.addEventListener('click', e => {
+      const p = e.target.closest('[data-pref]');
+      if (p) { const id = p.dataset.pref; pref.has(id) ? pref.delete(id) : pref.add(id); drawPref(); }
+      if (e.target.closest('[data-draft]')) { toast('Draft saved', 'Drafts are only visible to you until you submit.'); }
+    });
+    f.addEventListener('submit', e => {
+      e.preventDefault();
+      const val = id => f.querySelector(id).value.trim();
+      const type = f.querySelector('input[name=type]:checked').value;
+      const declared = f.querySelector('input[name=prio]:checked').value;
+      const errs = [];
+      const d = { type: type, project: val('#f-project'), wbs: val('#f-wbs'), client: val('#f-client'), supportType: val('#f-st'), headcount: parseInt(val('#f-hc'), 10), manDays: val('#f-md') === '' ? null : parseFloat(val('#f-md')), start: val('#f-start'), end: val('#f-end'), scope: val('#f-scope'), schedule: val('#f-sched'), justification: val('#f-just'), declared: declared };
+      if (!d.project) errs.push('Enter the project or opportunity name.');
+      if (!d.client) errs.push('Enter the client name.');
+      if (!d.supportType) errs.push('Choose the type of support.');
+      if (!(d.headcount >= 1)) errs.push('Enter how many engineers or developers you need (at least 1).');
+      if (type === 'PROJECT' && !(d.manDays > 0)) errs.push('Enter the awarded man-days. This is required for project requests.');
+      if (!d.start || !d.end) errs.push('Enter both the planned start and end dates.');
+      else if (d.end < d.start) errs.push('The planned end date must be on or after the start date.');
+      if (!d.scope) errs.push('Describe the scope of work.');
+      if (!d.schedule) errs.push('Describe the task schedule and timing.');
+      if (declared === 'URGENT' && !d.justification) errs.push('Explain why this request is urgent.');
+      const fe = document.getElementById('formErr');
+      if (errs.length) { fe.innerHTML = '<b>Please fix the following before submitting:</b><br>' + errs.map(h).join('<br>'); fe.hidden = false; fe.scrollIntoView({ block: 'center' }); return; }
+      fe.hidden = true;
+      state.formError = null;
+      const nd = noticeDays(TODAY, d.start).n;
+      const team = SUPPORT_TYPES.find(s => s.code === d.supportType).team;
+      let req;
+      if (r) {
+        req = r; Object.assign(req, d); req.round += 1;
+      } else {
+        req = { id: 'ERR-2026-0' + (seq++), requester: state.user, alloc: [], history: [], round: 1 };
+        Object.assign(req, d); requests.unshift(req);
+      }
+      req.team = team; req.preferred = Array.from(pref); req.submitted = TODAY; req.notice = nd;
+      req.urgent = declared === 'URGENT' || nd < MIN_NOTICE; req.status = 'PENDING_TL'; req.stoppedAt = null;
+      req.history.push({ at: TODAY + ' ' + nowTime(), who: state.user, action: r ? 'Resubmitted (round ' + req.round + ')' : 'Submitted', note: req.urgent ? 'Classified as urgent (' + nd + ' working days notice)' : nd + ' working days notice' });
+      state.editingId = null; state.view = 'detail'; state.detailId = req.id;
+      toast((r ? 'Resubmitted ' : 'Submitted ') + req.id, 'Email sent to ' + USERS[TEAMS[team].leader].name + (req.urgent ? ' with an [URGENT] subject.' : '.') + ' Switch to that role to continue.');
+      render();
+    });
+    drawPref(); update();
+  }
+  function nowTime() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+  function stepper(r) {
+    const steps = [['Submitted', USERS[r.requester].name], ['Team leader review', USERS[TEAMS[r.team].leader].name], ['Director approval', USERS[DIRECTOR].name], ['Resources confirmed', 'Requester and engineers notified']];
+    const cur = { DRAFT: 0, PENDING_TL: 1, PENDING_DIR: 2, APPROVED: 4 }[r.status];
+    return '<div class="stepper">' + steps.map((s, i) => {
+      let cls = '', mk = '';
+      if (r.stoppedAt != null && ['RETURNED', 'REJECTED', 'WITHDRAWN'].includes(r.status)) {
+        if (i < r.stoppedAt) { cls = 'done'; mk = '✓'; } else if (i === r.stoppedAt) { cls = 'stopped'; mk = '!'; }
+      } else if (cur != null) {
+        if (i < cur || (cur === 4)) { cls = 'done'; mk = '✓'; } else if (i === cur) { cls = 'current'; }
+      }
+      const extra = cls === 'stopped' ? ' · ' + STATUS[r.status].toLowerCase() : cls === 'current' ? ' · waiting' : '';
+      return '<div class="step ' + cls + '"><span class="mk">' + mk + '</span><div><div class="t">' + s[0] + '</div><div class="w">' + h(s[1]) + extra + '</div></div></div>';
+    }).join('') + '</div>';
+  }
+
+  function vDetail() {
+    const r = byId(state.detailId);
+    if (!r) return '<div class="empty">Request not found.</div>';
+    const u = me();
+    const dl = [
+      ['Request type', REQ_TYPES[r.type]],
+      ['Priority', (r.urgent ? 'Urgent' : 'Normal') + (r.urgent ? (r.notice < MIN_NOTICE ? ' (short notice: ' + r.notice + ' working days)' : ' (declared by requester)') : ' (' + r.notice + ' working days notice)')],
+      ['Project / opportunity', r.project], ['Project / WBS code', r.wbs || '—'], ['Client', r.client],
+      ['Type of support', stName(r.supportType) + ' · ' + TEAMS[r.team].name], ['Engineers required', r.headcount],
+      ['Preferred engineers', r.preferred.length ? r.preferred.map(id => eng(id).name).join(', ') : '—'],
+      ['Man-days awarded', r.manDays == null ? 'Not applicable' : r.manDays],
+      ['Planned period', fmt(r.start) + ' – ' + fmt(r.end)], ['Scope description', r.scope], ['Task schedule', r.schedule]
+    ];
+    if (r.urgent) dl.push(['Urgent justification', r.justification || '—']);
+    const allocBlock = r.alloc.length ? '<section class="panel"><div class="panel-head"><h2>Allocated engineers</h2><span class="muted" style="font-size:12px">' + (r.alloc[0].status === 'CONFIRMED' ? 'Confirmed' : 'Proposed by team leader') + '</span></div><div class="kv">' + r.alloc.map(a => '<span>' + h(eng(a.eng).name) + ' <span class="muted">· ' + h(eng(a.eng).skill) + '</span></span><span>' + fmt(r.start) + ' – ' + fmt(r.end) + '</span>').join('') + '</div></section>' : '';
+    return '<div class="pagehead"><div><div class="mono muted">' + r.id + ' · round ' + r.round + '</div><h1>' + h(r.project) + '</h1><p class="sub">Requested by ' + h(USERS[r.requester].name) + ' on ' + fmt(r.submitted) + '</p></div><div class="row-actions" style="align-items:center">' + (r.urgent ? '<span class="urgent">URGENT</span>' : '') + pill(r.status) + '</div></div>' +
+      '<div class="detail"><div style="display:flex;flex-direction:column;gap:16px;min-width:0">' +
+      actionPanel(r, u) +
+      '<section class="panel"><h2>Request details</h2><dl class="dl">' + dl.map(x => '<dt>' + x[0] + '</dt><dd>' + h(x[1]) + '</dd>').join('') + '</dl></section>' +
+      allocBlock +
+      '</div><aside class="side"><section class="panel"><h2>Progress</h2>' + stepper(r) + '</section>' +
+      '<section class="panel"><h2>History</h2><div class="timeline">' + r.history.slice().reverse().map(ev => '<div class="ev"><div><b>' + h(USERS[ev.who].name) + '</b> · ' + h(ev.action) + '</div><div class="meta">' + fmt(ev.at.slice(0, 10)) + ' ' + ev.at.slice(11) + (ev.note ? ' · ' + h(ev.note) : '') + '</div>' + (ev.comment ? '<div class="cmt">' + h(ev.comment) + '</div>' : '') + '</div>').join('') + '</div></section></aside></div>';
+  }
+
+  function actionPanel(r, u) {
+    const err = state.actionError ? '<div class="error" role="alert">' + h(state.actionError) + '</div>' : '';
+    if (u.role === 'TL' && r.status === 'PENDING_TL' && r.team === u.team) {
+      const engs = ENGINEERS.filter(e => e.team === u.team);
+      const sel = state.selectedAlloc || new Set(r.preferred.filter(id => engs.some(e => e.id === id)));
+      state.selectedAlloc = sel;
+      return '<section class="panel action"><div class="panel-head"><h2>Your review</h2><span class="muted" style="font-size:12px">Select ' + r.headcount + ' engineer' + (r.headcount > 1 ? 's' : '') + ' · ' + sel.size + ' selected</span></div>' +
+        '<div class="alloc">' + engs.map(e => {
+          const l = engLoad(e.id, r.start, r.end, r.id); const t = l.c + l.p;
+          const cls = t >= 2 ? 'hi' : t === 1 ? 'mid' : 'lo';
+          const txt = t === 0 ? 'Free in this period' : t + ' other assignment' + (t > 1 ? 's' : '') + (l.p ? ' (' + l.p + ' pending)' : '');
+          return '<label><input type="checkbox" data-alloc="' + e.id + '"' + (sel.has(e.id) ? ' checked' : '') + '><span>' + h(e.name) + (r.preferred.includes(e.id) ? '<span class="tag">Preferred</span>' : '') + '<br><span class="muted" style="font-size:12px">' + h(e.skill) + '</span></span><span class="load ' + cls + '">' + txt + '</span></label>';
+        }).join('') + '</div>' +
+        '<div class="field action"><label for="a-cmt" style="font-weight:500;font-size:13px">Comment</label><textarea id="a-cmt" placeholder="Required when returning or rejecting, or when you assign fewer engineers than requested."></textarea></div>' + err +
+        '<div class="row-actions"><button class="btn primary" data-act="tl-approve">Approve and send to director</button><button class="btn" data-act="return">Return to requester</button><button class="btn danger" data-act="reject">Reject</button></div></section>';
+    }
+    if (u.role === 'DIRECTOR' && r.status === 'PENDING_DIR') {
+      return '<section class="panel action"><div class="panel-head"><h2>Your decision</h2><span class="muted" style="font-size:12px">Reviewed by ' + h(USERS[TEAMS[r.team].leader].name) + '</span></div>' +
+        '<div class="field action"><label for="a-cmt" style="font-weight:500;font-size:13px">Comment</label><textarea id="a-cmt" placeholder="Required when returning or rejecting."></textarea></div>' + err +
+        '<div class="row-actions"><button class="btn primary" data-act="dir-approve">Approve and confirm resources</button><button class="btn" data-act="return">Return to requester</button><button class="btn danger" data-act="reject">Reject</button></div></section>';
+    }
+    if (u.role === 'PM' && r.requester === state.user) {
+      if (r.status === 'RETURNED') return '<section class="panel action"><h2>This request was returned to you</h2><p class="sub" style="margin:0">Read the comment in the history, update the request and resubmit it.</p><div class="row-actions"><button class="btn primary" data-act="revise">Revise and resubmit</button><button class="btn danger" data-act="withdraw-ask">Withdraw</button></div>' + withdrawConfirm() + '</section>';
+      if (r.status === 'PENDING_TL' || r.status === 'PENDING_DIR') return '<section class="panel"><div class="panel-head"><h2>Waiting for ' + h(handler(r)) + '</h2><button class="btn danger" data-act="withdraw-ask">Withdraw request</button></div>' + withdrawConfirm() + '</section>';
+    }
+    return '';
+  }
+  function withdrawConfirm() {
+    if (!state.confirmWithdraw) return '';
+    return '<div class="confirm-box"><span>Withdraw this request? The reviewers will be told and any proposed engineers will be released. This cannot be undone.</span><div class="row-actions"><button class="btn danger" data-act="withdraw">Withdraw</button><button class="btn" data-act="withdraw-cancel">Keep request</button></div></div>';
+  }
+
+  function doAction(act) {
+    const r = byId(state.detailId);
+    const u = me();
+    const cmtEl = document.getElementById('a-cmt');
+    const cmt = cmtEl ? cmtEl.value.trim() : '';
+    const stamp = TODAY + ' ' + nowTime();
+    state.actionError = null;
+    if (act === 'revise') { state.editingId = r.id; state.view = 'new'; state.formError = null; render(); return; }
+    if (act === 'withdraw-ask') { state.confirmWithdraw = true; render(); return; }
+    if (act === 'withdraw-cancel') { state.confirmWithdraw = false; render(); return; }
+    if (act === 'withdraw') {
+      state.confirmWithdraw = false; r.stoppedAt = r.status === 'PENDING_DIR' ? 2 : 1; r.status = 'WITHDRAWN'; r.alloc = [];
+      r.history.push({ at: stamp, who: state.user, action: 'Withdrawn' });
+      toast('Request withdrawn', 'The current approver has been notified.'); render(); return;
+    }
+    if ((act === 'return' || act === 'reject') && !cmt) { state.actionError = 'Add a comment so the requester knows what to change or why the request was declined.'; render(); return; }
+    if (act === 'tl-approve') {
+      const sel = state.selectedAlloc || new Set();
+      if (!sel.size) { state.actionError = 'Assign at least one engineer before approving.'; render(); return; }
+      if (sel.size < r.headcount && !cmt) { state.actionError = 'You assigned ' + sel.size + ' of ' + r.headcount + ' engineers. Add a comment explaining the shortfall.'; render(); return; }
+      r.alloc = Array.from(sel).map(id => ({ eng: id, status: 'PROPOSED' }));
+      r.status = 'PENDING_DIR';
+      r.history.push({ at: stamp, who: state.user, action: 'Approved and proposed allocation', note: r.alloc.map(a => eng(a.eng).name).join(', '), comment: cmt });
+      toast(r.id + ' sent to director', 'Email sent to ' + USERS[DIRECTOR].name + '. ' + USERS[r.requester].name + ' was copied.');
+    } else if (act === 'dir-approve') {
+      r.alloc.forEach(a => { a.status = 'CONFIRMED'; });
+      r.status = 'APPROVED';
+      r.history.push({ at: stamp, who: state.user, action: 'Approved', note: 'Allocation confirmed. Engineers notified.', comment: cmt });
+      toast(r.id + ' approved', 'Confirmation sent to ' + USERS[r.requester].name + ' and ' + r.alloc.map(a => eng(a.eng).name).join(', ') + '.');
+    } else if (act === 'return' || act === 'reject') {
+      r.stoppedAt = r.status === 'PENDING_DIR' ? 2 : 1;
+      r.status = act === 'return' ? 'RETURNED' : 'REJECTED';
+      r.alloc = [];
+      r.history.push({ at: stamp, who: state.user, action: act === 'return' ? 'Returned for revision' : 'Rejected', comment: cmt });
+      toast(r.id + (act === 'return' ? ' returned' : ' rejected'), 'Email sent to ' + USERS[r.requester].name + '.');
+    }
+    state.selectedAlloc = null;
+    render();
+  }
+
+  function vLoad() {
+    const u = me();
+    const engs = ENGINEERS.filter(e => u.role !== 'TL' || e.team === u.team);
+    const weeks = []; let w = parse('2026-11-02');
+    for (let i = 0; i < 10; i++) { weeks.push([iso(w), iso(addDays(w, 4))]); w = addDays(w, 7); }
+    return '<div class="pagehead"><div><h1>Resource load</h1><p class="sub">Number of active assignments per engineer per week, including allocations still waiting for director approval.</p></div></div>' +
+      '<div class="legend"><span><i style="background:color-mix(in srgb,var(--ok) 18%,transparent)"></i>1 assignment</span><span><i style="background:color-mix(in srgb,var(--warn) 28%,transparent)"></i>2 assignments</span><span><i style="background:color-mix(in srgb,var(--bad) 30%,transparent)"></i>3 or more</span><span><i style="background-image:repeating-linear-gradient(45deg,transparent 0 5px,color-mix(in srgb,var(--accent) 22%,transparent) 5px 7px)"></i>Includes pending approval</span></div>' +
+      '<div class="tbl-wrap"><table class="heat"><thead><tr><th>Engineer</th>' + weeks.map(x => '<th>w/c ' + fmt(x[0]).replace(' 2026', '').replace(' 2027', '') + '</th>').join('') + '</tr></thead><tbody>' +
+      engs.map(e => '<tr><td class="nowrap"><b>' + h(e.name) + '</b><div class="muted" style="font-size:12px">' + TEAMS[e.team].name + '</div></td>' + weeks.map(x => {
+        const l = engLoad(e.id, x[0], x[1]); const t = l.c + l.p;
+        const cls = t === 0 ? '' : t === 1 ? 'l1' : t === 2 ? 'l2' : 'l3';
+        return '<td class="c ' + cls + (l.p ? ' p' : '') + '">' + (t || '') + '</td>';
+      }).join('') + '</tr>').join('') + '</tbody></table></div>';
+  }
+
+  function vReports() {
+    const months = [['Jun', 14, 3], ['Jul', 18, 4], ['Aug', 16, 6], ['Sep', 21, 5], ['Oct', 24, 9], ['Nov', requests.length, requests.filter(r => r.urgent).length]];
+    const max = Math.max.apply(null, months.map(m => m[1]));
+    const byType = SUPPORT_TYPES.map(s => [s.name, requests.filter(r => r.supportType === s.code).length]);
+    const tmax = Math.max.apply(null, byType.map(b => b[1]).concat([1]));
+    return '<div class="pagehead"><div><h1>Reports</h1><p class="sub">Sample figures. June to October are illustrative; November is calculated from the requests in this prototype.</p></div><button class="btn" data-export>Export to Excel</button></div>' +
+      '<div class="tiles"><div class="tile"><span class="lbl">Requests this year</span><span class="num">' + (93 + requests.length) + '</span></div><div class="tile attn"><span class="lbl">Urgent share</span><span class="num">27%</span></div><div class="tile"><span class="lbl">Median TL decision</span><span class="num">1.4 <span style="font-size:14px" class="muted">wd</span></span></div><div class="tile"><span class="lbl">Median director decision</span><span class="num">0.8 <span style="font-size:14px" class="muted">wd</span></span></div></div>' +
+      '<div class="grid2"><section class="panel"><h2>Requests per month</h2><div class="legend"><span><i style="background:var(--accent)"></i>Normal</span><span><i style="background:var(--bad)"></i>Urgent</span></div><div class="bars">' +
+      months.map(m => '<div class="bar"><span>' + m[0] + ' 2026</span><span class="track"><span class="fill" style="width:' + ((m[1] - m[2]) / max * 100) + '%"></span><span class="fill u" style="width:' + (m[2] / max * 100) + '%"></span></span><span class="v">' + m[1] + '</span></div>').join('') + '</div></section>' +
+      '<section class="panel"><h2>Current requests by support type</h2><div class="bars">' + byType.map(b => '<div class="bar"><span>' + b[0] + '</span><span class="track"><span class="fill" style="width:' + (b[1] / tmax * 100) + '%"></span></span><span class="v">' + b[1] + '</span></div>').join('') + '</div></section></div>';
+  }
+
+  function vAdmin() {
+    return '<div class="pagehead"><div><h1>Settings</h1><p class="sub">Administrators maintain routing, the holiday calendar and workflow rules here. Changes apply to new submissions.</p></div></div>' +
+      '<div class="grid2">' +
+      '<section class="panel"><div class="panel-head"><h2>Type of support → team</h2><button class="btn">Add type</button></div><div class="kv">' + SUPPORT_TYPES.map(s => '<span>' + s.name + '</span><span>' + TEAMS[s.team].name + '</span>').join('') + '</div></section>' +
+      '<section class="panel"><div class="panel-head"><h2>Approvers</h2><button class="btn">Edit</button></div><div class="kv">' + Object.keys(TEAMS).map(k => '<span>' + TEAMS[k].name + ' review</span><span>' + USERS[TEAMS[k].leader].name + '</span>').join('') + '<span>Final approval</span><span>' + USERS[DIRECTOR].name + '</span></div><p class="hint" style="margin:0">Approvers can name a delegate for leave periods.</p></section>' +
+      '<section class="panel"><div class="panel-head"><h2>Workflow rules</h2><button class="btn">Edit</button></div><div class="kv"><span>Minimum notice</span><span>' + MIN_NOTICE + ' wd</span><span>Reminder for normal requests after</span><span>2 wd</span><span>Reminder for urgent requests after</span><span>4 h</span><span>Escalate to director after</span><span>4 wd</span><span>Request number format</span><span>ERR-YYYY-NNNN</span></div></section>' +
+      '<section class="panel"><div class="panel-head"><h2>Public holidays</h2><button class="btn">Import year</button></div><div class="kv">' + Object.keys(HOLIDAYS).map(k => '<span>' + HOLIDAYS[k] + '</span><span>' + fmt(k) + '</span>').join('') + '</div></section>' +
+      '<section class="panel"><div class="panel-head"><h2>Email delivery</h2><button class="btn">View queue</button></div><div class="kv"><span>Sent today</span><span>14</span><span>Waiting to retry</span><span>0</span><span>Failed</span><span>0</span></div></section>' +
+      '<section class="panel"><div class="panel-head"><h2>Users and roles</h2><button class="btn">Manage</button></div><div class="kv">' + PERSONAS.map(k => '<span>' + USERS[k].name + '</span><span>' + USERS[k].role + '</span>').join('') + '</div></section>' +
+      '</div>';
+  }
+
+  // ---------- Render ----------
+  function render() {
+    renderNav();
+    const c = document.getElementById('content');
+    const v = state.view;
+    c.innerHTML = v === 'dashboard' ? vDashboard() : v === 'new' ? vForm() : v === 'list' ? vList() : v === 'inbox' ? vInbox() : v === 'detail' ? vDetail() : v === 'load' ? vLoad() : v === 'reports' ? vReports() : vAdmin();
+    if (v === 'new') bindForm();
+  }
+
+  document.getElementById('persona').innerHTML = PERSONAS.map(k => '<option value="' + k + '">' + USERS[k].name + ' — ' + USERS[k].title + '</option>').join('');
+  document.getElementById('persona').addEventListener('change', e => {
+    state.user = e.target.value; state.selectedAlloc = null; state.actionError = null; state.confirmWithdraw = false; state.formError = null; state.editingId = null; state.filter = 'ALL';
+    const r = me().role;
+    if (state.view === 'detail') {
+      const req = byId(state.detailId);
+      const canSee = req && (r !== 'PM' || req.requester === state.user) && (r !== 'TL' || req.team === me().team);
+      if (!canSee) state.view = r === 'ADMIN' ? 'admin' : 'dashboard';
+    } else state.view = r === 'ADMIN' ? 'admin' : 'dashboard';
+    render();
+  });
+  document.addEventListener('click', e => {
+    const nav = e.target.closest('[data-nav]');
+    if (nav) { state.view = nav.dataset.nav; state.editingId = null; state.formError = null; state.actionError = null; render(); window.scrollTo(0, 0); return; }
+    const open = e.target.closest('[data-open]');
+    if (open) { state.view = 'detail'; state.detailId = open.dataset.open; state.selectedAlloc = null; state.actionError = null; state.confirmWithdraw = false; render(); window.scrollTo(0, 0); return; }
+    const f = e.target.closest('[data-filter]');
+    if (f) { state.filter = f.dataset.filter; render(); return; }
+    const a = e.target.closest('[data-act]');
+    if (a) { doAction(a.dataset.act); return; }
+    if (e.target.closest('[data-export]')) { toast('Export', 'In the real system this downloads an Excel file of the filtered list.'); }
+  });
+  document.addEventListener('change', e => {
+    const cb = e.target.closest('[data-alloc]');
+    if (cb && state.selectedAlloc) { cb.checked ? state.selectedAlloc.add(cb.dataset.alloc) : state.selectedAlloc.delete(cb.dataset.alloc); const cmt = document.getElementById('a-cmt'); const keep = cmt ? cmt.value : ''; render(); const c2 = document.getElementById('a-cmt'); if (c2) c2.value = keep; }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { const open = e.target.closest && e.target.closest('tr[data-open]'); if (open) open.click(); }
+  });
+  render();
+})();
+</script>

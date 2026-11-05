@@ -1,0 +1,36 @@
+[Unit]
+Description=Engineering Resource Requests (API and background jobs)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=erf
+Group=erf
+WorkingDirectory=/opt/erf/current/backend
+EnvironmentFile=/etc/erf/erf.env
+ExecStart=/opt/erf/current/backend/.venv/bin/uvicorn --factory erf.main:create_app \
+    --host 127.0.0.1 --port 8100 --workers 1 \
+    --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-server-header
+UMask=0027
+Restart=on-failure
+RestartSec=5
+
+# The server is shared with other applications: cap memory so this service can never starve them.
+MemoryHigh=250M
+MemoryMax=320M
+
+# Hardening: the service can only write its data directory.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/lib/erf
+
+[Install]
+WantedBy=multi-user.target

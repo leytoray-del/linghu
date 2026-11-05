@@ -1,0 +1,16 @@
+[Unit]
+Description=Back up the Engineering Resource Requests database
+
+[Service]
+Type=oneshot
+UMask=0027
+User=erf
+Group=erf
+WorkingDirectory=/opt/erf/current/backend
+EnvironmentFile=/etc/erf/erf.env
+ExecStart=/opt/erf/current/backend/.venv/bin/erf backup --dest /var/lib/erf/backups --keep 30
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/erf
