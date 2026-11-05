@@ -1,0 +1,173 @@
+/* Design tokens shared by the layout and custom components. Element Plus is themed through its variables. */
+:root {
+  --erf-bg: #f3f5f8;
+  --erf-surface: #ffffff;
+  --erf-surface-2: #edf0f5;
+  --erf-fg: #17202c;
+  --erf-muted: #5a6577;
+  --erf-line: #d9dfe8;
+  --erf-accent: #2254c5;
+  --erf-ok: #17784a;
+  --erf-warn: #a35c00;
+  --erf-bad: #b3261e;
+  --erf-rail: #1b2533;
+  --erf-rail-fg: #c9d2df;
+  --erf-rail-active: #2b3a50;
+  --erf-radius: 6px;
+  --erf-font: 'Segoe UI', 'IBM Plex Sans', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --erf-mono: 'Cascadia Mono', 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+
+  --el-color-primary: #2254c5;
+  --el-color-primary-light-3: #6487d6;
+  --el-color-primary-light-5: #90a9e2;
+  --el-color-primary-light-7: #bdcbee;
+  --el-color-primary-light-8: #d3ddf3;
+  --el-color-primary-light-9: #e9eef9;
+  --el-color-primary-dark-2: #1b439e;
+  --el-color-success: #17784a;
+  --el-color-warning: #a35c00;
+  --el-color-danger: #b3261e;
+  --el-border-radius-base: 6px;
+  --el-font-family: var(--erf-font);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--erf-bg);
+  color: var(--erf-fg);
+  font-family: var(--erf-font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0;
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+a {
+  color: var(--erf-accent);
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1200px;
+  width: 100%;
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sub {
+  color: var(--erf-muted);
+  margin: 4px 0 0;
+}
+
+.panel {
+  background: var(--erf-surface);
+  border: 1px solid var(--erf-line);
+  border-radius: var(--erf-radius);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.muted {
+  color: var(--erf-muted);
+}
+
+.mono {
+  font-family: var(--erf-mono);
+  font-size: 12.5px;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tile {
+  background: var(--erf-surface);
+  border: 1px solid var(--erf-line);
+  border-radius: var(--erf-radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tile .label {
+  font-size: 12px;
+  color: var(--erf-muted);
+}
+
+.tile .value {
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile.attention .value {
+  color: var(--erf-warn);
+}
+
+.pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.el-table .clickable-row {
+  cursor: pointer;
+}
+
+@media (max-width: 1020px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

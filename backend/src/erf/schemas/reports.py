@@ -9,6 +9,7 @@ from erf.schemas.requests import SupportTypeBrief
 class Lookups(Schema):
     support_types: list[SupportTypeBrief]
     teams: list[dict[str, object]]
+    directors: list[str]
     min_notice_working_days: int
     today: date
 

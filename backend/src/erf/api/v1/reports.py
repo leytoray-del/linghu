@@ -22,7 +22,8 @@ def lookups(user: CurrentUser, ctx: Ctx) -> Lookups:
     from erf.domain.enums import Role
     from erf.repositories.users import UserRepository
 
-    engineers = UserRepository(ctx.session).with_role(Role.ENGINEER)
+    users = UserRepository(ctx.session)
+    engineers = users.with_role(Role.ENGINEER)
     teams = [
         {
             "id": t.id,
@@ -33,6 +34,7 @@ def lookups(user: CurrentUser, ctx: Ctx) -> Lookups:
                 for e in engineers
                 if e.team_id == t.id
             ],
+            "approvers": [u.display_name for u in users.get_many(t.approver_ids) if u.is_active],
         }
         for t in TeamRepository(ctx.session).list_all()
         if t.is_active
@@ -43,6 +45,7 @@ def lookups(user: CurrentUser, ctx: Ctx) -> Lookups:
             for s in SupportTypeRepository(ctx.session).list_all(active_only=True)
         ],
         teams=teams,
+        directors=[u.display_name for u in users.with_role(Role.DIRECTOR)],
         min_notice_working_days=ctx.config.get_int("min_notice_working_days"),
         today=ctx.clock.today(),
     )
