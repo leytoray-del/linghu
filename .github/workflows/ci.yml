@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   backend:
@@ -36,18 +37,74 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
-  release:
+  deploy:
+    # Builds the release archive on every push to main. When the repository variable
+    # DEPLOY_ENABLED is "true", it also installs the release on the server over SSH.
+    # Setup: docs/部署指南.md, section "自动部署".
     needs: [backend, frontend]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      DEMO_MODE: ${{ vars.ERF_DEMO }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: bash deploy/scripts/build-release.sh
+      - name: Build release archive
+        run: |
+          if [ "$DEMO_MODE" = "true" ]; then bash deploy/scripts/build-release.sh --demo; else bash deploy/scripts/build-release.sh; fi
+          echo "ARCHIVE=$(ls release/*.tar.gz)" >> "$GITHUB_ENV"
       - uses: actions/upload-artifact@v4
         with:
           name: erf-release
           path: release/*.tar.gz
           retention-days: 30
+
+      - name: Configure SSH
+        if: vars.DEPLOY_ENABLED == 'true'
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Install the release on the server
+        if: vars.DEPLOY_ENABLED == 'true'
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DOMAIN: ${{ vars.ERF_DOMAIN }}
+        run: |
+          SSH_OPTS="-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes"
+          NAME="$(basename "$ARCHIVE")"
+          scp $SSH_OPTS "$ARCHIVE" "$DEPLOY_USER@$HOST:/tmp/$NAME"
+          ssh $SSH_OPTS "$DEPLOY_USER@$HOST" bash -s -- "$NAME" "$DOMAIN" "$DEMO_MODE" <<'REMOTE'
+          set -euo pipefail
+          NAME="$1"; DOMAIN="$2"; DEMO="$3"
+          WORK="$(mktemp -d)"
+          tar -xzf "/tmp/$NAME" -C "$WORK"
+          sudo bash "$WORK/deploy/scripts/install.sh" --domain "$DOMAIN"
+          if [ "$DEMO" = "true" ]; then
+            sudo bash "$WORK/deploy/scripts/release.sh" "/tmp/$NAME" --seed-demo
+          else
+            sudo bash "$WORK/deploy/scripts/release.sh" "/tmp/$NAME"
+          fi
+          rm -rf "$WORK" "/tmp/$NAME"
+          REMOTE
+      - name: Check the public site
+        if: vars.DEPLOY_ENABLED == 'true'
+        env:
+          DOMAIN: ${{ vars.ERF_DOMAIN }}
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS "https://$DOMAIN/api/health"; then echo; exit 0; fi
+            sleep 3
+          done
+          echo "https://$DOMAIN/api/health did not respond." >&2
+          exit 1

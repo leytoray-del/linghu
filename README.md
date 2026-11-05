@@ -111,5 +111,8 @@ sudo bash deploy/scripts/install.sh --domain your-host.duckdns.org
 sudo bash deploy/scripts/release.sh erf-<version>.tar.gz --seed-demo
 ```
 
+Pushes to `main` can also deploy automatically through GitHub Actions over SSH once the repository
+secrets and variables described in the guide are set.
+
 Each release is unpacked into its own directory, the database is backed up before migrations, and
 the service rolls back automatically if the new version does not pass its health check.
