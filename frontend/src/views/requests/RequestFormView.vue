@@ -97,8 +97,18 @@ for (const key of Object.keys(form) as (keyof RequestInput)[]) {
   )
 }
 
+/** True while Urgent was chosen by the form because of short notice, not by the user. */
+const autoUrgent = ref(false)
+
 watch(shortNotice, (short) => {
-  if (short) form.priority_declared = 'URGENT'
+  if (short) {
+    if (form.priority_declared !== 'URGENT') autoUrgent.value = true
+    form.priority_declared = 'URGENT'
+  } else if (autoUrgent.value) {
+    // The new date gives enough notice, so undo the automatic choice. A user's own choice stays.
+    form.priority_declared = 'NORMAL'
+    autoUrgent.value = false
+  }
 })
 
 watch(
@@ -136,6 +146,7 @@ onMounted(async () => {
         task_schedule: r.task_schedule,
         urgent_justification: r.urgent_justification,
       })
+      autoUrgent.value = r.urgency_reason === 'SHORT_NOTICE'
     } else if (route.query.copy) {
       // Copy the content of an earlier request. Dates, priority and justification start fresh.
       const src = await requestApi.get(Number(route.query.copy))
