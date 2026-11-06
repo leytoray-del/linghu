@@ -49,10 +49,10 @@ def links_for(ctx: ServiceContext, task: ApprovalTask) -> list[ActionLink]:
             ActionLink("Reject change", f"{base}?do=reject", "danger"),
         ]
     if task.step == ApprovalStep.DIRECTOR_APPROVAL.value:
-        # Nothing is left to choose at the final step, so Approve completes with one click. The page
-        # submits it from the browser; link scanners that only fetch the URL do not approve anything.
+        # Every decision needs a click on the page. Mail security gateways open links in full browsers
+        # that run scripts, so a link that approves by itself can be triggered by a scanner.
         return [
-            ActionLink("Approve", f"{base}?do=approve&instant=1", "primary"),
+            ActionLink("Approve", f"{base}?do=approve", "primary"),
             ActionLink("Return to requester", f"{base}?do=return", "neutral"),
             ActionLink("Reject", f"{base}?do=reject", "danger"),
         ]

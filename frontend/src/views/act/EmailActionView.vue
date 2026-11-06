@@ -23,8 +23,6 @@ const picks = ref<Record<number, number>>({})
 const submitting = ref(false)
 const actionError = ref<string | null>(null)
 const result = ref<EmailActionResult | null>(null)
-/** One-click approval from the director's email: approve as soon as the page is visible. */
-const instant = ref(false)
 
 const r = computed(() => view.value?.request ?? null)
 const isChange = computed(() => view.value?.step === 'CHANGE_REVIEW')
@@ -55,10 +53,6 @@ onMounted(async () => {
     picks.value = Object.fromEntries(v.preselected.map((p) => [p.engineer_id, p.allocation_pct]))
     const wanted = String(route.query.do ?? '').toUpperCase() as Action
     if (v.actions.includes(wanted)) action.value = wanted
-    if (route.query.instant === '1' && wanted === 'APPROVE' && v.step === 'DIRECTOR_APPROVAL') {
-      instant.value = true
-      whenVisible(confirm)
-    }
   } catch (e) {
     const status = e instanceof ApiError ? e.status : 0
     loadError.value = {
@@ -69,21 +63,6 @@ onMounted(async () => {
     loading.value = false
   }
 })
-
-/** Run once the tab is in front of the person, so a link opened in the background does not act unseen. */
-function whenVisible(run: () => void): void {
-  if (document.visibilityState === 'visible') {
-    run()
-    return
-  }
-  const onChange = (): void => {
-    if (document.visibilityState === 'visible') {
-      document.removeEventListener('visibilitychange', onChange)
-      run()
-    }
-  }
-  document.addEventListener('visibilitychange', onChange)
-}
 
 async function confirm(): Promise<void> {
   actionError.value = null
@@ -106,7 +85,6 @@ async function confirm(): Promise<void> {
     })
   } catch (e) {
     actionError.value = errorMessage(e)
-    instant.value = false
   } finally {
     submitting.value = false
   }
@@ -142,10 +120,6 @@ async function confirm(): Promise<void> {
         <RouterLink :to="`/requests/${result.request_id}`">Open {{ result.display_no }} in the system</RouterLink>
       </section>
 
-      <section v-else-if="instant && view" class="panel done">
-        <h1>Approving {{ view.request.display_no }}…</h1>
-        <p class="muted">{{ view.request.project_name }} · {{ view.request.client_name }}</p>
-      </section>
 
       <template v-else-if="view && r">
         <div class="head">

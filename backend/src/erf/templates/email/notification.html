@@ -29,7 +29,7 @@
         <tr><td style="padding:0 0 8px 0;"><a href="{{ a.url }}" style="display:block;padding:12px 16px;border-radius:4px;font-weight:600;font-size:15px;text-align:center;text-decoration:none;{% if a.style == 'primary' %}background:#2254c5;color:#ffffff;border:1px solid #2254c5;{% elif a.style == 'danger' %}background:#ffffff;color:#b3261e;border:1px solid #e3a6a2;{% else %}background:#ffffff;color:#17202c;border:1px solid #d9dfe8;{% endif %}">{{ a.label }}</a></td></tr>
         {% endfor %}
       </table>
-      <p style="margin:0 0 18px;font-size:12px;color:#5a6577;">{% if r.status == 'PENDING_DIRECTOR_APPROVAL' %}Approve takes effect as soon as you click it. Return and Reject open a page where you add your comment.{% else %}Each button opens a page where you {% if r.status == 'PENDING_TL_REVIEW' %}choose the engineers, set how much of each person's time this work needs, {% endif %}add a comment and confirm. Nothing changes until you confirm.{% endif %} The links work only for you and stop working once the request is handled.</p>
+      <p style="margin:0 0 18px;font-size:12px;color:#5a6577;">{% if r.status == 'PENDING_DIRECTOR_APPROVAL' %}Each button opens a page where you confirm with one more click; Return and Reject also ask for your comment. Nothing changes until you confirm.{% else %}Each button opens a page where you {% if r.status == 'PENDING_TL_REVIEW' %}choose the engineers, set how much of each person's time this work needs, {% endif %}add a comment and confirm. Nothing changes until you confirm.{% endif %} The links work only for you and stop working once the request is handled.</p>
       {% endif %}
 
       {% if change %}

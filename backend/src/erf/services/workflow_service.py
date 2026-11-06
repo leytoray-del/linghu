@@ -315,6 +315,7 @@ class WorkflowService:
         engineer_ids: list[int] | None = None,
         allocations: list[AllocationSpec] | None = None,
         via: str | None = None,
+        client: dict[str, str] | None = None,
     ) -> ResourceRequest:
         if action not in TASK_RESULT:
             raise ValidationFailed("Choose approve, return or reject.")
@@ -355,6 +356,8 @@ class WorkflowService:
         payload: dict[str, Any] = {"step": step.value, "round": request.round}
         if via:
             payload["via"] = via
+        if client:
+            payload["client"] = client
         if allocation_names:
             payload["engineers"] = allocation_names
 
@@ -774,6 +777,7 @@ class WorkflowService:
         comment: str | None,
         allocations: list[AllocationSpec] | None = None,
         via: str | None = None,
+        client: dict[str, str] | None = None,
     ) -> RequestChange:
         """The team leader approves (with the final list of engineers) or rejects a change."""
         change = next((c for c in request.changes if c.id == change_id), None)
@@ -843,7 +847,11 @@ class WorkflowService:
                 "CHANGE_REJECT",
                 request.status,
                 comment,
-                {"change": summary, **({"via": via} if via else {})},
+                {
+                    "change": summary,
+                    **({"via": via} if via else {}),
+                    **({"client": client} if client else {}),
+                },
             )
             self.notifications.notify(
                 Event.CHANGE_REJECTED,
@@ -861,7 +869,12 @@ class WorkflowService:
                 "CHANGE_APPROVE",
                 request.status,
                 comment,
-                {"change": summary, "engineers": names, **({"via": via} if via else {})},
+                {
+                    "change": summary,
+                    "engineers": names,
+                    **({"via": via} if via else {}),
+                    **({"client": client} if client else {}),
+                },
             )
             sequence = self._calendar_sequence(request)
             active = self._active_allocations(request)

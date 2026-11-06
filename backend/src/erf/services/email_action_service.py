@@ -101,7 +101,12 @@ class EmailActionService:
         )
 
     def act(
-        self, token: str, action: Action, comment: str | None, allocations: list[AllocationIn]
+        self,
+        token: str,
+        action: Action,
+        comment: str | None,
+        allocations: list[AllocationIn],
+        client: dict[str, str] | None = None,
     ) -> EmailActionResult:
         task, _ = self._task(token)
         r = task.request
@@ -113,7 +118,14 @@ class EmailActionService:
                 raise ValidationFailed("A change can only be approved or rejected.")
             assert task.change_id is not None
             workflow.decide_change(
-                user, r, task.change_id, action, comment=comment, allocations=specs, via="email"
+                user,
+                r,
+                task.change_id,
+                action,
+                comment=comment,
+                allocations=specs,
+                via="email",
+                client=client,
             )
             message = (
                 f"The change to {r.display_no} was {'approved' if action == Action.APPROVE else 'rejected'}."
@@ -127,6 +139,7 @@ class EmailActionService:
                 version=None,
                 allocations=specs if action == Action.APPROVE else None,
                 via="email",
+                client=client,
             )
             done = {
                 Action.APPROVE: "approved",

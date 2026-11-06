@@ -110,14 +110,15 @@ def test_team_leader_and_director_approve_from_email(login, lookups, container, 
     detail = login("alex.tan@example.com").get(f"/requests/{req['id']}").json()
     tl_event = next(ev for ev in detail["events"] if ev["action"] == "TL_APPROVE")
     assert tl_event["actor"]["display_name"] == "Priya Nair" and tl_event["payload"]["via"] == "email"
+    assert tl_event["payload"]["client"]["ip"] == "testclient", "where the link was confirmed from"
     assert sorted(a["allocation_pct"] for a in detail["allocations"]) == [50, 100]
 
     director_mail = next(
         m for m in mails(container, "TL_APPROVED", "grace.wong@example.com") if req["request_no"] in m.subject
     )
     assert "Chua Mei Ling (50%, proposed)" in director_mail.body_html
-    assert "?do=approve&amp;instant=1" in director_mail.body_html, "one-click approve for the director"
-    assert "Approve takes effect as soon as you click it" in director_mail.body_html
+    assert "instant" not in director_mail.body_html, "no link approves by itself: scanners open links"
+    assert "confirm with one more click" in director_mail.body_html
     d = anon.post(f"/api/v1/email-actions/{token_from(director_mail)}", json={"action": "APPROVE"})
     assert d.status_code == 200 and d.json()["status"] == "APPROVED"
 
