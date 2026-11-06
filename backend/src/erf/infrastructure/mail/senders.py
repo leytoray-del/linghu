@@ -37,10 +37,28 @@ class MailSender(Protocol):
     def send(self, mail: OutgoingMail) -> None: ...
 
 
+PLACEHOLDER_DOMAINS = frozenset({"example.com", "example.org", "example.net"})
+PLACEHOLDER_SUFFIXES = (".example", ".invalid", ".test", ".localhost")
+
+
+def is_placeholder(address: str) -> bool:
+    """Addresses reserved for documentation and testing (RFC 2606), such as the demo accounts."""
+    domain = address.rsplit("@", 1)[-1].strip().lower()
+    return domain in PLACEHOLDER_DOMAINS or domain.endswith(PLACEHOLDER_SUFFIXES)
+
+
 def redirect(mail: OutgoingMail, address: str) -> OutgoingMail:
-    """Send a message to one test mailbox and state who the real recipients were."""
-    intended = f"To: {', '.join(mail.to)}" + (f" | Cc: {', '.join(mail.cc)}" if mail.cc else "")
-    note = f"Demo mode: this email was redirected. Intended recipients: {intended}"
+    """In demo mode, deliver copies meant for placeholder addresses (the demo accounts) to one mailbox.
+    Real addresses still receive the message directly. Mail without placeholder recipients is unchanged."""
+    fake_to = [a for a in mail.to if is_placeholder(a)]
+    fake_cc = [a for a in mail.cc if is_placeholder(a)]
+    if not fake_to and not fake_cc:
+        return mail
+    to = [a for a in mail.to if not is_placeholder(a)]
+    cc = [a for a in mail.cc if not is_placeholder(a)]
+    if address not in to and address not in cc:
+        (to if fake_to else cc).append(address)
+    note = f"Demo system: the copy for demo account(s) {', '.join(fake_to + fake_cc)} was delivered to {address}."
     banner = (
         '<div style="background:#fff4e5;border:1px solid #e9a94a;padding:8px 12px;margin:0 0 12px;'
         f'font:13px Segoe UI,Arial,sans-serif;color:#5a3b00">{html.escape(note)}</div>'
@@ -49,9 +67,9 @@ def redirect(mail: OutgoingMail, address: str) -> OutgoingMail:
     marker = mail.html.find(">", start) + 1 if start >= 0 else 0
     return replace(
         mail,
-        to=[address],
-        cc=[],
-        subject=f"[Demo → {', '.join(mail.to)}] {mail.subject}"[:250],
+        to=to,
+        cc=cc,
+        subject=f"[Demo] {mail.subject}"[:250],
         html=mail.html[:marker] + banner + mail.html[marker:],
         text=f"{note}\n\n{mail.text}",
     )

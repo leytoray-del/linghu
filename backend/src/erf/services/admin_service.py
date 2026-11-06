@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import secrets
 import string
@@ -10,12 +11,14 @@ from sqlalchemy.exc import IntegrityError
 
 from erf.core.errors import Conflict, Forbidden, NotFound, ValidationFailed
 from erf.core.security import hash_password
-from erf.db.models import Holiday, SupportType, TeamApprover, User
+from erf.db.models import Holiday, NotificationOutbox, SupportType, TeamApprover, User
 from erf.domain.enums import OutboxStatus, Role
+from erf.infrastructure.mail.senders import OutgoingMail, build_sender, redirect
 from erf.repositories.requests import OutboxRepository
 from erf.repositories.settings import SETTING_DEFAULTS, HolidayRepository, SupportTypeRepository
 from erf.repositories.users import SessionRepository, TeamRepository, UserRepository
 from erf.schemas.admin import (
+    EmailTestOut,
     HolidayIn,
     OutboxOut,
     OutboxSummary,
@@ -227,3 +230,52 @@ class AdminService:
         row.status = OutboxStatus.PENDING.value
         row.attempts = 0
         row.next_attempt_at = self.ctx.clock.now()
+
+    def send_test_email(self, address: str) -> EmailTestOut:
+        """Send one message to one address right away and report the outcome. The attempt is kept in
+        the email log so it can be checked later."""
+        settings = self.ctx.settings
+        now = self.ctx.clock.now()
+        local = self.ctx.clock.to_local(now).strftime("%d %b %Y %H:%M")
+        subject = f"Test email from {settings.app_name}"
+        text = (
+            f"This test message was sent by {self.actor.display_name} on {local}.\n\n"
+            "If you can read it, the system can deliver email to this address. No action is needed."
+        )
+        body = (
+            '<html><body style="font-family:Segoe UI,Arial,sans-serif;color:#17202c;">'
+            f"<p>This test message was sent by {html.escape(self.actor.display_name)} on {local}.</p>"
+            "<p>If you can read it, the system can deliver email to this address. No action is needed.</p>"
+            "</body></html>"
+        )
+        mail = OutgoingMail(to=[address], cc=[], subject=subject, html=body, text=text)
+        delivered = redirect(mail, settings.mail_redirect_to).to if settings.mail_redirect_to else [address]
+        row = NotificationOutbox(
+            event_type="TEST_EMAIL",
+            request_id=None,
+            to_addresses=json.dumps([address]),
+            cc_addresses="[]",
+            subject=subject,
+            body_html=body,
+            body_text=text,
+            status=OutboxStatus.PENDING.value,
+            attempts=1,
+            next_attempt_at=now,
+        )
+        self.s.add(row)
+        try:
+            build_sender(settings).send(mail)
+        except Exception as exc:
+            row.status = OutboxStatus.FAILED.value
+            row.last_error = f"{type(exc).__name__}: {exc}"[:2000]
+            return EmailTestOut(
+                status="FAILED", backend=settings.mail_backend, delivered_to=[], error=row.last_error
+            )
+        row.status = OutboxStatus.SENT.value
+        row.sent_at = now
+        return EmailTestOut(
+            status="SENT" if settings.mail_backend == "smtp" else "LOGGED",
+            backend=settings.mail_backend,
+            delivered_to=delivered,
+            error=None,
+        )

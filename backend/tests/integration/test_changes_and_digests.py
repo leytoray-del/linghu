@@ -88,11 +88,11 @@ def test_smtp_message_redirect_and_attachment() -> None:
     settings = Settings(
         _env_file=None,  # type: ignore[call-arg]
         mail_backend="smtp",
-        mail_from='"Resource Requests" <sender@example.org>',
-        mail_redirect_to="tester@example.org",
+        mail_from='"Resource Requests" <sender@gmail.com>',
+        mail_redirect_to="sender@gmail.com",
     )
     mail = OutgoingMail(
-        to=["a@example.com"],
+        to=["a@example.com", "real.person@gmail.com"],
         cc=["b@example.com"],
         subject="ERR-1 approved",
         html="<html><body><p>Hi</p></body></html>",
@@ -102,15 +102,39 @@ def test_smtp_message_redirect_and_attachment() -> None:
         ],
     )
     msg = message_from_bytes(SmtpSender(settings).build(mail).as_bytes())
-    assert msg["To"] == "tester@example.org" and msg["Cc"] is None
-    assert "a@example.com" in msg["Subject"]
+    # Real addresses are delivered directly; demo (placeholder) addresses go to the sender's mailbox.
+    assert msg["To"] == "real.person@gmail.com, sender@gmail.com" and msg["Cc"] is None
+    assert msg["Subject"] == "[Demo] ERR-1 approved"
     parts = {p.get_content_type(): p for p in msg.walk()}
-    assert (
-        "Intended recipients: To: a@example.com | Cc: b@example.com"
-        in parts["text/plain"].get_payload(decode=True).decode()
-    )
+    body = parts["text/plain"].get_payload(decode=True).decode()
+    assert "demo account(s) a@example.com, b@example.com was delivered to sender@gmail.com" in body
     cal = parts["text/calendar"]
     assert cal.get_filename() == "ERR-1.ics" and cal.get_param("method") == "PUBLISH"
+
+    only_real = OutgoingMail(to=["real.person@gmail.com"], cc=[], subject="Hello", html="<p>x</p>", text="x")
+    msg = message_from_bytes(SmtpSender(settings).build(only_real).as_bytes())
+    assert msg["To"] == "real.person@gmail.com" and msg["Subject"] == "Hello", "real mail is untouched"
+
+
+def test_send_test_email(login, container, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    admin = login("admin@example.com")
+    r = admin.post("/admin/email-test", json={"to": "someone@gmail.com"})
+    assert r.status_code == 200 and r.json()["status"] == "LOGGED", "log backend sends nothing"
+    assert (
+        login("priya.nair@example.com").post("/admin/email-test", json={"to": "x@gmail.com"}).status_code
+        == 403
+    )
+    assert admin.post("/admin/email-test", json={"to": "not-an-address"}).status_code == 422
+
+    def refuse(self, mail):  # type: ignore[no-untyped-def]
+        raise OSError("535 Username and Password not accepted")
+
+    monkeypatch.setattr("erf.infrastructure.mail.senders.LogSender.send", refuse)
+    r = admin.post("/admin/email-test", json={"to": "someone@gmail.com"}).json()
+    assert r["status"] == "FAILED" and "535" in r["error"]
+    rows = outbox(container, "TEST_EMAIL")
+    assert [row.status for row in rows] == ["SENT", "FAILED"]
+    assert all(json.loads(row.to_addresses) == ["someone@gmail.com"] for row in rows)
 
 
 # ---------------------------------------------------------------- change requests

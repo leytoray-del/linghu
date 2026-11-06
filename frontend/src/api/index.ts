@@ -149,4 +149,11 @@ export const adminApi = {
   outbox: (status_filter?: string) =>
     http.get<OutboxSummary>('/admin/outbox', { params: { status_filter } }).then((r) => r.data),
   retryEmail: (id: number) => http.post(`/admin/outbox/${id}/retry`),
+  sendTestEmail: (to: string) =>
+    http
+      .post<{ status: 'SENT' | 'LOGGED' | 'FAILED'; backend: string; delivered_to: string[]; error: string | null }>(
+        '/admin/email-test',
+        { to },
+      )
+      .then((r) => r.data),
 }

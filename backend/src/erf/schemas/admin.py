@@ -109,6 +109,18 @@ class OutboxOut(Schema):
     sent_at: datetime | None
 
 
+class EmailTestIn(Schema):
+    to: EmailStr
+
+
+class EmailTestOut(Schema):
+    status: str
+    """SENT (delivered to the mail server), LOGGED (log backend, nothing sent) or FAILED."""
+    backend: str
+    delivered_to: list[str]
+    error: str | None
+
+
 class OutboxSummary(Schema):
     counts: dict[str, int]
     items: list[OutboxOut]

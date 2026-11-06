@@ -14,6 +14,38 @@ const STATUS_TYPE: Record<string, 'success' | 'warning' | 'danger' | 'info'> = {
 }
 
 const data = ref<OutboxSummary | null>(null)
+const testTo = ref('')
+const testing = ref(false)
+const testResult = ref<{ type: 'success' | 'warning' | 'error'; title: string; detail: string } | null>(null)
+
+async function sendTest(): Promise<void> {
+  if (!testTo.value.trim()) return
+  testing.value = true
+  testResult.value = null
+  try {
+    const r = await adminApi.sendTestEmail(testTo.value.trim())
+    if (r.status === 'SENT') {
+      testResult.value = {
+        type: 'success',
+        title: `Sent to ${r.delivered_to.join(', ')}`,
+        detail: 'The mail server accepted the message. Check that inbox, including the spam folder.',
+      }
+    } else if (r.status === 'LOGGED') {
+      testResult.value = {
+        type: 'warning',
+        title: 'Not sent: email delivery is not switched on',
+        detail: 'The server writes emails to its log instead of sending them. Set up the SMTP settings first.',
+      }
+    } else {
+      testResult.value = { type: 'error', title: 'The mail server refused the message', detail: r.error ?? '' }
+    }
+    await load()
+  } catch (e) {
+    showError(e)
+  } finally {
+    testing.value = false
+  }
+}
 const status = ref<string>('')
 const loading = ref(true)
 
@@ -49,6 +81,12 @@ onMounted(load)
       Set <code>ERF_MAIL_BACKEND=smtp</code> and the SMTP settings on the server to deliver them. The approval workflow
       works the same either way.
     </el-alert>
+    <div class="test">
+      <el-input v-model="testTo" type="email" placeholder="name@company.com" class="test-to" aria-label="Test email address" @keyup.enter="sendTest" />
+      <el-button :loading="testing" :disabled="!testTo.trim()" @click="sendTest">Send test email</el-button>
+      <span class="muted small">Sends one short message to this address only.</span>
+    </div>
+    <el-alert v-if="testResult" :type="testResult.type" :title="testResult.title" :description="testResult.detail" show-icon @close="testResult = null" />
     <div class="bar">
       <div class="counts">
         <span v-for="(n, s) in data?.counts ?? {}" :key="s"><el-tag :type="STATUS_TYPE[s]" size="small">{{ s }}</el-tag> {{ n }}</span>
@@ -98,6 +136,15 @@ onMounted(load)
 }
 .filter {
   width: 180px;
+}
+.test {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.test-to {
+  width: min(300px, 100%);
 }
 .small {
   font-size: 12px;

@@ -44,7 +44,8 @@ class Settings(BaseSettings):
     smtp_starttls: bool = True
     smtp_timeout_seconds: int = 20
     mail_redirect_to: str | None = None
-    """Demo and test installations: deliver every email to this address instead of the real recipients."""
+    """Demo installations: deliver email for placeholder addresses such as @example.com to this mailbox.
+    Real addresses are not affected."""
 
     # Static frontend (optional; in production Caddy serves it)
     frontend_dist: Path | None = None

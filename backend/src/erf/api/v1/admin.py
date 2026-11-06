@@ -10,6 +10,8 @@ from erf.domain.enums import OutboxStatus, Role
 from erf.repositories.settings import SupportTypeRepository
 from erf.repositories.users import TeamRepository, UserRepository
 from erf.schemas.admin import (
+    EmailTestIn,
+    EmailTestOut,
     HolidayAdminOut,
     HolidayIn,
     OutboxSummary,
@@ -124,6 +126,11 @@ def update_setting(key: str, body: SettingIn, admin: Admin, ctx: Ctx) -> list[Se
 @router.get("/outbox", response_model=OutboxSummary)
 def outbox(admin: Admin, ctx: Ctx, status_filter: OutboxStatus | None = None) -> OutboxSummary:
     return AdminService(ctx, admin).outbox(status_filter)
+
+
+@router.post("/email-test", response_model=EmailTestOut)
+def send_test_email(body: EmailTestIn, admin: Admin, ctx: Ctx) -> EmailTestOut:
+    return AdminService(ctx, admin).send_test_email(str(body.to))
 
 
 @router.post("/outbox/{row_id}/retry", status_code=status.HTTP_204_NO_CONTENT)
