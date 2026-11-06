@@ -72,11 +72,13 @@ def test_partial_allocation_and_calendar_attachment(login, lookups, container) -
     )
     assert req["status"] == "APPROVED"
     mail = outbox(container, "REQUEST_APPROVED")[-1]
-    files = json.loads(mail.attachments or "[]")
-    assert files[0]["filename"] == f"{req['request_no']}.ics"
-    ics = files[0]["content"]
-    assert "DTSTART;VALUE=DATE:20261123" in ics and "DTEND;VALUE=DATE:20261219" in ics
-    assert "Chua Mei Ling (50%)" in ics.replace("\r\n ", "")
+    # Demo engineers (example.com) cannot receive invitations, so they are told in the ordinary email.
+    assert set(json.loads(mail.to_addresses)) == {
+        "alex.tan@example.com",
+        "meiling.chua@example.com",
+        "nurul.huda@example.com",
+    }
+    assert mail.attachments is None
     assert "(50%)" in mail.body_text
 
     load = login("priya.nair@example.com").get("/resources/load").json()
@@ -201,7 +203,6 @@ def test_change_request_flow(login, lookups, container) -> None:  # type: ignore
     assert [ev["action"] for ev in req["events"]][-2:] == ["CHANGE_REQUEST", "CHANGE_APPROVE"]
     approved = outbox(container, "CHANGE_APPROVED")[-1]
     assert "nurul.huda@example.com" in json.loads(approved.to_addresses)
-    assert "SEQUENCE:1" in json.loads(approved.attachments or "[]")[0]["content"]
 
 
 def test_change_withdraw_and_cancel_clear_pending_work(login) -> None:  # type: ignore[no-untyped-def]

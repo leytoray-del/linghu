@@ -34,6 +34,9 @@ class Event(StrEnum):
     CHANGE_REQUESTED = "CHANGE_REQUESTED"
     CHANGE_APPROVED = "CHANGE_APPROVED"
     CHANGE_REJECTED = "CHANGE_REJECTED"
+    ASSIGNMENT_INVITE = "ASSIGNMENT_INVITE"
+    ASSIGNMENT_UPDATED = "ASSIGNMENT_UPDATED"
+    ASSIGNMENT_CANCELLED = "ASSIGNMENT_CANCELLED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +48,26 @@ class EventText:
 
 
 EVENT_TEXT: dict[Event, EventText] = {
+    Event.ASSIGNMENT_INVITE: EventText(
+        "Assignment: {no} {project} ({pct}%)",
+        "You are assigned to this work",
+        "{actor} approved {no}. You are assigned at {pct}% of your time from {period}. "
+        "This email is a calendar invitation, so the assignment appears in your Outlook and Teams calendar.",
+        "View request",
+    ),
+    Event.ASSIGNMENT_UPDATED: EventText(
+        "Assignment updated: {no} {project} ({pct}%)",
+        "Your assignment has changed",
+        "{actor} approved a change: {change}. You are now assigned at {pct}% of your time from {period}. "
+        "Your calendar entry is updated by this email.",
+        "View request",
+    ),
+    Event.ASSIGNMENT_CANCELLED: EventText(
+        "Assignment cancelled: {no} {project}",
+        "Your assignment was cancelled",
+        "{actor} removed you from this work because {reason}. The entry is removed from your calendar by this email.",
+        "View request",
+    ),
     Event.CHANGE_REQUESTED: EventText(
         "{no} change needs your review: {project}",
         "A change to an approved request needs your review",

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from datetime import date, timedelta
+from email.utils import parseaddr
 from typing import Any
 
 from sqlalchemy import select
@@ -36,8 +37,8 @@ from erf.domain.enums import (
 from erf.domain.urgency import evaluate_urgency
 from erf.domain.validation import SubmissionFields, validate_submission
 from erf.domain.workflow import STEP_FOR_STATUS, Actor, Transition, find_transition
-from erf.infrastructure.calendar_ics import assignment_event
-from erf.infrastructure.mail.senders import Attachment
+from erf.infrastructure.calendar_ics import assignment_invite
+from erf.infrastructure.mail.senders import Attachment, is_placeholder
 from erf.repositories.settings import SupportTypeRepository
 from erf.repositories.users import TeamRepository, UserRepository
 from erf.services.access import AccessPolicy
@@ -376,16 +377,21 @@ class WorkflowService:
                 a.status = AllocationStatus.CONFIRMED.value
             request.decided_at = now
             self.s.flush()
-            engineers = [a.engineer for a in self._active_allocations(request)]
             self._event(request, user, "DIRECTOR_APPROVE", from_status, comment, payload)
+            no_invite = self._send_assignments(
+                request,
+                self._active_allocations(request),
+                Event.ASSIGNMENT_INVITE,
+                actor=user,
+                sequence=self._calendar_sequence(request),
+            )
             self.notifications.notify(
                 Event.REQUEST_APPROVED,
                 request,
-                to=[request.requester, *engineers],
+                to=[request.requester, *no_invite],
                 cc=self._team_approvers(request),
                 actor=user,
                 comment=comment,
-                attachments=[self._calendar_file(request)],
             )
         elif transition.target == RequestStatus.RETURNED:
             self._release_allocations(request)
@@ -492,18 +498,66 @@ class WorkflowService:
         self.s.flush()
         return [f"{a.engineer.display_name} ({a.allocation_pct}%)" for a in self._active_allocations(request)]
 
-    def _calendar_file(self, request: ResourceRequest) -> Attachment:
-        approved_changes = sum(1 for c in request.changes if c.status == ChangeStatus.APPROVED.value)
-        return Attachment(
-            filename=f"{request.display_no}.ics",
-            content_type="text/calendar; method=PUBLISH; charset=UTF-8",
-            content=assignment_event(
+    @staticmethod
+    def _calendar_sequence(request: ResourceRequest) -> int:
+        """Calendar updates must carry a higher SEQUENCE than earlier ones: one step per approved change."""
+        return sum(1 for c in request.changes if c.status == ChangeStatus.APPROVED.value)
+
+    def _send_assignments(
+        self,
+        request: ResourceRequest,
+        allocations: Sequence[ResourceAllocation],
+        event: Event,
+        *,
+        actor: User | None,
+        sequence: int,
+        comment: str | None = None,
+        extra: dict[str, str] | None = None,
+    ) -> list[User]:
+        """Send each engineer a personal calendar invitation (or cancellation for ASSIGNMENT_CANCELLED).
+        Returns engineers with placeholder addresses (demo accounts), who cannot receive mail; callers
+        include them in the ordinary email instead, so no invitations end up in the demo mailbox."""
+        cancel = event == Event.ASSIGNMENT_CANCELLED
+        method = "CANCEL" if cancel else "REQUEST"
+        organizer_name, organizer_email = parseaddr(self.ctx.settings.mail_from)
+        link = f"{self.ctx.settings.base_url.rstrip('/')}/requests/{request.id}"
+        assert request.planned_start and request.planned_end
+        period = f"{request.planned_start:%d %b %Y} to {request.planned_end:%d %b %Y}"
+        skipped: list[User] = []
+        for a in allocations:
+            engineer = a.engineer
+            if is_placeholder(engineer.email):
+                skipped.append(engineer)
+                continue
+            invite = assignment_invite(
                 request,
+                engineer_name=engineer.display_name,
+                engineer_email=engineer.email,
+                allocation_pct=a.allocation_pct,
+                method=method,
+                organizer_name=organizer_name or self.ctx.settings.app_name,
+                organizer_email=organizer_email or "no-reply@example.com",
+                sequence=sequence,
                 now_utc=self.ctx.clock.now(),
-                link=f"{self.ctx.settings.base_url.rstrip('/')}/requests/{request.id}",
-                sequence=approved_changes,
-            ),
-        )
+                link=link,
+            )
+            self.notifications.notify(
+                event,
+                request,
+                to=[engineer],
+                actor=actor,
+                comment=comment,
+                extra={**(extra or {}), "pct": str(a.allocation_pct), "period": period},
+                attachments=[
+                    Attachment(
+                        filename="invite.ics",
+                        content_type=f"text/calendar; method={method}; charset=UTF-8",
+                        content=invite,
+                        inline=True,
+                    )
+                ],
+            )
+        return skipped
 
     def _drop_pending_changes(self, request: ResourceRequest) -> None:
         """A cancelled or closed request cannot be changed any more."""
@@ -554,14 +608,24 @@ class WorkflowService:
         from_status = request.status
         self._drop_pending_changes(request)
         self._close_pending_tasks(request)
-        released = self._release_allocations(request)
+        assigned = list(self._active_allocations(request))
+        self._release_allocations(request)
         request.status = transition.target.value
         self.s.flush()
         self._event(request, user, "CANCEL", from_status, comment)
+        no_invite = self._send_assignments(
+            request,
+            assigned,
+            Event.ASSIGNMENT_CANCELLED,
+            actor=user,
+            sequence=self._calendar_sequence(request) + 1,
+            comment=comment,
+            extra={"reason": "the approved request was cancelled"},
+        )
         self.notifications.notify(
             Event.REQUEST_CANCELLED,
             request,
-            to=[*released, *self._team_approvers(request)],
+            to=[*no_invite, *self._team_approvers(request)],
             cc=[request.requester],
             actor=user,
             comment=comment,
@@ -746,14 +810,17 @@ class WorkflowService:
         else:
             specs = self._specs(None, allocations)
             self._check_allocation(request, specs, change.new_headcount, comment)
-            before = {a.engineer_id for a in self._active_allocations(request)}
+            before_allocations = list(self._active_allocations(request))
+            before = {a.engineer_id for a in before_allocations}
             request.planned_start = change.new_start
             request.planned_end = change.new_end
             request.headcount = change.new_headcount
             names = self._set_allocations(
                 user, request, specs, AllocationStatus.CONFIRMED, change.new_start, change.new_end
             )
-            released = [u for u in self.users.get_many(list(before - dict(specs).keys()))]
+            removed_allocations = [
+                a for a in before_allocations if a.status == AllocationStatus.RELEASED.value
+            ]
             change.status = ChangeStatus.APPROVED.value
             task.status = TaskStatus.APPROVED.value
 
@@ -796,16 +863,33 @@ class WorkflowService:
                 comment,
                 {"change": summary, "engineers": names, **({"via": via} if via else {})},
             )
-            engineers = [a.engineer for a in self._active_allocations(request)]
+            sequence = self._calendar_sequence(request)
+            active = self._active_allocations(request)
+            kept = [a for a in active if a.engineer_id in before]
+            added = [a for a in active if a.engineer_id not in before]
+            change_extra = {"change": summary}
+            no_invite = self._send_assignments(
+                request, kept, Event.ASSIGNMENT_UPDATED, actor=user, sequence=sequence, extra=change_extra
+            )
+            no_invite += self._send_assignments(
+                request, added, Event.ASSIGNMENT_INVITE, actor=user, sequence=sequence, extra=change_extra
+            )
+            no_invite += self._send_assignments(
+                request,
+                removed_allocations,
+                Event.ASSIGNMENT_CANCELLED,
+                actor=user,
+                sequence=sequence,
+                extra={**change_extra, "reason": "the team leader changed the engineers for the new period"},
+            )
             self.notifications.notify(
                 Event.CHANGE_APPROVED,
                 request,
-                to=[request.requester, *engineers, *released],
+                to=[request.requester, *no_invite],
                 cc=self._team_approvers(request),
                 actor=user,
                 comment=comment,
-                extra={"change": summary},
-                attachments=[self._calendar_file(request)],
+                extra=change_extra,
             )
         return change
 

@@ -110,3 +110,12 @@ class TestWorkflow:
             Action.RETURN,
             Action.REJECT,
         }
+
+
+def test_calendar_parameter_values_are_quoted_not_escaped() -> None:
+    from erf.infrastructure.calendar_ics import _escape, _param
+
+    assert _param("Jun Wei") == "Jun Wei"
+    assert _param("Tan, Wee Lee") == '"Tan, Wee Lee"'
+    assert _param('Team "A": Ops') == "\"Team 'A': Ops\""
+    assert _escape("a,b;c") == "a\\,b\;c", "text values are escaped instead"

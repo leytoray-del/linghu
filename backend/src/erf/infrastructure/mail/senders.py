@@ -21,6 +21,9 @@ class Attachment:
     content_type: str
     """For example "text/calendar; method=PUBLISH; charset=UTF-8"."""
     content: str
+    inline: bool = False
+    """A calendar invitation sent as part of the message body (text/calendar alternative part), which is
+    how mail programs recognise a meeting request, rather than as a file attachment."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,7 +113,19 @@ class SmtpSender:
         msg["Message-ID"] = make_msgid()
         msg.set_content(mail.text)
         msg.add_alternative(mail.html, subtype="html")
-        for a in mail.attachments:
+        # Body alternatives (an inline invitation) must be added before any file attachment.
+        for a in sorted(mail.attachments, key=lambda x: not x.inline):
+            if a.inline:
+                method = next(
+                    (
+                        p.split("=", 1)[1].strip()
+                        for p in a.content_type.split(";")
+                        if p.strip().startswith("method=")
+                    ),
+                    "REQUEST",
+                )
+                msg.add_alternative(a.content, subtype="calendar", params={"method": method})
+                continue
             main, _, rest = a.content_type.partition("/")
             subtype = rest.split(";", 1)[0].strip()
             params = dict(
