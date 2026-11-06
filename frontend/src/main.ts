@@ -7,6 +7,12 @@ import { createApp } from 'vue'
 
 import App from './App.vue'
 import router from './router'
+import { reloadForNewVersion } from './utils/staleBuild'
+
+// Vite reports a page file that failed to load; after a release this means the tab is out of date.
+window.addEventListener('vite:preloadError', (event) => {
+  if (reloadForNewVersion()) event.preventDefault()
+})
 
 const app = createApp(App)
 app.use(createPinia())

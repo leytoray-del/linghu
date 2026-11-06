@@ -4,6 +4,7 @@ import { setUnauthorizedHandler } from '@/api/http'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { Role } from '@/types/api'
+import { isStaleBuildError, reloadForNewVersion } from '@/utils/staleBuild'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -97,6 +98,10 @@ router.beforeEach(async (to) => {
 
 router.afterEach((to) => {
   document.title = to.meta.title ? `${to.meta.title} · Resource Requests` : 'Resource Requests'
+})
+
+router.onError((error, to) => {
+  if (isStaleBuildError(error)) reloadForNewVersion(to.fullPath)
 })
 
 setUnauthorizedHandler(() => {

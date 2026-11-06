@@ -55,8 +55,17 @@ systemctl enable erf.service erf-backup.timer >/dev/null
 
 echo "Installing the Caddy site for $DOMAIN…"
 install -d -m 755 /etc/caddy/sites
-sed "s/ERF_DOMAIN/$DOMAIN/g" "$SRC/caddy/erf.caddy" > /etc/caddy/sites/erf.caddy
-caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
+SITE=/etc/caddy/sites/erf.caddy
+PREVIOUS_SITE="$(mktemp)"
+if [[ -f "$SITE" ]]; then cp "$SITE" "$PREVIOUS_SITE"; fi
+sed "s/ERF_DOMAIN/$DOMAIN/g" "$SRC/caddy/erf.caddy" > "$SITE"
+if ! caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then
+  # Keep the running site intact: put the previous file back and stop the deployment.
+  if [[ -s "$PREVIOUS_SITE" ]]; then cp "$PREVIOUS_SITE" "$SITE"; fi
+  echo "The new Caddy configuration is not valid; the previous one was kept. Details:" >&2
+  caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >&2 || true
+  exit 1
+fi
 systemctl reload caddy
 
 echo

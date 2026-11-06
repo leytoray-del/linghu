@@ -38,10 +38,18 @@ async function submit(): Promise<void> {
   error.value = null
   try {
     await auth.login(form.email.trim(), form.password)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
-    await router.replace(redirect.startsWith('/') ? redirect : '/')
   } catch (e) {
     error.value = errorMessage(e)
+    submitting.value = false
+    return
+  }
+  // Signed in. If the next screen cannot be opened (for example because this tab still runs an older
+  // version of the app), load it with a full page load instead of reporting a sign-in failure.
+  const redirect = typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/') ? route.query.redirect : '/'
+  try {
+    await router.replace(redirect)
+  } catch {
+    window.location.assign(redirect)
   } finally {
     submitting.value = false
   }
