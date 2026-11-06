@@ -1,13 +1,23 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Approvals waiting for you</title></head>
-<body style="margin:0;padding:24px;background:#f3f5f8;font-family:Segoe UI,Arial,sans-serif;color:#17202c;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #d9dfe8;border-radius:6px;">
-    <tr><td style="padding:20px 24px;border-bottom:1px solid #d9dfe8;">
+<head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  @media only screen and (max-width: 600px) {
+    .page { padding: 8px !important; }
+    .card td.pad { padding-left: 16px !important; padding-right: 16px !important; }
+    .kv td.lbl { display: block !important; width: auto !important; padding: 8px 0 0 0 !important; font-size: 12px !important; }
+    .kv td.val { display: block !important; width: auto !important; padding: 2px 0 8px 0 !important; }
+  }
+</style>
+<title>Approvals waiting for you</title></head>
+<body class="page" style="margin:0;padding:24px;background:#f3f5f8;font-family:Segoe UI,Arial,sans-serif;color:#17202c;">
+  <table class="card" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #d9dfe8;border-radius:6px;">
+    <tr><td class="pad" style="padding:20px 24px;border-bottom:1px solid #d9dfe8;">
       <div style="font-size:12px;color:#5a6577;letter-spacing:.04em;text-transform:uppercase;">{{ app_name }}</div>
       <div style="font-size:18px;font-weight:600;margin-top:4px;">{{ rows|length }} request{{ '' if rows|length == 1 else 's' }} waiting for your decision</div>
     </td></tr>
-    <tr><td style="padding:16px 24px;">
+    <tr><td class="pad" style="padding:16px 24px;">
       <p style="margin:0 0 14px;">Good morning {{ user.display_name.split(' ')[0] }}.{% if overdue %} <strong style="color:#b3261e;">{{ overdue }} {{ 'is' if overdue == 1 else 'are' }} past the deadline.</strong>{% endif %}</p>
       <table role="presentation" cellpadding="8" cellspacing="0" style="width:100%;font-size:13px;border-collapse:collapse;">
         <tr style="background:#edf0f5;color:#5a6577;text-align:left;">
@@ -28,7 +38,7 @@
       </table>
       <p style="margin:18px 0 0;"><a href="{{ inbox }}" style="display:inline-block;background:#2254c5;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:4px;font-weight:600;">Open approvals</a></p>
     </td></tr>
-    <tr><td style="padding:14px 24px;border-top:1px solid #d9dfe8;font-size:12px;color:#5a6577;">Sent every working day at 08:30 while requests are waiting for you.</td></tr>
+    <tr><td class="pad" style="padding:14px 24px;border-top:1px solid #d9dfe8;font-size:12px;color:#5a6577;">Sent every working day at 08:30 while requests are waiting for you.</td></tr>
   </table>
 </body>
 </html>
