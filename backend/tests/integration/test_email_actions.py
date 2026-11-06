@@ -12,7 +12,7 @@ from erf.db.models import NotificationOutbox
 from erf.db.session import session_scope
 from tests.integration.test_workflow import new_request
 
-LINK = re.compile(r"https://erf\.test/act/([A-Za-z0-9_\-.]+)\?do=approve")
+LINK = re.compile(r"https://erf\.test/act/([A-Za-z0-9_\-.]+)\?do=approve(?:&instant=1)?")
 
 
 def mails(container, event: str, to: str) -> list[NotificationOutbox]:  # type: ignore[no-untyped-def]
@@ -116,6 +116,8 @@ def test_team_leader_and_director_approve_from_email(login, lookups, container, 
         m for m in mails(container, "TL_APPROVED", "grace.wong@example.com") if req["request_no"] in m.subject
     )
     assert "Chua Mei Ling (50%, proposed)" in director_mail.body_html
+    assert "?do=approve&amp;instant=1" in director_mail.body_html, "one-click approve for the director"
+    assert "Approve takes effect as soon as you click it" in director_mail.body_html
     d = anon.post(f"/api/v1/email-actions/{token_from(director_mail)}", json={"action": "APPROVE"})
     assert d.status_code == 200 and d.json()["status"] == "APPROVED"
 

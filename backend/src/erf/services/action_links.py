@@ -48,9 +48,16 @@ def links_for(ctx: ServiceContext, task: ApprovalTask) -> list[ActionLink]:
             ActionLink("Approve change", f"{base}?do=approve", "primary"),
             ActionLink("Reject change", f"{base}?do=reject", "danger"),
         ]
-    approve = "Approve and assign engineers" if task.step == ApprovalStep.TL_REVIEW.value else "Approve"
+    if task.step == ApprovalStep.DIRECTOR_APPROVAL.value:
+        # Nothing is left to choose at the final step, so Approve completes with one click. The page
+        # submits it from the browser; link scanners that only fetch the URL do not approve anything.
+        return [
+            ActionLink("Approve", f"{base}?do=approve&instant=1", "primary"),
+            ActionLink("Return to requester", f"{base}?do=return", "neutral"),
+            ActionLink("Reject", f"{base}?do=reject", "danger"),
+        ]
     return [
-        ActionLink(approve, f"{base}?do=approve", "primary"),
+        ActionLink("Approve and assign engineers", f"{base}?do=approve", "primary"),
         ActionLink("Return to requester", f"{base}?do=return", "neutral"),
         ActionLink("Reject", f"{base}?do=reject", "danger"),
     ]

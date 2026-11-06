@@ -9,7 +9,7 @@ This is a copy for your information. It was sent to {{ copy_of }} for action.
 {{ actor }}: {{ comment }}
 {% endif %}{% if actions %}
 {% for a in actions %}{{ a.label }}: {{ a.url }}
-{% endfor %}(Each link opens a page where you confirm. The links work only for you.)
+{% endfor %}({% if r.status == 'PENDING_DIRECTOR_APPROVAL' %}Approve takes effect with one click; Return and Reject ask for a comment.{% else %}Each link opens a page where you confirm.{% endif %} The links work only for you.)
 {% endif %}{% if change %}
 REQUESTED CHANGE
 Planned period:        {{ change.old_start.strftime('%d %b %Y') }} - {{ change.old_end.strftime('%d %b %Y') }} -> {{ change.new_start.strftime('%d %b %Y') }} - {{ change.new_end.strftime('%d %b %Y') }}
