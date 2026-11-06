@@ -9,6 +9,8 @@ import type {
   AdminUser,
   AllocationCandidate,
   Dashboard,
+  EmailActionResult,
+  EmailActionView,
   ListScope,
   LoadOut,
   Lookups,
@@ -96,6 +98,13 @@ export const requestApi = {
   noticePreview: (planned_start: string) =>
     http.post<NoticePreview>('/requests/notice-preview', { planned_start }).then((r) => r.data),
   myTasks: () => http.get<TaskInboxItem[]>('/tasks/mine').then((r) => r.data),
+}
+
+/** Public endpoints behind the links in approver emails; the token authenticates the approver. */
+export const emailActionApi = {
+  view: (token: string) => http.get<EmailActionView>(`/email-actions/${encodeURIComponent(token)}`).then((r) => r.data),
+  act: (token: string, body: { action: Action; comment: string | null; allocations: AllocationInput[] }) =>
+    http.post<EmailActionResult>(`/email-actions/${encodeURIComponent(token)}`, body).then((r) => r.data),
 }
 
 export const referenceApi = {

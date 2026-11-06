@@ -1,18 +1,43 @@
 {{ heading }}
-
+{% if copy_of %}
+This is a copy for your information. It was sent to {{ copy_of }} for action.
+{% endif %}
 {% if r.is_urgent %}URGENT REQUEST{% if r.notice_working_days is not none %} ({{ r.notice_working_days }} working days notice){% endif %}
 
 {% endif %}{{ message }}
 {% if comment %}
 {{ actor }}: {{ comment }}
+{% endif %}{% if actions %}
+{% for a in actions %}{{ a.label }}: {{ a.url }}
+{% endfor %}(Each link opens a page where you confirm. The links work only for you.)
+{% endif %}{% if change %}
+REQUESTED CHANGE
+Planned period:        {{ change.old_start.strftime('%d %b %Y') }} - {{ change.old_end.strftime('%d %b %Y') }} -> {{ change.new_start.strftime('%d %b %Y') }} - {{ change.new_end.strftime('%d %b %Y') }}
+Engineers required:    {{ change.old_headcount }} -> {{ change.new_headcount }}
+Reason:                {{ change.reason }}
 {% endif %}
+REQUEST DETAILS
 Request:               {{ r.display_no }}
 Project / opportunity: {{ r.project_name }}
+Project / WBS code:    {{ r.wbs_code or '-' }}
 Client:                {{ r.client_name }}
 Request type:          {{ request_type }}
-Support needed:        {{ r.headcount }} x {{ r.support_type.name if r.support_type else "" }}
+Priority:              {% if r.is_urgent %}Urgent{% else %}Normal{% endif %}{% if r.notice_working_days is not none %}, {{ r.notice_working_days }} working days notice{% endif %}
+Type of support:       {{ r.support_type.name if r.support_type else "" }}{% if r.team %} ({{ r.team.name }}){% endif %}
+Engineers required:    {{ r.headcount }}
+Preferred engineers:   {{ preferred|join(', ') if preferred else '-' }}{% if r.preferred_engineers_note %} ({{ r.preferred_engineers_note }}){% endif %}
+Man-days awarded:      {{ '%g'|format(r.man_days) if r.man_days is not none else 'Not applicable' }}
 Planned period:        {{ r.planned_start.strftime('%d %b %Y') if r.planned_start }} - {{ r.planned_end.strftime('%d %b %Y') if r.planned_end }}
-Requested by:          {{ r.requester.display_name }}
-{% if allocations %}Engineers:             {% for a in allocations %}{{ a.engineer.display_name }} ({{ a.allocation_pct }}%){% if not loop.last %}, {% endif %}{% endfor %}
+Requested by:          {{ r.requester.display_name }} ({{ r.requester.email }})
+{% if allocations %}Engineers assigned:    {% for a in allocations %}{{ a.engineer.display_name }} ({{ a.allocation_pct }}%){% if not loop.last %}, {% endif %}{% endfor %}
 {% endif %}
-{{ button }}: {{ link }}
+Scope description:
+{{ r.scope_description }}
+
+Task schedule:
+{{ r.task_schedule }}
+{% if r.is_urgent %}
+Urgent justification:
+{{ r.urgent_justification }}
+{% endif %}
+Open the request: {{ link }}

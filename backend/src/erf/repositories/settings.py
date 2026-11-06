@@ -20,6 +20,7 @@ SETTING_DEFAULTS: dict[str, tuple[str, str]] = {
         "2",
         "From this reminder of an urgent task onwards, the director is copied.",
     ),
+    "email_link_valid_days": ("7", "Days an approve, return or reject link in an email stays valid."),
     "request_no_prefix": ("ERR", "Prefix of request numbers, for example ERR-2026-0001."),
 }
 

@@ -44,7 +44,9 @@ def test_full_approval_flow(login, lookups, container) -> None:  # type: ignore[
     assert req["notice_working_days"] == 10
     assert [h["display_name"] for h in req["current_handlers"]] == ["Priya Nair"]
     submitted = emails(container, "REQUEST_SUBMITTED")
-    assert json.loads(submitted[-1].to_addresses) == ["priya.nair@example.com"]
+    recipients = [json.loads(m.to_addresses) for m in submitted]
+    assert ["priya.nair@example.com"] in recipients, "the approver gets an email with action links"
+    assert ["alex.tan@example.com"] in recipients, "the requester gets an information copy"
 
     tl = login("priya.nair@example.com")
     inbox = tl.get("/tasks/mine").json()

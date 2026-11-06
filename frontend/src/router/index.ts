@@ -23,6 +23,12 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true, title: 'Sign in' },
   },
   {
+    path: '/act/:token',
+    name: 'email-action',
+    component: () => import('@/views/act/EmailActionView.vue'),
+    meta: { public: true, title: 'Review request' },
+  },
+  {
     path: '/',
     component: AppLayout,
     children: [

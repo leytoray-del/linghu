@@ -13,6 +13,7 @@ const LABELS: Record<string, string> = {
   reminder_interval_hours: 'Hours between reminders',
   escalate_after_reminders: 'Copy the director from reminder number',
   request_no_prefix: 'Request number prefix',
+  email_link_valid_days: 'Email action links valid for (days)',
 }
 
 const settings = ref<AdminSetting[]>([])

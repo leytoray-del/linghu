@@ -41,6 +41,7 @@ from erf.infrastructure.mail.senders import Attachment
 from erf.repositories.settings import SupportTypeRepository
 from erf.repositories.users import TeamRepository, UserRepository
 from erf.services.access import AccessPolicy
+from erf.services.action_links import links_for
 from erf.services.context import ServiceContext
 from erf.services.notifications import Event, NotificationService
 
@@ -151,18 +152,54 @@ class WorkflowService:
         due_day = self.ctx.calendar.add_working_days(today, cfg.get_int(key))
         return now + timedelta(days=(due_day - today).days)
 
-    def _create_tasks(self, request: ResourceRequest, step: ApprovalStep, assignees: Sequence[User]) -> None:
+    def _create_tasks(
+        self, request: ResourceRequest, step: ApprovalStep, assignees: Sequence[User]
+    ) -> list[ApprovalTask]:
         due = self._due_at(request, step)
+        created = []
         for user in assignees:
-            request.tasks.append(
-                ApprovalTask(
-                    round=request.round,
-                    step=step.value,
-                    assignee_id=user.id,
-                    assignee=user,
-                    status=TaskStatus.PENDING.value,
-                    due_at=due,
-                )
+            task = ApprovalTask(
+                round=request.round,
+                step=step.value,
+                assignee_id=user.id,
+                assignee=user,
+                status=TaskStatus.PENDING.value,
+                due_at=due,
+            )
+            request.tasks.append(task)
+            created.append(task)
+        self.s.flush()
+        return created
+
+    def notify_tasks(
+        self,
+        event: Event,
+        request: ResourceRequest,
+        tasks: Sequence[ApprovalTask],
+        *,
+        actor: User | None,
+        cc: Sequence[User] = (),
+        comment: str | None = None,
+        extra: dict[str, str] | None = None,
+    ) -> None:
+        """One email per approver with their own approve, return and reject links, plus one information
+        copy (without links) for ``cc``."""
+        self.s.flush()
+        for task in tasks:
+            self.notifications.notify(
+                event,
+                request,
+                to=[task.assignee],
+                actor=actor,
+                comment=comment,
+                extra=extra,
+                actions=links_for(self.ctx, task),
+            )
+        assignees = [t.assignee for t in tasks]
+        copies = [u for u in cc if u not in assignees]
+        if copies:
+            self.notifications.notify(
+                event, request, to=copies, actor=actor, comment=comment, extra=extra, copy_of=assignees
             )
 
     def _assign_request_no(self, request: ResourceRequest) -> None:
@@ -247,7 +284,7 @@ class WorkflowService:
         ):
             request.man_days = None
         self._release_allocations(request)
-        self._create_tasks(request, ApprovalStep.TL_REVIEW, approvers)
+        review_tasks = self._create_tasks(request, ApprovalStep.TL_REVIEW, approvers)
         self.s.flush()
         self._event(
             request,
@@ -261,7 +298,7 @@ class WorkflowService:
                 "urgency_reason": request.urgency_reason,
             },
         )
-        self.notifications.notify(Event.REQUEST_SUBMITTED, request, to=approvers, cc=[user], actor=user)
+        self.notify_tasks(Event.REQUEST_SUBMITTED, request, review_tasks, actor=user, cc=[user])
         return request
 
     # ------------------------------------------------------------------ decisions
@@ -276,6 +313,7 @@ class WorkflowService:
         version: int | None,
         engineer_ids: list[int] | None = None,
         allocations: list[AllocationSpec] | None = None,
+        via: str | None = None,
     ) -> ResourceRequest:
         if action not in TASK_RESULT:
             raise ValidationFailed("Choose approve, return or reject.")
@@ -314,6 +352,8 @@ class WorkflowService:
         request.status = transition.target.value
 
         payload: dict[str, Any] = {"step": step.value, "round": request.round}
+        if via:
+            payload["via"] = via
         if allocation_names:
             payload["engineers"] = allocation_names
 
@@ -321,11 +361,15 @@ class WorkflowService:
             directors = self.directors()
             if not directors:
                 raise ValidationFailed("No director is set up to give final approval. Ask an administrator.")
-            self._create_tasks(request, ApprovalStep.DIRECTOR_APPROVAL, directors)
-            self.s.flush()
+            director_tasks = self._create_tasks(request, ApprovalStep.DIRECTOR_APPROVAL, directors)
             self._event(request, user, "TL_APPROVE", from_status, comment, payload)
-            self.notifications.notify(
-                Event.TL_APPROVED, request, to=directors, cc=[request.requester], actor=user, comment=comment
+            self.notify_tasks(
+                Event.TL_APPROVED,
+                request,
+                director_tasks,
+                actor=user,
+                cc=[request.requester],
+                comment=comment,
             )
         elif transition.target == RequestStatus.APPROVED:
             for a in self._active_allocations(request):
@@ -628,8 +672,9 @@ class WorkflowService:
                 - today
             ).days
         )
+        change_tasks = []
         for approver in approvers:
-            request.tasks.append(
+            change_tasks.append(
                 ApprovalTask(
                     round=request.round,
                     step=ApprovalStep.CHANGE_REVIEW.value,
@@ -640,15 +685,16 @@ class WorkflowService:
                     change_id=change.id,
                 )
             )
+        request.tasks.extend(change_tasks)
         self.s.flush()
         summary = self.describe_change(change)
         self._event(request, user, "CHANGE_REQUEST", request.status, reason, {"change": summary})
-        self.notifications.notify(
+        self.notify_tasks(
             Event.CHANGE_REQUESTED,
             request,
-            to=approvers,
-            cc=[user],
+            change_tasks,
             actor=user,
+            cc=[user],
             comment=reason,
             extra={"change": summary},
         )
@@ -663,6 +709,7 @@ class WorkflowService:
         *,
         comment: str | None,
         allocations: list[AllocationSpec] | None = None,
+        via: str | None = None,
     ) -> RequestChange:
         """The team leader approves (with the final list of engineers) or rejects a change."""
         change = next((c for c in request.changes if c.id == change_id), None)
@@ -723,7 +770,14 @@ class WorkflowService:
         self.s.flush()
 
         if action == Action.REJECT:
-            self._event(request, user, "CHANGE_REJECT", request.status, comment, {"change": summary})
+            self._event(
+                request,
+                user,
+                "CHANGE_REJECT",
+                request.status,
+                comment,
+                {"change": summary, **({"via": via} if via else {})},
+            )
             self.notifications.notify(
                 Event.CHANGE_REJECTED,
                 request,
@@ -740,7 +794,7 @@ class WorkflowService:
                 "CHANGE_APPROVE",
                 request.status,
                 comment,
-                {"change": summary, "engineers": names},
+                {"change": summary, "engineers": names, **({"via": via} if via else {})},
             )
             engineers = [a.engineer for a in self._active_allocations(request)]
             self.notifications.notify(
@@ -810,8 +864,9 @@ class WorkflowService:
                 t.status = TaskStatus.CLOSED.value
                 t.acted_at = now
             template = tasks[0]
+            new_tasks = []
             for user in added:
-                request.tasks.append(
+                new_tasks.append(
                     ApprovalTask(
                         round=template.round,
                         step=template.step,
@@ -822,6 +877,7 @@ class WorkflowService:
                         change_id=template.change_id,
                     )
                 )
+            request.tasks.extend(new_tasks)
             self.s.flush()
             self._event(
                 request,
@@ -838,17 +894,15 @@ class WorkflowService:
             if added:
                 change = next((c for c in request.changes if c.id == template.change_id), None)
                 if change is not None:
-                    self.notifications.notify(
+                    self.notify_tasks(
                         Event.CHANGE_REQUESTED,
                         request,
-                        to=added,
+                        new_tasks,
                         actor=change.requested_by,
                         comment=change.reason,
                         extra={"change": self.describe_change(change)},
                     )
                 else:
-                    self.notifications.notify(
-                        Event.REQUEST_SUBMITTED, request, to=added, actor=request.requester
-                    )
+                    self.notify_tasks(Event.REQUEST_SUBMITTED, request, new_tasks, actor=request.requester)
             changed += 1
         return changed

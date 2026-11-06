@@ -239,3 +239,29 @@ class TaskInboxItem(Schema):
     is_overdue: bool
     request: RequestSummary
     change_summary: str | None = None
+
+
+class EmailActionOut(Schema):
+    """What the confirmation page behind an email link needs."""
+
+    step: str
+    assignee: UserRef
+    expires_at: datetime
+    actions: list[Action]
+    request: RequestDetail
+    change: ChangeOut | None
+    candidates: list[AllocationCandidate]
+    preselected: list[AllocationIn]
+
+
+class EmailActionIn(Schema):
+    action: Action
+    comment: str | None = Field(default=None, max_length=5000)
+    allocations: list[AllocationIn] = Field(default_factory=list, max_length=50)
+
+
+class EmailActionResult(Schema):
+    message: str
+    request_id: int
+    display_no: str
+    status: RequestStatus

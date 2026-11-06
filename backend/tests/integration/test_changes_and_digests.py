@@ -167,7 +167,8 @@ def test_change_request_flow(login, lookups, container) -> None:  # type: ignore
     assert change["status"] == "PENDING" and req["can_request_change"] is False
     assert "engineers 2 to 3" in change["summary"]
     assert pm.post(f"/requests/{req['id']}/changes", json={**body, "reason": "again"}).status_code == 409
-    assert json.loads(outbox(container, "CHANGE_REQUESTED")[-1].to_addresses) == ["priya.nair@example.com"]
+    change_mails = {tuple(json.loads(m.to_addresses)) for m in outbox(container, "CHANGE_REQUESTED")}
+    assert change_mails == {("priya.nair@example.com",), ("serene.koh@example.com",)}
 
     tl = login("priya.nair@example.com")
     inbox = [i for i in tl.get("/tasks/mine").json() if i["step"] == "CHANGE_REVIEW"]

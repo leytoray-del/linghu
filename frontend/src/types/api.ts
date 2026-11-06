@@ -352,3 +352,21 @@ export interface OutboxSummary {
   items: OutboxItem[]
   backend: string
 }
+
+export interface EmailActionView {
+  step: Step
+  assignee: UserRef
+  expires_at: string
+  actions: Action[]
+  request: RequestDetail
+  change: ChangeOut | null
+  candidates: AllocationCandidate[]
+  preselected: AllocationInput[]
+}
+
+export interface EmailActionResult {
+  message: string
+  request_id: number
+  display_no: string
+  status: RequestStatus
+}

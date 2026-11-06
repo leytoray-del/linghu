@@ -38,18 +38,23 @@ def _queue_one(login, lookups) -> None:  # type: ignore[no-untyped-def]
 
 
 def test_outbox_delivery_and_retry(login, lookups, container, clock) -> None:  # type: ignore[no-untyped-def]
-    _queue_one(login, lookups)
+    _queue_one(login, lookups)  # one email to the approver and an information copy to the requester
     failing = RecordingSender(fail=True)
     assert tasks.dispatch_outbox(container.factory, clock, failing) == 0
     with session_scope(container.factory) as s:
-        row = s.scalars(select(NotificationOutbox).where(NotificationOutbox.attempts == 1)).one()
-        assert row.status == OutboxStatus.PENDING.value and "relay unavailable" in (row.last_error or "")
+        rows = s.scalars(select(NotificationOutbox).where(NotificationOutbox.attempts == 1)).all()
+        assert len(rows) == 2
+        assert all(
+            r.status == OutboxStatus.PENDING.value and "relay unavailable" in (r.last_error or "")
+            for r in rows
+        )
 
     clock.advance(minutes=5)
     sender = RecordingSender()
-    assert tasks.dispatch_outbox(container.factory, clock, sender) == 1
+    assert tasks.dispatch_outbox(container.factory, clock, sender) == 2
     assert sender.sent[0].to == ["priya.nair@example.com"]
     assert "needs your review" in sender.sent[0].subject
+    assert sender.sent[1].to == ["alex.tan@example.com"]
 
 
 def test_reminders_for_overdue_tasks(container, clock, settings) -> None:  # type: ignore[no-untyped-def]

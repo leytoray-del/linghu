@@ -42,6 +42,11 @@ class Conflict(AppError):
     code = "conflict"
 
 
+class Gone(AppError):
+    status_code = 410
+    code = "gone"
+
+
 class InvalidTransition(AppError):
     status_code = 409
     code = "invalid_transition"

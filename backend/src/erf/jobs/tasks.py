@@ -17,7 +17,7 @@ from erf.repositories.requests import OutboxRepository, RequestRepository, TaskR
 from erf.repositories.users import SessionRepository
 from erf.services.context import ServiceContext
 from erf.services.digest_service import DigestService
-from erf.services.notifications import Event, NotificationService
+from erf.services.notifications import Event
 from erf.services.workflow_service import WorkflowService
 
 log = logging.getLogger(__name__)
@@ -66,7 +66,6 @@ def send_reminders(factory: sessionmaker[Session], clock: Clock, settings: Setti
         ctx = ServiceContext(session, clock, settings)
         interval = timedelta(hours=ctx.config.get_int("reminder_interval_hours"))
         escalate_after = ctx.config.get_int("escalate_after_reminders")
-        notifications = NotificationService(ctx)
         workflow = WorkflowService(ctx)
         now = clock.now()
         for task in TaskRepository(session).overdue(now):
@@ -82,8 +81,8 @@ def send_reminders(factory: sessionmaker[Session], clock: Clock, settings: Setti
             if task.reminded_count >= escalate_after and task.step == ApprovalStep.TL_REVIEW.value:
                 cc = workflow.directors()
             waiting = clock.to_local(task.created_at).strftime("%d %b %Y %H:%M")
-            notifications.notify(
-                Event.TASK_REMINDER, task.request, to=[task.assignee], cc=cc, extra={"waiting_since": waiting}
+            workflow.notify_tasks(
+                Event.TASK_REMINDER, task.request, [task], actor=None, cc=cc, extra={"waiting_since": waiting}
             )
             count += 1
     return count

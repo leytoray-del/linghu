@@ -11,6 +11,7 @@ from sqlalchemy import select
 from erf.db.models import ApprovalTask, NotificationOutbox, ResourceRequest, User
 from erf.domain.enums import ChangeStatus, OutboxStatus, RequestStatus, Role, TaskStatus
 from erf.repositories.users import UserRepository
+from erf.services.action_links import review_url
 from erf.services.context import ServiceContext
 from erf.services.notifications import NotificationService
 from erf.services.workflow_service import WorkflowService
@@ -137,7 +138,7 @@ class DigestService:
             overdue=bool(task.due_at and task.due_at < now),
             urgent=r.is_urgent,
             note=note,
-            link=self._link(r.id),
+            link=review_url(self.ctx, task),
         )
 
     # ------------------------------------------------------------------ weekly summary

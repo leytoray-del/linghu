@@ -9,11 +9,14 @@ from enum import StrEnum
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from markupsafe import Markup, escape
 
 from erf.db.models import NotificationOutbox, ResourceRequest, User
 from erf.domain.enums import OutboxStatus, RequestType
 from erf.infrastructure.mail.senders import Attachment
 from erf.repositories.requests import OutboxRepository
+from erf.repositories.users import UserRepository
+from erf.services.action_links import ActionLink
 from erf.services.context import ServiceContext
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates" / "email"
@@ -112,6 +115,8 @@ EVENT_TEXT: dict[Event, EventText] = {
     ),
 }
 
+CHANGE_EVENTS = frozenset({Event.CHANGE_REQUESTED, Event.CHANGE_APPROVED, Event.CHANGE_REJECTED})
+
 REQUEST_TYPE_LABEL = {
     RequestType.PROJECT.value: "Project",
     RequestType.PRESALES.value: "Pre-sales",
@@ -137,7 +142,11 @@ class NotificationService:
         comment: str | None = None,
         extra: dict[str, str] | None = None,
         attachments: list[Attachment] | None = None,
+        actions: list[ActionLink] | None = None,
+        copy_of: list[User] | None = None,
     ) -> NotificationOutbox | None:
+        """Queue one email. ``actions`` adds approve, return and reject buttons (only for the approver the
+        links belong to). ``copy_of`` marks an information copy of an email sent to those people."""
         to_list = _addresses(to)
         cc_list = [a for a in _addresses(cc) if a not in to_list]
         if not to_list:
@@ -165,6 +174,13 @@ class NotificationService:
             "r": request,
             "request_type": REQUEST_TYPE_LABEL.get(request.request_type or "", "—"),
             "allocations": [a for a in request.allocations if a.status != "RELEASED"],
+            "preferred": [
+                u.display_name
+                for u in UserRepository(self.ctx.session).get_many(request.preferred_engineer_ids)
+            ],
+            "change": request.changes[-1] if event in CHANGE_EVENTS and request.changes else None,
+            "actions": actions or [],
+            "copy_of": ", ".join(u.display_name for u in copy_of) if copy_of else None,
         }
         row = NotificationOutbox(
             event_type=event.value,
@@ -188,3 +204,11 @@ def _addresses(users: Iterable[User]) -> list[str]:
         if u.is_active and u.email and u.email not in seen:
             seen.append(u.email)
     return seen
+
+
+def _nl2br(value: object) -> Markup:
+    """Keep line breaks of long text fields such as the scope description in HTML emails."""
+    return Markup("<br>").join(escape(str(value or "")).split("\n"))
+
+
+NotificationService._env.filters["nl2br"] = _nl2br
