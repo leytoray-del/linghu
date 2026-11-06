@@ -80,7 +80,7 @@ jobs:
           HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DOMAIN: ${{ vars.ERF_DOMAIN }}
-          SMTP_USER: ${{ vars.ERF_SMTP_USERNAME }}
+          SMTP_USER: ${{ vars.ERF_SMTP_USERNAME || secrets.ERF_SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.ERF_SMTP_PASSWORD }}
         run: |
           SSH_OPTS="-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes"
@@ -91,6 +91,13 @@ jobs:
           # deletes. Without the ERF_SMTP_PASSWORD secret, the server keeps its current email settings.
           # In demo mode every email goes to the sender's own mailbox, because demo accounts are fake.
           MAIL_FILE=""
+          if [ -z "$SMTP_USER" ] || [ -z "$SMTP_PASSWORD" ]; then
+            echo "Email settings: not changed on the server."
+            if [ -z "$SMTP_USER" ]; then echo "  ERF_SMTP_USERNAME is empty (set it as a repository variable or secret)."; fi
+            if [ -z "$SMTP_PASSWORD" ]; then echo "  ERF_SMTP_PASSWORD is empty (set it as a repository secret)."; fi
+          else
+            echo "Email settings: sending as $SMTP_USER (demo redirect: $DEMO_MODE)."
+          fi
           if [ -n "$SMTP_USER" ] && [ -n "$SMTP_PASSWORD" ]; then
             REDIRECT=""
             if [ "$DEMO_MODE" = "true" ]; then REDIRECT="$SMTP_USER"; fi
