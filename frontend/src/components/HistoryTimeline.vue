@@ -13,6 +13,13 @@ function detail(e: EventOut): string {
     const names = Array.isArray(p.engineers) ? ` · ${(p.engineers as string[]).join(', ')}` : ''
     return `${p.change}${names}`
   }
+  if (e.action === 'REASSIGN') {
+    const added = (p.added as string[] | undefined) ?? []
+    const removed = (p.removed as string[] | undefined) ?? []
+    return [added.length ? `now with ${added.join(', ')}` : '', removed.length ? `no longer with ${removed.join(', ')}` : '']
+      .filter(Boolean)
+      .join(' · ')
+  }
   if (Array.isArray(p.engineers)) return (p.engineers as string[]).join(', ')
   if (e.action === 'SUBMIT' || e.action === 'RESUBMIT') {
     const days = p.notice_working_days as number | undefined

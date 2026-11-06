@@ -51,6 +51,8 @@ class TeamOut(Schema):
     name: str
     is_active: bool
     approvers: list[UserRef]
+    reassigned_requests: int = 0
+    """Set when approvers were saved: open reviews moved to the new approvers."""
 
 
 class TeamApproversIn(Schema):

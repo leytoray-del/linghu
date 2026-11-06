@@ -55,6 +55,7 @@ export const EVENT_LABEL: Record<string, string> = {
   CHANGE_APPROVE: 'Approved the change',
   CHANGE_REJECT: 'Rejected the change',
   CHANGE_WITHDRAW: 'Withdrew the change request',
+  REASSIGN: 'Changed the reviewers',
 }
 
 export const PCT_OPTIONS = [100, 75, 50, 25]

@@ -30,6 +30,7 @@ from erf.schemas.admin import (
 )
 from erf.services.context import ServiceContext
 from erf.services.presenters import user_ref
+from erf.services.workflow_service import WorkflowService
 
 INT_SETTINGS = {k for k in SETTING_DEFAULTS if k != "request_no_prefix"}
 
@@ -136,7 +137,10 @@ class AdminService:
             raise ValidationFailed("Approvers must be active users with the team leader role.")
         team.approver_rows = [TeamApprover(user_id=i) for i in ids]
         self.s.flush()
-        return self.team_out(team_id)
+        moved = WorkflowService(self.ctx).reassign_team_reviews(self.actor, team_id, list(users))
+        out = self.team_out(team_id)
+        out.reassigned_requests = moved
+        return out
 
     # ---------------------------------------------------------------- support types
 

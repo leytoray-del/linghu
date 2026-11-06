@@ -308,3 +308,61 @@ def test_upgrade_from_0001_keeps_data_without_rebuilding_tables(tmp_path: Path, 
             assert after_pages[table] == before_pages[table], f"{table} was rebuilt"
     finally:
         get_settings.cache_clear()
+
+
+# ---------------------------------------------------------------- approver changes move open reviews
+
+
+def test_new_team_leader_takes_over_waiting_reviews(login, lookups, container) -> None:  # type: ignore[no-untyped-def]
+    """Reproduces a production report: a new team leader was given the role and the team, but requests
+    kept going to the previous approver and the new leader had no approvals."""
+    from tests.integration.test_workflow import new_request
+
+    admin = login("admin@example.com")
+    dev = next(t for t in admin.get("/admin/teams").json() if t["code"] == "DEV")
+    created = admin.post(
+        "/admin/users",
+        json={
+            "email": "dev.leader@example.org",
+            "display_name": "Dev Leader",
+            "team_id": dev["id"],
+            "roles": ["TEAM_LEADER"],
+        },
+    ).json()
+    new_id = created["user"]["id"]
+    leader = login("dev.leader@example.org", created["temporary_password"])
+    assert leader.me["led_team_ids"] == [], "the role alone does not make someone an approver"
+
+    pm = login("alex.tan@example.com")
+    req = pm.post(
+        "/requests?submit=true", json=new_request(lookups, support_type_id=lookups["types"]["DEV"])
+    ).json()
+    assert [h["display_name"] for h in req["current_handlers"]] == ["Daniel Lim"]
+
+    r = admin.put(f"/admin/teams/{dev['id']}/approvers", json={"approver_ids": [new_id]})
+    assert r.status_code == 200, r.text
+    assert r.json()["reassigned_requests"] == 2, "the new request and the seeded Permit Portal request"
+
+    leader = login("dev.leader@example.org", created["temporary_password"])
+    assert leader.me["led_team_ids"] == [dev["id"]]
+    inbox = {i["request"]["id"] for i in leader.get("/tasks/mine").json()}
+    assert req["id"] in inbox
+    assert not [
+        i for i in login("daniel.lim@example.com").get("/tasks/mine").json() if i["step"] == "TL_REVIEW"
+    ]
+
+    detail = leader.get(f"/requests/{req['id']}").json()
+    assert [h["display_name"] for h in detail["current_handlers"]] == ["Dev Leader"]
+    assert "APPROVE" in detail["available_actions"]
+    assert detail["events"][-1]["action"] == "REASSIGN"
+    assert detail["events"][-1]["payload"] == {
+        "step": "TL_REVIEW",
+        "added": ["Dev Leader"],
+        "removed": ["Daniel Lim"],
+    }
+    mail = [
+        m
+        for m in outbox(container, "REQUEST_SUBMITTED")
+        if json.loads(m.to_addresses) == ["dev.leader@example.org"]
+    ]
+    assert len(mail) == 2

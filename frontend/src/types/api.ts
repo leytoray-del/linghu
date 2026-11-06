@@ -309,6 +309,7 @@ export interface AdminUser {
 export interface AdminTeam extends TeamBrief {
   is_active: boolean
   approvers: UserRef[]
+  reassigned_requests: number
 }
 
 export interface AdminSupportType {

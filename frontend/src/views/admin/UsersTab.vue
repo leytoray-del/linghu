@@ -219,6 +219,14 @@ onMounted(load)
             <el-checkbox v-for="o in ROLE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
+        <el-alert
+          v-if="form.roles.includes('TEAM_LEADER')"
+          type="info"
+          :closable="false"
+          show-icon
+          class="role-hint"
+          title="A team leader receives requests only after being added as an approver in Teams and approvers."
+        />
         <el-form-item v-if="form.roles.includes('ENGINEER')" label="Skills (shown to team leaders when assigning)" for="u-skills">
           <el-input id="u-skills" v-model="form.skills" placeholder="e.g. Network, on-site" />
         </el-form-item>
@@ -276,6 +284,9 @@ onMounted(load)
 .reset-wrap {
   display: inline-block;
   margin-left: 8px;
+}
+.role-hint {
+  margin-bottom: 14px;
 }
 .two {
   display: grid;

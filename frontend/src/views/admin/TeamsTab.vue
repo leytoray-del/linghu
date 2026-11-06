@@ -14,6 +14,12 @@ const error = ref<string | null>(null)
 
 const leaders = computed(() => users.value.filter((u) => u.is_active && u.roles.includes('TEAM_LEADER')))
 
+/** Team leaders who belong to a team but are not its approvers, so they receive no requests. */
+function notApprovers(team: AdminTeam): string[] {
+  const approverIds = new Set(team.approvers.map((a) => a.id))
+  return leaders.value.filter((u) => u.team?.id === team.id && !approverIds.has(u.id)).map((u) => u.display_name)
+}
+
 async function load(): Promise<void> {
   loading.value = true
   try {
@@ -30,8 +36,13 @@ async function save(team: AdminTeam): Promise<void> {
   saving.value = team.id
   error.value = null
   try {
-    await adminApi.setApprovers(team.id, selection.value[team.id] ?? [])
-    showSuccess(`Approvers for the ${team.name} saved.`)
+    const saved = await adminApi.setApprovers(team.id, selection.value[team.id] ?? [])
+    const moved = saved.reassigned_requests
+    showSuccess(
+      moved
+        ? `Approvers for the ${team.name} saved. ${moved} waiting request${moved === 1 ? ' was' : 's were'} moved to the new approvers, who have been emailed.`
+        : `Approvers for the ${team.name} saved.`,
+    )
     await load()
   } catch (e) {
     error.value = errorMessage(e)
@@ -48,7 +59,7 @@ onMounted(load)
     <p class="muted intro">
       Requests are routed to the approvers of the team that owns the type of support. If a team has several approvers,
       any one of them can act, and the others' tasks close automatically. Only users with the team leader role can be
-      chosen.
+      chosen. When you change the approvers, requests that are still waiting move to the new approvers.
     </p>
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
     <div v-for="t in teams" :key="t.id" class="team">
@@ -60,6 +71,14 @@ onMounted(load)
         <el-option v-for="u in leaders" :key="u.id" :label="u.display_name" :value="u.id" />
       </el-select>
       <el-button type="primary" :loading="saving === t.id" @click="save(t)">Save</el-button>
+      <el-alert
+        v-if="notApprovers(t).length"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="hint"
+        :title="`${notApprovers(t).join(', ')} ${notApprovers(t).length === 1 ? 'is a team leader' : 'are team leaders'} in this team but not an approver, so no requests reach them. Add them above and save.`"
+      />
     </div>
   </div>
 </template>
@@ -87,6 +106,9 @@ onMounted(load)
 }
 .pick {
   width: 100%;
+}
+.hint {
+  grid-column: 1 / -1;
 }
 @media (max-width: 700px) {
   .team {

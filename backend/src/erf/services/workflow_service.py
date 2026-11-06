@@ -11,6 +11,8 @@ from collections.abc import Sequence
 from datetime import date, timedelta
 from typing import Any
 
+from sqlalchemy import select
+
 from erf.core.errors import Conflict, Forbidden, ValidationFailed
 from erf.db.models import (
     ApprovalTask,
@@ -771,3 +773,82 @@ class WorkflowService:
             request, user, "CHANGE_WITHDRAW", request.status, None, {"change": self.describe_change(change)}
         )
         return change
+
+    # ------------------------------------------------------------------ approver changes
+
+    def reassign_team_reviews(self, actor: User, team_id: int, approvers: Sequence[User]) -> int:
+        """Move open team-leader reviews of a team to its current approvers.
+
+        Review tasks are created when a request (or a change) is submitted. When an administrator changes
+        a team's approvers later, waiting requests would otherwise stay with the previous approvers.
+        Returns the number of requests whose reviewers changed."""
+        wanted = {u.id: u for u in approvers}
+        steps = (ApprovalStep.TL_REVIEW.value, ApprovalStep.CHANGE_REVIEW.value)
+        pending = self.s.scalars(
+            select(ApprovalTask)
+            .join(ResourceRequest, ApprovalTask.request_id == ResourceRequest.id)
+            .where(
+                ApprovalTask.status == TaskStatus.PENDING.value,
+                ApprovalTask.step.in_(steps),
+                ResourceRequest.team_id == team_id,
+            )
+        ).all()
+        groups: dict[tuple[int, str, int | None], list[ApprovalTask]] = {}
+        for task in pending:
+            groups.setdefault((task.request_id, task.step, task.change_id), []).append(task)
+
+        now = self.ctx.clock.now()
+        changed = 0
+        for tasks in groups.values():
+            request = tasks[0].request
+            current = {t.assignee_id for t in tasks}
+            removed = [t for t in tasks if t.assignee_id not in wanted]
+            added = [u for uid, u in wanted.items() if uid not in current]
+            if not removed and not added:
+                continue
+            for t in removed:
+                t.status = TaskStatus.CLOSED.value
+                t.acted_at = now
+            template = tasks[0]
+            for user in added:
+                request.tasks.append(
+                    ApprovalTask(
+                        round=template.round,
+                        step=template.step,
+                        assignee_id=user.id,
+                        assignee=user,
+                        status=TaskStatus.PENDING.value,
+                        due_at=template.due_at,
+                        change_id=template.change_id,
+                    )
+                )
+            self.s.flush()
+            self._event(
+                request,
+                actor,
+                "REASSIGN",
+                request.status,
+                None,
+                {
+                    "step": template.step,
+                    "added": [u.display_name for u in added],
+                    "removed": [t.assignee.display_name for t in removed],
+                },
+            )
+            if added:
+                change = next((c for c in request.changes if c.id == template.change_id), None)
+                if change is not None:
+                    self.notifications.notify(
+                        Event.CHANGE_REQUESTED,
+                        request,
+                        to=added,
+                        actor=change.requested_by,
+                        comment=change.reason,
+                        extra={"change": self.describe_change(change)},
+                    )
+                else:
+                    self.notifications.notify(
+                        Event.REQUEST_SUBMITTED, request, to=added, actor=request.requester
+                    )
+            changed += 1
+        return changed
