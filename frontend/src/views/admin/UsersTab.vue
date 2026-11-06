@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 
 import { adminApi, type UserForm } from '@/api'
@@ -28,7 +28,8 @@ const editing = ref<AdminUser | null>(null)
 const saving = ref(false)
 const errors = ref<Record<string, string>>({})
 const formError = ref<string | null>(null)
-const issued = ref<{ email: string; password: string } | null>(null)
+/** A temporary password to show once, after adding a user or resetting a password. */
+const issued = ref<{ name: string; email: string; password: string; reset: boolean } | null>(null)
 const form = reactive<UserForm & { email: string; is_active: boolean }>({
   email: '',
   display_name: '',
@@ -91,7 +92,7 @@ async function save(): Promise<void> {
       showSuccess('User updated.')
     } else {
       const result = await adminApi.createUser({ ...form })
-      issued.value = { email: result.user.email, password: result.temporary_password }
+      issued.value = { name: result.user.display_name, email: result.user.email, password: result.temporary_password, reset: false }
     }
     dialog.value = false
     await load()
@@ -105,8 +106,18 @@ async function save(): Promise<void> {
 
 async function resetPassword(u: AdminUser): Promise<void> {
   try {
+    await ElMessageBox.confirm(
+      `${u.display_name}'s current password will stop working immediately and they will be signed out. ` +
+        'You will receive a temporary password to give them, and they must choose a new one when they sign in.',
+      `Reset the password for ${u.display_name}?`,
+      { confirmButtonText: 'Reset password', cancelButtonText: 'Cancel', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  try {
     const result = await adminApi.resetPassword(u.id)
-    issued.value = { email: result.user.email, password: result.temporary_password }
+    issued.value = { name: result.user.display_name, email: result.user.email, password: result.temporary_password, reset: true }
   } catch (e) {
     showError(e)
   }
@@ -131,14 +142,30 @@ onMounted(load)
       <el-button type="primary" @click="openCreate">Add user</el-button>
     </div>
 
-    <el-alert v-if="issued" type="success" :closable="true" show-icon @close="issued = null">
-      <template #title>Temporary password for {{ issued.email }}</template>
-      <div class="issued">
-        <code>{{ issued.password }}</code>
-        <el-button size="small" @click="copy(issued.password)">Copy</el-button>
-        <span>Share it securely. The user must choose a new password at first sign-in. It is not shown again.</span>
+    <el-dialog
+      :model-value="!!issued"
+      :title="issued?.reset ? 'Password reset' : 'User added'"
+      width="min(480px, 94vw)"
+      :close-on-click-modal="false"
+      @close="issued = null"
+    >
+      <div v-if="issued" class="issued">
+        <p>
+          Temporary password for <b>{{ issued.name }}</b> ({{ issued.email }}):
+        </p>
+        <div class="pw">
+          <code>{{ issued.password }}</code>
+          <el-button size="small" @click="copy(issued.password)">Copy</el-button>
+        </div>
+        <p class="muted">
+          Give it to the user through a private channel. They must choose their own password when they sign in. This
+          password is not shown again; if it is lost, reset the password once more.
+        </p>
       </div>
-    </el-alert>
+      <template #footer>
+        <el-button type="primary" @click="issued = null">Done</el-button>
+      </template>
+    </el-dialog>
 
     <el-table v-loading="loading" :data="filtered">
       <el-table-column label="Name" min-width="190">
@@ -162,7 +189,11 @@ onMounted(load)
       <el-table-column width="190" align="right">
         <template #default="{ row }">
           <el-button size="small" @click="openEdit(row as AdminUser)">Edit</el-button>
-          <el-button size="small" :disabled="row.id === auth.me?.id" @click="resetPassword(row as AdminUser)">Reset password</el-button>
+          <el-tooltip :disabled="row.id !== auth.me?.id" content="Use Change password in your account menu for your own account." placement="left">
+            <span class="reset-wrap">
+              <el-button size="small" :disabled="row.id === auth.me?.id" @click="resetPassword(row as AdminUser)">Reset password</el-button>
+            </span>
+          </el-tooltip>
         </template>
       </el-table-column>
     </el-table>
@@ -225,18 +256,26 @@ onMounted(load)
 .role {
   margin: 0 4px 4px 0;
 }
-.issued {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
+.issued p {
+  margin: 0 0 12px;
 }
-.issued code {
-  font-size: 15px;
-  background: var(--erf-surface);
-  padding: 2px 8px;
+.pw {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.pw code {
+  font-size: 18px;
+  font-family: var(--erf-mono);
+  background: var(--erf-surface-2);
+  padding: 6px 12px;
   border-radius: 4px;
   user-select: all;
+}
+.reset-wrap {
+  display: inline-block;
+  margin-left: 8px;
 }
 .two {
   display: grid;
