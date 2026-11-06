@@ -49,7 +49,7 @@ def test_approver_email_has_full_details_and_personal_links(login, lookups, cont
         "Three days per week.",
         "P26-9999",
         "Man-days awarded",
-        "20.0",
+        "<td>20</td>",
     ):
         assert text in html, text
     assert "Approve and assign engineers" in html and "Return to requester" in html and "Reject" in html
