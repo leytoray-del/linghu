@@ -78,7 +78,7 @@ class RequestService:
             if support_type is None:
                 raise ValidationFailed(
                     "Choose a valid type of support.",
-                    details={"fields": {"support_type_id": "Unknown type."}},
+                    details={"fields": {"support_type_id": "Choose a type of support from the list."}},
                 )
             request.team_id = support_type.team_id
         if data.preferred_engineer_ids:
@@ -88,7 +88,7 @@ class RequestService:
             ):
                 raise ValidationFailed(
                     "Preferred engineers must be chosen from the engineer list.",
-                    details={"fields": {"preferred_engineer_ids": "Unknown engineer."}},
+                    details={"fields": {"preferred_engineer_ids": "Choose engineers from the list."}},
                 )
         for name in (
             "request_type",

@@ -22,8 +22,8 @@ from erf.services.request_service import RequestService
 
 STATUS_LABEL = {
     RequestStatus.DRAFT: "Draft",
-    RequestStatus.PENDING_TL_REVIEW: "Pending team leader review",
-    RequestStatus.PENDING_DIRECTOR_APPROVAL: "Pending director approval",
+    RequestStatus.PENDING_TL_REVIEW: "Waiting for team leader",
+    RequestStatus.PENDING_DIRECTOR_APPROVAL: "Waiting for director",
     RequestStatus.RETURNED: "Rejected, can resubmit",
     RequestStatus.APPROVED: "Approved",
     RequestStatus.REJECTED: "Rejected permanently",

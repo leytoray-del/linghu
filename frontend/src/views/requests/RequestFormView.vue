@@ -379,7 +379,6 @@ async function save(submit: boolean): Promise<void> {
               </div>
             </li>
           </ol>
-          <div class="hint">Each step sends an email automatically, and you are copied on every decision.</div>
         </section>
       </aside>
     </el-form>

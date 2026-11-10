@@ -6,6 +6,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -30,6 +31,33 @@ def _error(status: int, code: str, message: str, details: dict[str, object] | No
     )
 
 
+def _plain_field_error(err: Any) -> str:
+    """Turn a validation error into words a user understands, without technical terms."""
+    kind = str(err.get("type", ""))
+    ctx = err.get("ctx") or {}
+    if kind == "missing" or (kind == "string_too_short" and ctx.get("min_length") == 1):
+        return "This field is required."
+    if kind == "string_too_short":
+        return f"Enter at least {ctx.get('min_length')} characters."
+    if kind == "string_too_long":
+        return f"Use no more than {ctx.get('max_length')} characters."
+    if kind in ("greater_than_equal", "greater_than"):
+        return f"Enter a number of at least {ctx.get('ge', ctx.get('gt'))}."
+    if kind in ("less_than_equal", "less_than"):
+        return f"Enter a number no larger than {ctx.get('le', ctx.get('lt'))}."
+    if kind.startswith(("int_", "float_", "decimal_")):
+        return "Enter a number."
+    if kind.startswith(("date", "datetime")):
+        return "Enter a valid date."
+    if kind in ("enum", "literal_error"):
+        return "Choose one of the options."
+    if "email" in kind or "email" in str(err.get("msg", "")).lower():
+        return "Enter a valid email address."
+    if kind == "value_error":
+        return str(err.get("msg", "")).removeprefix("Value error, ") or "This value is not valid."
+    return "This value is not valid."
+
+
 def _install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def app_error(_: Request, exc: AppError) -> JSONResponse:
@@ -46,8 +74,8 @@ def _install_error_handlers(app: FastAPI) -> None:
         fields: dict[str, str] = {}
         for err in exc.errors():
             loc = [str(p) for p in err.get("loc", ()) if p not in ("body", "query", "path")]
-            fields[".".join(loc) or "request"] = str(err.get("msg", "Invalid value."))
-        return _error(422, "validation_failed", "Some fields are not valid.", {"fields": fields})
+            fields[".".join(loc) or "request"] = _plain_field_error(err)
+        return _error(422, "validation_failed", "Some fields need attention.", {"fields": fields})
 
 
 def _mount_frontend(app: FastAPI, dist: Path) -> None:

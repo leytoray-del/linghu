@@ -100,10 +100,7 @@ const exportHref = computed(() => requestApi.exportUrl({ scope: scope.value, sta
 <template>
   <div class="page">
     <div class="page-head">
-      <div>
-        <h1>Requests</h1>
-        <p class="sub">Every request is kept with its complete approval history.</p>
-      </div>
+      <h1>Requests</h1>
       <div class="actions">
         <el-button tag="a" :href="exportHref">Export to Excel</el-button>
         <el-button type="primary" @click="$router.push('/requests/new')">New request</el-button>

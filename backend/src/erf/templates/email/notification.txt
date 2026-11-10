@@ -9,8 +9,7 @@ This is a copy for your information. It was sent to {{ copy_of }} for action.
 {{ actor }}: {{ comment }}
 {% endif %}{% if actions %}
 {% for a in actions %}{{ a.label }}: {{ a.url }}
-{% endfor %}(Each link opens a page where you confirm. The links work only for you.)
-{% endif %}{% if change %}
+{% endfor %}{% endif %}{% if change %}
 REQUESTED CHANGE
 Planned period:        {{ change.old_start.strftime('%d %b %Y') }} - {{ change.old_end.strftime('%d %b %Y') }} -> {{ change.new_start.strftime('%d %b %Y') }} - {{ change.new_end.strftime('%d %b %Y') }}
 Engineers required:    {{ change.old_headcount }} -> {{ change.new_headcount }}

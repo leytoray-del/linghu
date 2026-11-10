@@ -119,3 +119,19 @@ def test_calendar_parameter_values_are_quoted_not_escaped() -> None:
     assert _param("Tan, Wee Lee") == '"Tan, Wee Lee"'
     assert _param('Team "A": Ops') == "\"Team 'A': Ops\""
     assert _escape("a,b;c") == "a\\,b\;c", "text values are escaped instead"
+
+
+def test_blocked_workflow_steps_are_explained_in_plain_words() -> None:
+    import pytest
+
+    from erf.core.errors import InvalidTransition
+    from erf.domain.enums import Action, RequestStatus
+    from erf.domain.workflow import find_transition
+
+    with pytest.raises(InvalidTransition) as err:
+        find_transition(RequestStatus.APPROVED, Action.RETURN)
+    assert err.value.message == (
+        "You cannot reject this request now because it has already been approved. "
+        "Refresh the page to see its latest progress."
+    )
+    assert "_" not in err.value.message

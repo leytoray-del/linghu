@@ -4,8 +4,8 @@ import type { RequestStatus, RequestType } from '@/types/api'
 
 export const STATUS_LABEL: Record<RequestStatus, string> = {
   DRAFT: 'Draft',
-  PENDING_TL_REVIEW: 'Pending TL review',
-  PENDING_DIRECTOR_APPROVAL: 'Pending director approval',
+  PENDING_TL_REVIEW: 'Waiting for team leader',
+  PENDING_DIRECTOR_APPROVAL: 'Waiting for director',
   RETURNED: 'Rejected · can resubmit',
   APPROVED: 'Approved',
   REJECTED: 'Rejected permanently',

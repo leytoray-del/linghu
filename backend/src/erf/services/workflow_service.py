@@ -79,7 +79,7 @@ class WorkflowService:
         if user is None:
             if Actor.SYSTEM in transition.actors:
                 return Actor.SYSTEM
-            raise Forbidden("This action needs a signed-in user.")
+            raise Forbidden("Sign in to do this.")
         caps = self.access.capacities(user, request) & transition.actors
         if not caps:
             if Actor.STEP_ASSIGNEE in transition.actors:
@@ -318,7 +318,7 @@ class WorkflowService:
         client: dict[str, str] | None = None,
     ) -> ResourceRequest:
         if action not in TASK_RESULT:
-            raise ValidationFailed("Choose approve, return or reject.")
+            raise ValidationFailed("Choose approve or reject.")
         self.check_version(request, version)
         transition = find_transition(request.status_enum, action)
         self._authorise(user, request, transition)
@@ -782,7 +782,9 @@ class WorkflowService:
         """The team leader approves (with the final list of engineers) or rejects a change."""
         change = next((c for c in request.changes if c.id == change_id), None)
         if change is None:
-            raise ValidationFailed("This change does not belong to the request.")
+            raise ValidationFailed(
+                "This change belongs to a different request. Refresh the page and try again."
+            )
         if change.status != ChangeStatus.PENDING.value:
             raise Conflict("This change has already been handled. Refresh the page to see its outcome.")
         if action not in (Action.APPROVE, Action.REJECT):

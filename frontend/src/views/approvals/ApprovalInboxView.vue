@@ -33,10 +33,7 @@ function open(item: TaskInboxItem): void {
     <div class="page-head">
       <div>
         <h1>Approvals</h1>
-        <p class="sub">
-          Requests waiting for your decision. Urgent requests are listed first, then by planned start date. Open a
-          request to assign engineers and approve, return or reject it.
-        </p>
+        <p class="sub">Requests waiting for your decision, urgent requests first.</p>
       </div>
     </div>
     <section class="panel">

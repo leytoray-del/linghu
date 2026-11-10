@@ -35,7 +35,7 @@ class ResourceService:
         request's own period, which is how a proposed date change is checked."""
         request = RequestService(self.ctx).load_visible(user, request_id)
         if not self.access.can_plan_resources(user, request.team_id):
-            raise Forbidden("Only the team leader or director can see allocation candidates.")
+            raise Forbidden("Only the team leader or director can choose engineers for this request.")
         first = start or request.planned_start
         last = end or request.planned_end
         if request.team_id is None or first is None or last is None or last < first:

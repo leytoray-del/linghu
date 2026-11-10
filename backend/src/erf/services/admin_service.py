@@ -60,7 +60,9 @@ class AdminService:
 
     def _check_team(self, team_id: int | None) -> None:
         if team_id is not None and self.teams.get(team_id) is None:
-            raise ValidationFailed("Choose a valid team.", details={"fields": {"team_id": "Unknown team."}})
+            raise ValidationFailed(
+                "Choose a valid team.", details={"fields": {"team_id": "Choose a team from the list."}}
+            )
 
     def create_user(self, data: UserCreateIn) -> tuple[User, str]:
         if self.users.get_by_email(data.email):
@@ -190,7 +192,7 @@ class AdminService:
 
     def set_setting(self, key: str, value: str) -> list[SettingOut]:
         if key not in SETTING_DEFAULTS:
-            raise NotFound("Unknown setting.")
+            raise NotFound("This setting does not exist.")
         value = value.strip()
         if key in INT_SETTINGS:
             if not value.isdigit() or not 0 < int(value) <= 1000:

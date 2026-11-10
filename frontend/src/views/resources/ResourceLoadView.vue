@@ -78,7 +78,7 @@ onMounted(async () => {
         <h1>Resource load</h1>
         <p class="sub">
           How much of each engineer's time is booked per week, including allocations that are still waiting for the
-          director. Use it to spot overbooking before you assign engineers.
+          director.
         </p>
       </div>
       <div class="controls">

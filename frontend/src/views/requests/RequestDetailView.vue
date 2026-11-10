@@ -338,7 +338,6 @@ const CHANGE_TONE: Record<string, string> = { APPROVED: 'success', REJECTED: 'da
               <h2 v-else>Actions</h2>
             </div>
             <p v-if="request.status === 'RETURNED'" class="muted no-margin">Read the comment in the history. You can revise the request and submit it again, or withdraw it if it is no longer needed.</p>
-            <p v-if="request.status === 'DRAFT'" class="muted no-margin">Only you can see a draft. Submit it to start the approval.</p>
 
             <el-form v-if="changeOpen" class="change-form" label-position="top" @submit.prevent="sendChange">
               <p class="muted no-margin">

@@ -89,7 +89,9 @@ onMounted(async () => {
   } catch (e) {
     const status = e instanceof ApiError ? e.status : 0
     loadError.value = {
-      title: status === 409 ? 'Already handled' : status === 410 ? 'This link has expired' : 'This link cannot be used',
+      title:
+        (e instanceof ApiError && e.title) ||
+        (status === 409 ? 'Your decision is no longer needed' : status === 410 ? 'This link has expired' : 'This link cannot be used'),
       detail: errorMessage(e),
     }
   } finally {
@@ -161,7 +163,6 @@ async function confirm(): Promise<void> {
           <div><dt>Project</dt><dd>{{ r.project_name }}</dd></div>
           <div><dt>Planned period</dt><dd>{{ fmtRange(r.planned_start, r.planned_end) }}</dd></div>
         </dl>
-        <p class="muted small">Everyone involved has been notified by email. You can close this page.</p>
         <RouterLink :to="`/requests/${result.request_id}`" class="text-link">Open {{ result.display_no }} in the system</RouterLink>
       </section>
 

@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from erf.core.action_tokens import read_token
 from erf.core.errors import Conflict, Gone, NotFound, ValidationFailed
 from erf.db.models import ApprovalTask
-from erf.domain.enums import Action, ApprovalStep, TaskStatus
+from erf.domain.enums import Action, ApprovalStep, RequestStatus, TaskStatus
 from erf.schemas.requests import (
     AllocationIn,
     EmailActionOut,
@@ -52,15 +52,67 @@ class EmailActionService:
                 "This link has expired. Open the request in the system to act on it.", code="link_expired"
             )
         if task.status != TaskStatus.PENDING.value:
+            title, message = self._already_decided(task)
             r = task.request
             raise Conflict(
-                f"{r.display_no} no longer needs your decision. It is now {STATUS_TEXT.get(r.status, r.status.lower())}.",
+                message,
                 code="already_handled",
-                details={"request_id": r.id, "status": r.status},
+                details={"request_id": r.id, "status": r.status, "title": title},
             )
         if not task.assignee.is_active:
             raise Gone("This link belongs to an account that is no longer active.", code="link_expired")
         return task, expires
+
+    def _when(self, at: datetime | None) -> str:
+        return f" on {self.ctx.clock.to_local(at).strftime('%d %b %Y at %H:%M')}" if at else ""
+
+    def _already_decided(self, task: ApprovalTask) -> tuple[str, str]:
+        """Explain in plain words why a link no longer needs a decision."""
+        r = task.request
+        now = f"It is now {STATUS_TEXT.get(r.status, r.status.lower())}."
+        what = "this change" if task.change_id else "this request"
+        verbs = {
+            TaskStatus.APPROVED.value: ("approved", "You have already approved"),
+            TaskStatus.RETURNED.value: (
+                "rejected and sent back to the requester",
+                "You have already rejected",
+            ),
+            TaskStatus.REJECTED.value: (
+                "rejected" if task.change_id else "rejected permanently",
+                "You have already rejected",
+            ),
+        }
+        if task.status in verbs:
+            done, title = verbs[task.status]
+            return f"{title} {what}", f"You {done} {r.display_no}{self._when(task.acted_at)}. {now}"
+        # Someone else decided, or the request was withdrawn or cancelled.
+        other = next(
+            (
+                t
+                for t in r.tasks
+                if t.id != task.id
+                and t.step == task.step
+                and t.round == task.round
+                and t.change_id == task.change_id
+                and t.status in verbs
+            ),
+            None,
+        )
+        if other is not None:
+            done = verbs[other.status][0]
+            return (
+                f"{other.assignee.display_name} has already decided",
+                f"{other.assignee.display_name} {done} {r.display_no}{self._when(other.acted_at)}, "
+                f"so your decision is no longer needed. {now}",
+            )
+        if r.status == RequestStatus.WITHDRAWN.value:
+            return (
+                "This request was withdrawn",
+                f"{r.requester.display_name} withdrew {r.display_no}, so no decision is needed.",
+            )
+        if r.status == RequestStatus.CANCELLED.value:
+            return "This request was cancelled", f"{r.display_no} was cancelled, so no decision is needed."
+        return "Your decision is no longer needed", f"{r.display_no} no longer needs your decision. {now}"
 
     def view(self, token: str) -> EmailActionOut:
         task, expires = self._task(token)

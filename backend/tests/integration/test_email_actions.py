@@ -54,10 +54,7 @@ def test_approver_email_has_full_details_and_personal_links(login, lookups, cont
         assert text in html, text
     assert "Approve and assign engineers" in html and ">Reject</a>" in html
     assert "Return to requester" not in html, "two buttons: Approve and Reject"
-    assert (
-        "set how much of each person&#39;s time this work needs" in html
-        or "set how much of each person's time" in html
-    )
+    assert "Each button opens" not in html and "Each link opens" not in mail.body_text
     assert "Reject: " in mail.body_text and "?do=return" in mail.body_text
     assert "?do=reject" not in mail.body_text, "permanent rejection is not offered by email"
 
@@ -108,6 +105,9 @@ def test_team_leader_and_director_approve_from_email(login, lookups, container, 
     assert r.json()["status"] == "PENDING_DIRECTOR_APPROVAL" and "director" in r.json()["message"]
     again = anon.post(f"/api/v1/email-actions/{token}", json={"action": "REJECT", "comment": "x"})
     assert again.status_code == 409 and again.json()["code"] == "already_handled"
+    assert again.json()["details"]["title"] == "You have already approved this request"
+    assert again.json()["message"].startswith(f"You approved {req['request_no']} on ")
+    assert "It is now waiting for the director." in again.json()["message"]
 
     detail = login("alex.tan@example.com").get(f"/requests/{req['id']}").json()
     tl_event = next(ev for ev in detail["events"] if ev["action"] == "TL_APPROVE")
@@ -120,7 +120,6 @@ def test_team_leader_and_director_approve_from_email(login, lookups, container, 
     )
     assert "Chua Mei Ling (50%, proposed)" in director_mail.body_html
     assert "instant" not in director_mail.body_html, "no link approves by itself: scanners open links"
-    assert "confirm with one more click" in director_mail.body_html
     d = anon.post(f"/api/v1/email-actions/{token_from(director_mail)}", json={"action": "APPROVE"})
     assert d.status_code == 200 and d.json()["status"] == "APPROVED"
 
@@ -141,6 +140,7 @@ def test_return_and_reject_need_a_comment(login, lookups, container, anon) -> No
     assert r.status_code == 200 and r.json()["status"] == "RETURNED"
     gone = anon.get(f"/api/v1/email-actions/{token}")
     assert gone.status_code == 409 and "rejected and sent back to the requester" in gone.json()["message"]
+    assert gone.json()["details"]["title"] == "You have already rejected this request"
 
 
 def test_tampered_and_expired_links(login, lookups, container, anon, clock) -> None:  # type: ignore[no-untyped-def]

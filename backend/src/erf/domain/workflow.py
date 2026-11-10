@@ -61,14 +61,26 @@ STEP_FOR_STATUS: dict[RequestStatus, ApprovalStep] = {
 }
 
 
-_PAST: dict[Action, str] = {
-    Action.SUBMIT: "submitted",
-    Action.APPROVE: "approved",
-    Action.RETURN: "returned",
-    Action.REJECT: "rejected",
-    Action.WITHDRAW: "withdrawn",
-    Action.CANCEL: "cancelled",
-    Action.CLOSE: "closed",
+_VERB: dict[Action, str] = {
+    Action.SUBMIT: "submit",
+    Action.APPROVE: "approve",
+    Action.RETURN: "reject",
+    Action.REJECT: "reject",
+    Action.WITHDRAW: "withdraw",
+    Action.CANCEL: "cancel",
+    Action.CLOSE: "close",
+}
+
+_STATE: dict[RequestStatus, str] = {
+    S.DRAFT: "has not been submitted yet",
+    S.PENDING_TL_REVIEW: "is waiting for the team leader",
+    S.PENDING_DIRECTOR_APPROVAL: "is waiting for the director",
+    S.RETURNED: "has been sent back to the requester",
+    S.APPROVED: "has already been approved",
+    S.REJECTED: "has been rejected permanently",
+    S.WITHDRAWN: "has been withdrawn",
+    S.CANCELLED: "has been cancelled",
+    S.CLOSED: "is closed",
 }
 
 
@@ -76,8 +88,8 @@ def find_transition(source: RequestStatus, action: Action) -> Transition:
     transition = _INDEX.get((source, action))
     if transition is None:
         raise InvalidTransition(
-            f"This request cannot be {_PAST[action]} while its status is "
-            f"{source.value.replace('_', ' ').lower()}. Refresh the page to see its current state.",
+            f"You cannot {_VERB[action]} this request now because it {_STATE[source]}. "
+            "Refresh the page to see its latest progress.",
             details={"status": source.value, "action": action.value},
         )
     return transition

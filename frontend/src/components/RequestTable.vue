@@ -43,9 +43,9 @@ function open(row: RequestSummary): void {
     <el-table-column label="Start" width="120">
       <template #default="{ row }"><span class="nowrap">{{ fmtDate(row.planned_start) }}</span></template>
     </el-table-column>
-    <el-table-column label="Notice" width="90">
+    <el-table-column label="Notice" width="100">
       <template #default="{ row }">
-        <span class="mono">{{ row.notice_working_days ?? '—' }}{{ row.notice_working_days !== null ? ' wd' : '' }}</span>
+        <span class="mono">{{ row.notice_working_days ?? '—' }}{{ row.notice_working_days !== null ? ' days' : '' }}</span>
       </template>
     </el-table-column>
     <el-table-column label="Status" width="210">
