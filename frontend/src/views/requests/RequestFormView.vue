@@ -231,7 +231,7 @@ async function save(submit: boolean): Promise<void> {
       type="warning"
       :closable="false"
       show-icon
-      :title="`Returned by ${lastReturn.actor?.display_name ?? 'reviewer'}`"
+      :title="`Rejected by ${lastReturn.actor?.display_name ?? 'reviewer'}`"
       :description="lastReturn.comment ?? ''"
     />
 

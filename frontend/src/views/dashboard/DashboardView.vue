@@ -79,7 +79,7 @@ onMounted(async () => {
           <span class="value">{{ stats.my_open }}</span>
         </div>
         <div class="tile" :class="{ attention: stats.my_returned }">
-          <span class="label">Returned to you</span>
+          <span class="label">Rejected, to revise</span>
           <span class="value">{{ stats.my_returned }}</span>
         </div>
         <div class="tile">
@@ -102,7 +102,7 @@ onMounted(async () => {
     </section>
 
     <section v-if="returned.length" class="panel">
-      <div class="panel-head"><h2>Returned to you for revision</h2></div>
+      <div class="panel-head"><h2>Rejected: revise and resubmit, or withdraw</h2></div>
       <RequestTable :rows="returned" />
     </section>
 

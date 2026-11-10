@@ -53,13 +53,13 @@ def links_for(ctx: ServiceContext, task: ApprovalTask) -> list[ActionLink]:
         # that run scripts, so a link that approves by itself can be triggered by a scanner.
         return [
             ActionLink("Approve", f"{base}?do=approve", "primary"),
-            ActionLink("Return to requester", f"{base}?do=return", "neutral"),
-            ActionLink("Reject", f"{base}?do=reject", "danger"),
+            ActionLink("Reject", f"{base}?do=return", "danger"),
         ]
+    # "Reject" in email sends the request back: the requester can revise and resubmit it, or withdraw
+    # it. Rejecting permanently is only offered in the system, to people signed in.
     return [
         ActionLink("Approve and assign engineers", f"{base}?do=approve", "primary"),
-        ActionLink("Return to requester", f"{base}?do=return", "neutral"),
-        ActionLink("Reject", f"{base}?do=reject", "danger"),
+        ActionLink("Reject", f"{base}?do=return", "danger"),
     ]
 
 

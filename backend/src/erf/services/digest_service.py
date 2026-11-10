@@ -159,8 +159,12 @@ class DigestService:
             for r in requests
             if r.decided_at and r.decided_at >= week_ago and r.status in ("APPROVED", "CLOSED")
         ]
+        # Rejections this week: sent back for revision (RETURN) and permanent (REJECT).
         rejected = [
-            r for r in requests if r.decided_at and r.decided_at >= week_ago and r.status == "REJECTED"
+            e
+            for r in requests
+            for e in r.events
+            if e.action in ("RETURN", "REJECT") and e.created_at >= week_ago
         ]
         changes = [
             c

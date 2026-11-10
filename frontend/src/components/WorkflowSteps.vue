@@ -64,7 +64,7 @@ const note: Record<StepState, string> = { done: '', current: ' · waiting', stop
       <div>
         <div class="title">{{ s.title }}</div>
         <div class="who">
-          {{ s.who }}{{ note[s.state] }}<template v-if="s.state === 'stopped'"> · {{ request.status === 'RETURNED' ? 'returned' : 'rejected' }}</template>
+          {{ s.who }}{{ note[s.state] }}<template v-if="s.state === 'stopped'"> · {{ request.status === 'RETURNED' ? 'rejected, can resubmit' : 'rejected permanently' }}</template>
         </div>
       </div>
     </li>

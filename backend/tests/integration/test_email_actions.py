@@ -52,12 +52,14 @@ def test_approver_email_has_full_details_and_personal_links(login, lookups, cont
         ">20</td>",
     ):
         assert text in html, text
-    assert "Approve and assign engineers" in html and "Return to requester" in html and "Reject" in html
+    assert "Approve and assign engineers" in html and ">Reject</a>" in html
+    assert "Return to requester" not in html, "two buttons: Approve and Reject"
     assert (
         "set how much of each person&#39;s time this work needs" in html
         or "set how much of each person's time" in html
     )
-    assert "?do=return" in mail.body_text and "?do=reject" in mail.body_text
+    assert "Reject: " in mail.body_text and "?do=return" in mail.body_text
+    assert "?do=reject" not in mail.body_text, "permanent rejection is not offered by email"
 
     [copy] = [
         m
@@ -81,7 +83,7 @@ def test_team_leader_and_director_approve_from_email(login, lookups, container, 
     assert view.status_code == 200, view.text
     data = view.json()
     assert data["step"] == "TL_REVIEW" and data["assignee"]["display_name"] == "Priya Nair"
-    assert data["actions"] == ["APPROVE", "RETURN", "REJECT"]
+    assert data["actions"] == ["APPROVE", "RETURN"]
     assert {c["engineer"]["display_name"] for c in data["candidates"]} >= {"Chua Mei Ling", "Nurul Huda"}
     assert data["request"]["scope_description"].startswith("Line one")
     assert (
@@ -138,7 +140,7 @@ def test_return_and_reject_need_a_comment(login, lookups, container, anon) -> No
     )
     assert r.status_code == 200 and r.json()["status"] == "RETURNED"
     gone = anon.get(f"/api/v1/email-actions/{token}")
-    assert gone.status_code == 409 and "returned to the requester" in gone.json()["message"]
+    assert gone.status_code == 409 and "rejected and sent back to the requester" in gone.json()["message"]
 
 
 def test_tampered_and_expired_links(login, lookups, container, anon, clock) -> None:  # type: ignore[no-untyped-def]
@@ -191,3 +193,36 @@ def test_change_review_from_email(login, lookups, container, anon) -> None:  # t
     assert r.status_code == 200, r.text
     after = pm.get(f"/requests/{req['id']}").json()
     assert after["planned_end"] == "2027-01-15" and after["changes"][-1]["status"] == "APPROVED"
+
+
+def test_email_reject_sends_back_and_permanent_rejection_needs_the_system(
+    login, lookups, container, anon
+) -> None:  # type: ignore[no-untyped-def]
+    req = submit(login, lookups)
+    token = token_from(
+        next(
+            m
+            for m in mails(container, "REQUEST_SUBMITTED", "priya.nair@example.com")
+            if req["request_no"] in m.subject
+        )
+    )
+    r = anon.post(
+        f"/api/v1/email-actions/{token}", json={"action": "REJECT", "comment": "Not engineering work."}
+    )
+    assert r.status_code == 422 and "only be rejected permanently in the system" in r.json()["message"]
+
+    r = anon.post(
+        f"/api/v1/email-actions/{token}", json={"action": "RETURN", "comment": "Split the scope by site."}
+    )
+    assert r.status_code == 200 and r.json()["status"] == "RETURNED"
+    assert "revise and resubmit" in r.json()["message"]
+    mail = next(
+        m
+        for m in mails(container, "REQUEST_RETURNED", "alex.tan@example.com")
+        if req["request_no"] in m.subject
+    )
+    assert mail.subject.startswith(f"{req['request_no']} rejected:")
+    assert "You can revise it and submit it again, or withdraw it" in mail.body_text
+
+    detail = login("alex.tan@example.com").get(f"/requests/{req['id']}").json()
+    assert detail["can_edit"] is True and "WITHDRAW" in detail["available_actions"]

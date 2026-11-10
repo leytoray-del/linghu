@@ -36,8 +36,7 @@ const VERB: Record<string, string> = { APPROVE: 'approve', RETURN: 'return', REJ
 const confirmLabel = computed(() => {
   if (isChange.value) return action.value === 'APPROVE' ? 'Confirm change approval' : 'Confirm change rejection'
   if (action.value === 'APPROVE') return 'Confirm approval'
-  if (action.value === 'REJECT') return 'Confirm rejection'
-  return 'Confirm return to requester'
+  return 'Confirm rejection'
 })
 const decisionTitle = computed(() => {
   const what = isChange.value ? 'this change' : 'this request'
@@ -45,7 +44,7 @@ const decisionTitle = computed(() => {
     if (isChange.value) return 'You are approving this change'
     return isTeamLeader.value ? 'You are approving and assigning engineers' : 'You are giving final approval'
   }
-  return action.value === 'REJECT' ? `You are rejecting ${what}` : 'You are returning this request to the requester'
+  return `You are rejecting ${what}`
 })
 const decisionHint = computed(() => {
   if (action.value === 'APPROVE') {
@@ -53,12 +52,12 @@ const decisionHint = computed(() => {
     if (isTeamLeader.value) return 'Choose the engineers and how much of each person’s time this work needs. The request then goes to the director.'
     return 'The engineers below are confirmed and everyone involved is notified by email.'
   }
-  if (action.value === 'RETURN') return 'The requester can update the request and submit it again. Tell them what to change.'
-  return 'The requester will need to raise a new request. Explain why.'
+  if (isChange.value) return 'The request keeps its current dates and engineers. Tell the requester why.'
+  return 'The requester can revise the request and submit it again, or withdraw it. Tell them why.'
 })
 const otherActions = computed(() => (view.value?.actions ?? []).filter((a) => a !== action.value))
 const otherLabel = (a: Action) =>
-  a === 'APPROVE' ? (isChange.value ? 'Approve the change instead' : 'Approve instead') : a === 'RETURN' ? 'Return to requester instead' : isChange.value ? 'Reject the change instead' : 'Reject instead'
+  a === 'APPROVE' ? (isChange.value ? 'Approve the change instead' : 'Approve instead') : isChange.value ? 'Reject the change instead' : 'Reject instead'
 
 /** Comments made at earlier steps, such as the team leader's note to the director. */
 const notes = computed<EventOut[]>(() => (r.value?.events ?? []).filter((e) => e.comment && e.action !== 'CREATE'))
@@ -449,7 +448,7 @@ p {
   border-color: var(--erf-bad);
 }
 .decision.is-return {
-  border-color: var(--erf-warn);
+  border-color: var(--erf-bad);
 }
 .decision h2 {
   font-size: 17px;
@@ -533,7 +532,7 @@ textarea:focus {
   background: var(--erf-bad);
 }
 .confirm.is-return {
-  background: var(--erf-warn);
+  background: var(--erf-bad);
 }
 .confirm:disabled {
   opacity: 0.6;

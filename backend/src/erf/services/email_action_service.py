@@ -28,8 +28,8 @@ STATUS_TEXT = {
     "PENDING_TL_REVIEW": "waiting for the team leader",
     "PENDING_DIRECTOR_APPROVAL": "waiting for the director",
     "APPROVED": "approved",
-    "RETURNED": "returned to the requester",
-    "REJECTED": "rejected",
+    "RETURNED": "rejected and sent back to the requester",
+    "REJECTED": "rejected permanently",
     "WITHDRAWN": "withdrawn",
     "CANCELLED": "cancelled",
     "CLOSED": "closed",
@@ -87,7 +87,7 @@ class EmailActionService:
         actions = (
             [Action.APPROVE, Action.REJECT]
             if task.step == ApprovalStep.CHANGE_REVIEW.value
-            else [Action.APPROVE, Action.RETURN, Action.REJECT]
+            else [Action.APPROVE, Action.RETURN]
         )
         return EmailActionOut(
             step=task.step,
@@ -131,6 +131,10 @@ class EmailActionService:
                 f"The change to {r.display_no} was {'approved' if action == Action.APPROVE else 'rejected'}."
             )
         else:
+            if action == Action.REJECT:
+                raise ValidationFailed(
+                    "A request can only be rejected permanently in the system. Sign in to do this."
+                )
             workflow.decide(
                 user,
                 r,
@@ -143,8 +147,8 @@ class EmailActionService:
             )
             done = {
                 Action.APPROVE: "approved",
-                Action.RETURN: "returned to the requester",
-                Action.REJECT: "rejected",
+                Action.RETURN: "rejected and sent back to the requester, who can revise and resubmit it",
+                Action.REJECT: "rejected permanently",
             }[action]
             message = f"{r.display_no} was {done}."
             if r.status == "PENDING_DIRECTOR_APPROVAL":

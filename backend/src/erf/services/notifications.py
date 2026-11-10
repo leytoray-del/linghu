@@ -107,15 +107,17 @@ EVENT_TEXT: dict[Event, EventText] = {
         "View request",
     ),
     Event.REQUEST_RETURNED: EventText(
-        "{no} returned for revision: {project}",
-        "Your request was returned for revision",
-        "{actor} returned your request. Update it based on the comment below and resubmit it.",
-        "Revise request",
-    ),
-    Event.REQUEST_REJECTED: EventText(
         "{no} rejected: {project}",
         "Your request was rejected",
-        "{actor} rejected this request. If the need still exists, raise a new request.",
+        "{actor} rejected your request with the comment below. You can revise it and submit it again, "
+        "or withdraw it if it is no longer needed.",
+        "Revise or withdraw",
+    ),
+    Event.REQUEST_REJECTED: EventText(
+        "{no} rejected permanently: {project}",
+        "Your request was rejected permanently",
+        "{actor} rejected this request permanently. It is closed and cannot be resubmitted. If the need "
+        "still exists, raise a new request.",
         "View request",
     ),
     Event.REQUEST_WITHDRAWN: EventText(

@@ -22,7 +22,7 @@ const SCOPE_LABEL: Record<ListScope, string> = {
 const FILTERS: { key: string; label: string; statuses: RequestStatus[] }[] = [
   { key: 'all', label: 'All', statuses: [] },
   { key: 'open', label: 'In approval', statuses: ['PENDING_TL_REVIEW', 'PENDING_DIRECTOR_APPROVAL'] },
-  { key: 'returned', label: 'Returned', statuses: ['RETURNED'] },
+  { key: 'returned', label: 'Rejected, to revise', statuses: ['RETURNED'] },
   { key: 'approved', label: 'Approved', statuses: ['APPROVED'] },
   { key: 'closed', label: 'Finished', statuses: ['CLOSED', 'REJECTED', 'WITHDRAWN', 'CANCELLED'] },
   { key: 'draft', label: 'Drafts', statuses: ['DRAFT'] },

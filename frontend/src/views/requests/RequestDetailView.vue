@@ -118,14 +118,21 @@ async function decide(action: 'APPROVE' | 'RETURN' | 'REJECT'): Promise<void> {
     actionError.value = 'Add a comment so the requester knows what to change or why the request was declined.'
     return
   }
-  if (action === 'REJECT' && !(await confirm('The requester will have to raise a new request.', 'Reject this request?', 'Reject'))) {
+  if (
+    action === 'REJECT' &&
+    !(await confirm(
+      'The request is closed and cannot be resubmitted. If the need remains, the requester has to raise a new request.',
+      'Reject this request permanently?',
+      'Reject permanently',
+    ))
+  ) {
     return
   }
   const allocations = isTlStep.value && action === 'APPROVE' ? allocationInput() : []
   const messages = {
     APPROVE: isTlStep.value ? 'Approved and sent to the director.' : 'Approved. The requester and engineers have been notified.',
-    RETURN: 'Returned to the requester.',
-    REJECT: 'Request rejected.',
+    RETURN: 'Rejected. The requester can revise and resubmit it, or withdraw it.',
+    REJECT: 'Request rejected permanently.',
   }
   await run(action, () => requestApi.decide(r.id, action, r.version, text, allocations), messages[action])
 }
@@ -263,14 +270,15 @@ const CHANGE_TONE: Record<string, string> = { APPROVED: 'success', REJECTED: 'da
               v-model="comment"
               type="textarea"
               :autosize="{ minRows: 2 }"
-              placeholder="Comment. Required when returning or rejecting, or when you assign fewer engineers than requested."
+              placeholder="Comment. Required when rejecting, or when you assign fewer engineers than requested."
             />
             <el-alert v-if="actionError" :title="actionError" type="error" :closable="false" show-icon />
             <div class="buttons">
               <el-button type="primary" :loading="busy === 'APPROVE'" @click="decide('APPROVE')">Approve and send to director</el-button>
-              <el-button :loading="busy === 'RETURN'" @click="decide('RETURN')">Return to requester</el-button>
-              <el-button type="danger" plain :loading="busy === 'REJECT'" @click="decide('REJECT')">Reject</el-button>
+              <el-button type="danger" plain :loading="busy === 'RETURN'" @click="decide('RETURN')">Reject</el-button>
+              <el-button link type="danger" class="permanent" :loading="busy === 'REJECT'" @click="decide('REJECT')">Reject permanently</el-button>
             </div>
+            <p class="muted small no-margin">Reject sends the request back: the requester can revise and resubmit it, or withdraw it. Reject permanently closes it for good.</p>
           </section>
 
           <!-- Director decision -->
@@ -279,13 +287,14 @@ const CHANGE_TONE: Record<string, string> = { APPROVED: 'success', REJECTED: 'da
               <h2>Your decision</h2>
               <span class="muted small">The team leader has proposed the engineers listed below.</span>
             </div>
-            <el-input v-model="comment" type="textarea" :autosize="{ minRows: 2 }" placeholder="Comment. Required when returning or rejecting." />
+            <el-input v-model="comment" type="textarea" :autosize="{ minRows: 2 }" placeholder="Comment. Required when rejecting." />
             <el-alert v-if="actionError" :title="actionError" type="error" :closable="false" show-icon />
             <div class="buttons">
               <el-button type="primary" :loading="busy === 'APPROVE'" @click="decide('APPROVE')">Approve and confirm resources</el-button>
-              <el-button :loading="busy === 'RETURN'" @click="decide('RETURN')">Return to requester</el-button>
-              <el-button type="danger" plain :loading="busy === 'REJECT'" @click="decide('REJECT')">Reject</el-button>
+              <el-button type="danger" plain :loading="busy === 'RETURN'" @click="decide('RETURN')">Reject</el-button>
+              <el-button link type="danger" class="permanent" :loading="busy === 'REJECT'" @click="decide('REJECT')">Reject permanently</el-button>
             </div>
+            <p class="muted small no-margin">Reject sends the request back: the requester can revise and resubmit it, or withdraw it. Reject permanently closes it for good.</p>
           </section>
 
           <!-- A change waiting for review -->
@@ -323,12 +332,12 @@ const CHANGE_TONE: Record<string, string> = { APPROVED: 'success', REJECTED: 'da
           <!-- Requester actions -->
           <section v-if="!isDecider && !reviewingChange && (requesterActions || request.can_request_change)" class="panel" :class="{ action: request.status === 'RETURNED' || request.status === 'DRAFT' }">
             <div class="panel-head">
-              <h2 v-if="request.status === 'RETURNED'">This request was returned to you</h2>
+              <h2 v-if="request.status === 'RETURNED'">This request was rejected</h2>
               <h2 v-else-if="request.status === 'DRAFT'">This request is a draft</h2>
               <h2 v-else-if="request.current_handlers.length">Waiting for {{ request.current_handlers.map((h) => h.display_name).join(', ') }}</h2>
               <h2 v-else>Actions</h2>
             </div>
-            <p v-if="request.status === 'RETURNED'" class="muted no-margin">Read the comment in the history, update the request and resubmit it.</p>
+            <p v-if="request.status === 'RETURNED'" class="muted no-margin">Read the comment in the history. You can revise the request and submit it again, or withdraw it if it is no longer needed.</p>
             <p v-if="request.status === 'DRAFT'" class="muted no-margin">Only you can see a draft. Submit it to start the approval.</p>
 
             <el-form v-if="changeOpen" class="change-form" label-position="top" @submit.prevent="sendChange">
@@ -487,6 +496,10 @@ const CHANGE_TONE: Record<string, string> = { APPROVED: 'success', REJECTED: 'da
 }
 .buttons .el-button + .el-button {
   margin-left: 0;
+}
+.permanent {
+  margin-left: auto;
+  font-size: 13px;
 }
 .details {
   display: grid;
