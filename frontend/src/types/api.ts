@@ -370,3 +370,21 @@ export interface EmailActionResult {
   display_no: string
   status: RequestStatus
 }
+
+export interface UserImportRow {
+  row: number
+  email: string
+  name: string
+  outcome: 'create' | 'update' | 'unchanged' | 'error'
+  changes: string[]
+  error: string | null
+}
+
+export interface UserImportResult {
+  applied: boolean
+  created: number
+  updated: number
+  unchanged: number
+  errors: number
+  rows: UserImportRow[]
+}

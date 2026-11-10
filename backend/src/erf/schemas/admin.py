@@ -127,3 +127,30 @@ class OutboxSummary(Schema):
     counts: dict[str, int]
     items: list[OutboxOut]
     backend: str
+
+
+class UserImportIn(Schema):
+    """An Excel file, sent as base64, and the first password for accounts the import creates."""
+
+    file_base64: str = Field(min_length=1, max_length=3_000_000)
+    initial_password: str = Field(min_length=1, max_length=128)
+    apply: bool = False
+
+
+class UserImportRow(Schema):
+    row: int
+    email: str
+    name: str
+    outcome: str
+    """``create``, ``update``, ``unchanged`` or ``error``."""
+    changes: list[str]
+    error: str | None = None
+
+
+class UserImportOut(Schema):
+    applied: bool
+    created: int
+    updated: int
+    unchanged: int
+    errors: int
+    rows: list[UserImportRow]

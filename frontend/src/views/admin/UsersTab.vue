@@ -8,6 +8,8 @@ import type { AdminTeam, AdminUser, Role } from '@/types/api'
 import { errorMessage, fieldErrors, showError, showSuccess } from '@/utils/feedback'
 import { fmtDateTime } from '@/utils/format'
 
+import UserImportDialog from './UserImportDialog.vue'
+
 const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: 'REQUESTER', label: 'Requester' },
   { value: 'TEAM_LEADER', label: 'Team leader' },
@@ -24,6 +26,7 @@ const teams = ref<AdminTeam[]>([])
 const loading = ref(true)
 const search = ref('')
 const dialog = ref(false)
+const importOpen = ref(false)
 const editing = ref<AdminUser | null>(null)
 const saving = ref(false)
 const errors = ref<Record<string, string>>({})
@@ -139,8 +142,13 @@ onMounted(load)
   <div class="tab">
     <div class="bar">
       <el-input v-model="search" placeholder="Search name, email or team" clearable class="search" />
-      <el-button type="primary" @click="openCreate">Add user</el-button>
+      <div class="bar-actions">
+        <el-button @click="importOpen = true">Import from Excel</el-button>
+        <el-button type="primary" @click="openCreate">Add user</el-button>
+      </div>
     </div>
+
+    <UserImportDialog v-model="importOpen" @imported="load" />
 
     <el-dialog
       :model-value="!!issued"
@@ -254,6 +262,10 @@ onMounted(load)
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
+}
+.bar-actions {
+  display: flex;
+  gap: 10px;
 }
 .search {
   width: min(320px, 100%);

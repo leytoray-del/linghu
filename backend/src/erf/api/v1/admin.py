@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import base64
+import binascii
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 
 from erf.api.deps import Ctx, require_roles
+from erf.core.errors import ValidationFailed
 from erf.db.models import User
 from erf.domain.enums import OutboxStatus, Role
 from erf.repositories.settings import SupportTypeRepository
@@ -23,11 +26,14 @@ from erf.schemas.admin import (
     TeamOut,
     TemporaryPasswordOut,
     UserCreateIn,
+    UserImportIn,
+    UserImportOut,
     UserOut,
     UserUpdateIn,
 )
 from erf.schemas.auth import TeamBrief
 from erf.services.admin_service import AdminService
+from erf.services.user_import_service import UserImportService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 Admin = Annotated[User, Depends(require_roles(Role.ADMIN))]
@@ -58,6 +64,24 @@ def create_user(body: UserCreateIn, admin: Admin, ctx: Ctx) -> TemporaryPassword
     user, password = AdminService(ctx, admin).create_user(body)
     ctx.session.flush()
     return TemporaryPasswordOut(user=user_out(user), temporary_password=password)
+
+
+@router.get("/users/import-template.xlsx", response_class=Response)
+def user_import_template(admin: Admin, ctx: Ctx) -> Response:
+    return Response(
+        UserImportService(ctx).template_xlsx(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="user-import-template.xlsx"'},
+    )
+
+
+@router.post("/users/import", response_model=UserImportOut)
+def import_users(body: UserImportIn, admin: Admin, ctx: Ctx) -> UserImportOut:
+    try:
+        content = base64.b64decode(body.file_base64, validate=True)
+    except (binascii.Error, ValueError):
+        raise ValidationFailed("This file could not be read. Choose the Excel file again.") from None
+    return UserImportService(ctx).run(content, body.initial_password, apply=body.apply)
 
 
 @router.put("/users/{user_id}", response_model=UserOut)

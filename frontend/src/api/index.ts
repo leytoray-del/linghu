@@ -25,6 +25,7 @@ import type {
   RequestSummary,
   Role,
   TaskInboxItem,
+  UserImportResult,
 } from '@/types/api'
 
 export const authApi = {
@@ -137,6 +138,15 @@ export const adminApi = {
   resetPassword: (id: number) =>
     http
       .post<{ user: AdminUser; temporary_password: string }>(`/admin/users/${id}/reset-password`)
+      .then((r) => r.data),
+  userImportTemplateUrl: '/api/v1/admin/users/import-template.xlsx',
+  importUsers: (fileBase64: string, initialPassword: string, apply: boolean) =>
+    http
+      .post<UserImportResult>('/admin/users/import', {
+        file_base64: fileBase64,
+        initial_password: initialPassword,
+        apply,
+      })
       .then((r) => r.data),
   teams: () => http.get<AdminTeam[]>('/admin/teams').then((r) => r.data),
   setApprovers: (teamId: number, approver_ids: number[]) =>
