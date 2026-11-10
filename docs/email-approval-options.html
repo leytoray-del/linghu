@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Approving from Email: Options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a decision document. One reading column, a comparison table up front, then one section per option. */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #edf0f5;
+  --fg: #17202c;
+  --muted: #5a6577;
+  --line: #d9dfe8;
+  --accent: #2254c5;
+  --ok: #17784a;
+  --warn: #a35c00;
+  --bad: #b3261e;
+  --band: #1b2533;
+  --band-fg: #e4e9f0;
+  --font: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --mono: "IBM Plex Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
+  --r: 6px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141b; --surface: #161d27; --surface-2: #1c2531; --fg: #e4e9f0; --muted: #96a2b4; --line: #2a3442;
+    --accent: #7aa2f7; --ok: #4fc48a; --warn: #e9a94a; --bad: #f0776d; --band: #0b1016; --band-fg: #e4e9f0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141b; --surface: #161d27; --surface-2: #1c2531; --fg: #e4e9f0; --muted: #96a2b4; --line: #2a3442;
+  --accent: #7aa2f7; --ok: #4fc48a; --warn: #e9a94a; --bad: #f0776d; --band: #0b1016; --band-fg: #e4e9f0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 15px; line-height: 1.6; }
+.band { background: var(--band); color: var(--band-fg); }
+.wrap { max-width: 980px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header .wrap { padding-block: 40px 36px; display: flex; flex-direction: column; gap: 10px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
+h1 { font-size: clamp(26px, 4vw, 34px); line-height: 1.2; margin: 0; font-weight: 600; text-wrap: balance; }
+.lede { max-width: 68ch; margin: 0; opacity: .9; }
+main .wrap { padding-block: 32px 64px; display: flex; flex-direction: column; gap: 36px; }
+h2 { font-size: 21px; margin: 0 0 12px; font-weight: 600; text-wrap: balance; }
+h3 { font-size: 16px; margin: 18px 0 8px; font-weight: 600; }
+p { margin: 0 0 12px; max-width: 72ch; }
+section > p:last-child { margin-bottom: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 22px; min-width: 0; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--mono); font-size: 13px; }
+.incident { border-left: 4px solid var(--bad); }
+.incident dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 12px 0 0; }
+.incident dt { font-family: var(--mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.incident dd { margin: 0; }
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+thead th { background: var(--surface-2); font-size: 13px; font-weight: 600; }
+thead th small { display: block; font-weight: 400; color: var(--muted); }
+tbody th { font-weight: 500; color: var(--muted); width: 22%; }
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; margin-right: 6px; }
+.good { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
+.fair { color: var(--warn); background: color-mix(in srgb, var(--warn) 15%, transparent); }
+.poor { color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+.option { display: flex; flex-direction: column; gap: 4px; }
+.option-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; margin-bottom: 8px; }
+.option-head h2 { margin: 0; }
+.tag { font-family: var(--mono); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.flow { list-style: none; counter-reset: step; padding: 0; margin: 8px 0 4px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.flow li { counter-increment: step; background: var(--surface-2); border-radius: var(--r); padding: 12px 12px 12px 12px; font-size: 14px; line-height: 1.45; position: relative; }
+.flow li::before { content: counter(step); display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--surface); font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+.flow li b { display: block; }
+.flow li.where { font-size: 12px; }
+.loc { display: block; font-family: var(--mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.loc.out { color: var(--warn); }
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.cols ul { margin: 0; padding-left: 20px; }
+.cols li { margin-bottom: 6px; }
+.mock { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 10px 0 4px; }
+.mail { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden; font-size: 13px; }
+.mail .bar { background: var(--surface-2); padding: 6px 10px; font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+.mail .body { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.btn { display: block; text-align: center; padding: 8px 10px; border-radius: 4px; font-weight: 600; border: 1px solid var(--line); }
+.btn.primary { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.field { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.field span:first-child { color: var(--muted); }
+.field span:last-child { overflow-wrap: anywhere; }
+.send { align-self: flex-start; background: var(--accent); color: var(--surface); padding: 5px 14px; border-radius: 4px; font-weight: 600; }
+.checks { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 8px; }
+.checks li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; }
+.checks li::before { content: "✓"; color: var(--ok); font-weight: 700; }
+.req { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 10px; }
+.req li { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 6px 16px; align-items: start; padding: 12px; background: var(--surface-2); border-radius: var(--r); }
+.req li .who { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+.who.it { color: var(--bad); }
+.who.us { color: var(--ok); }
+.reco { border: 2px solid var(--accent); }
+.reco ol { margin: 6px 0 0; padding-left: 20px; }
+.reco li { margin-bottom: 8px; }
+footer .wrap { padding-block: 24px 40px; color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cols, .mock { grid-template-columns: minmax(0, 1fr); }
+  .req li { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 420px) {
+  .flow { grid-template-columns: minmax(0, 1fr); }
+  .panel { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<header class="band">
+  <div class="wrap">
+    <span class="eyebrow">Engineering Resource Requests · Design decision</span>
+    <h1>Approving from Email: Options</h1>
+    <p class="lede">How approvers should act on a request from their mailbox, after the one-click approval link was triggered by a mail security scanner. This document compares the current confirmation page with approval by reply, and explains why approval buttons inside Outlook depend on NEC IT.</p>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <section>
+      <h2>Background</h2>
+      <p>Approvers receive an email for every request that needs their decision. To make the director's final approval faster, the Approve button briefly completed the approval as soon as the link was opened. On 6 November this produced an approval that the director did not give:</p>
+      <div class="panel incident">
+        <b>ERR-2026-0010 was approved without the director acting.</b>
+        <dl>
+          <dt>15:26:43</dt><dd>The team leader approved the request; the system queued the director's email.</dd>
+          <dt>15:27:04</dt><dd>The email was delivered to the director's company mailbox.</dd>
+          <dt>15:27:37</dt><dd>The system recorded "approved by the director via email link", 33 seconds after delivery.</dd>
+        </dl>
+        <p class="muted" style="margin-top:12px">The company's mail security gateway opens links in incoming email inside a sandboxed browser to check them. That browser loaded the page, and the page approved the request. One-click approval was removed the same day; every email link now opens a confirmation page and nothing happens until a person clicks a button there.</p>
+      </div>
+      <p style="margin-top:16px">The remaining concern is convenience: clicking a button in Outlook opens a web browser, and the approver has to click once more. The question is whether the decision can be made without leaving Outlook.</p>
+    </section>
+
+    <section>
+      <h2>At a glance</h2>
+      <div class="tbl">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>Option 1<small>Confirm in the browser (current)</small></th>
+              <th>Option 2<small>Approve by reply</small></th>
+              <th>Option 3<small>Buttons inside Outlook (Actionable Messages)</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th>Where the decision is made</th>
+              <td>A web page that opens from the email</td>
+              <td>In Outlook: a pre-filled reply is sent</td>
+              <td>In Outlook: buttons work inside the message</td>
+            </tr>
+            <tr>
+              <th>Steps for the director to approve</th>
+              <td>Click Approve in the email, then click Approve on the page</td>
+              <td>Click Approve in the email, then click Send</td>
+              <td>Click Approve in the email</td>
+            </tr>
+            <tr>
+              <th>When it takes effect</th>
+              <td><span class="chip good">Immediately</span></td>
+              <td><span class="chip fair">Within about a minute</span>after the system reads the reply</td>
+              <td><span class="chip good">Immediately</span>the result is shown in the message</td>
+            </tr>
+            <tr>
+              <th>Safe from mail scanners</th>
+              <td><span class="chip good">Yes</span>scanners open pages but do not click buttons</td>
+              <td><span class="chip good">Yes</span>scanners never send email</td>
+              <td><span class="chip good">Yes</span>actions are signed by Microsoft</td>
+            </tr>
+            <tr>
+              <th>Return or reject with a comment</th>
+              <td>Comment box on the page</td>
+              <td>Comment typed in the reply</td>
+              <td>Comment box inside the message</td>
+            </tr>
+            <tr>
+              <th>Team leader approval (choosing engineers and their time)</th>
+              <td>On the page</td>
+              <td><span class="chip fair">Still on the page</span>a reply cannot carry the engineer selection</td>
+              <td>Possible in the message, with more design work</td>
+            </tr>
+            <tr>
+              <th>Works on phones</th>
+              <td>Yes, in the phone browser</td>
+              <td>Yes, in any mail app</td>
+              <td>Outlook apps only; other mail apps see ordinary links</td>
+            </tr>
+            <tr>
+              <th>NEC IT involvement</th>
+              <td><span class="chip good">None</span></td>
+              <td><span class="chip good">None</span></td>
+              <td><span class="chip poor">Required</span>Exchange administrator approval and a company sending mailbox</td>
+            </tr>
+            <tr>
+              <th>Work on our side</th>
+              <td>Done; in production</td>
+              <td>Moderate: read replies, verify them, act, confirm</td>
+              <td>Larger: Microsoft registration, card design, token verification</td>
+            </tr>
+            <tr>
+              <th>Available</th>
+              <td>Now</td>
+              <td>After implementation; no outside approval</td>
+              <td>Only after NEC IT approves</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel option">
+      <div class="option-head">
+        <h2>Option 1: Confirm in the browser</h2>
+        <span class="tag">Current, in production</span>
+      </div>
+      <p>The email shows Approve, Return to requester and Reject. Each button opens a page that shows the full request; the decision is made only when the approver clicks the button on that page.</p>
+      <ol class="flow">
+        <li><b>Open the email</b>Full request details and three buttons.<span class="loc">Outlook</span></li>
+        <li><b>Click Approve</b>The browser opens the confirmation page.<span class="loc out">Browser</span></li>
+        <li><b>Click Approve on the page</b>Return and Reject also ask for a comment here.<span class="loc out">Browser</span></li>
+        <li><b>Result shown</b>The requester and engineers are notified by email.<span class="loc out">Browser</span></li>
+      </ol>
+      <div class="cols">
+        <div>
+          <h3>Advantages</h3>
+          <ul>
+            <li>Already built, tested and in use; no further work.</li>
+            <li>The decision takes effect immediately and the result is visible straight away.</li>
+            <li>The same page serves every role, including team leaders choosing engineers and their percentage of time.</li>
+            <li>Safe from mail scanners: they open pages but do not click buttons.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Disadvantages</h3>
+          <ul>
+            <li>The approver leaves Outlook; on a phone this means switching to the browser.</li>
+            <li>Two clicks for an approval that has nothing left to decide.</li>
+            <li>Some approvers may hesitate to click links that open a web page from email.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel option">
+      <div class="option-head">
+        <h2>Option 2: Approve by reply</h2>
+        <span class="tag">Proposed, no IT involvement</span>
+      </div>
+      <p>The buttons in the email become pre-filled replies instead of web links. Clicking one opens a new message in Outlook, already addressed, with the decision in the subject line. The approver can add a comment and clicks Send. The system checks the sending mailbox about once a minute, verifies the reply, records the decision and sends a confirmation email.</p>
+      <ol class="flow">
+        <li><b>Open the email</b>The same details and buttons as today.<span class="loc">Outlook</span></li>
+        <li><b>Click Approve</b>Outlook opens a reply that is already filled in.<span class="loc">Outlook</span></li>
+        <li><b>Click Send</b>Optionally type a comment first; Return and Reject require one.<span class="loc">Outlook</span></li>
+        <li><b>Confirmation email</b>Arrives within about a minute; everyone involved is notified.<span class="loc">Outlook</span></li>
+      </ol>
+
+      <div class="mock" aria-label="Illustration of the email and the pre-filled reply">
+        <div class="mail">
+          <div class="bar">Email received by the director</div>
+          <div class="body">
+            <span>ERR-2026-0012 needs your approval: Permit Portal Integration</span>
+            <span class="btn primary">Approve</span>
+            <span class="btn">Return to requester</span>
+            <span class="btn danger">Reject</span>
+          </div>
+        </div>
+        <div class="mail">
+          <div class="bar">Reply opened by clicking Approve</div>
+          <div class="body">
+            <div class="field"><span>To</span><span class="mono">sender-mailbox+act-7Kq2…@gmail.com</span></div>
+            <div class="field"><span>Subject</span><span>APPROVE ERR-2026-0012</span></div>
+            <span class="muted">Optional comment for the requester…</span>
+            <span class="send">Send</span>
+          </div>
+        </div>
+      </div>
+
+      <h3>How a reply is trusted</h3>
+      <ul class="checks">
+        <li><span>The reply address contains a signed code for exactly one pending decision. It cannot be guessed or changed without breaking the signature.</span></li>
+        <li><span>The reply must come from the approver's own address, the one the request was sent to.</span></li>
+        <li><span>The mail system's sender verification (SPF, DKIM and DMARC, which the receiving mailbox records on every message) must pass, so a forged sender address is rejected.</span></li>
+        <li><span>Each code works once and expires after the configured number of days. A late or repeated reply receives an answer explaining that the request has already been handled.</span></li>
+        <li><span>The history records the decision as "via email reply", with the message identifier of the reply.</span></li>
+      </ul>
+
+      <div class="cols">
+        <div>
+          <h3>Advantages</h3>
+          <ul>
+            <li>The approver never leaves Outlook, on a computer or a phone, in any mail app.</li>
+            <li>Mail scanners cannot trigger a decision, because they never send email.</li>
+            <li>No involvement of NEC IT and no external registration.</li>
+            <li>The confirmation page from Option 1 stays available as a link in the same email.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Disadvantages</h3>
+          <ul>
+            <li>The decision takes effect within about a minute, not instantly; the confirmation arrives by email.</li>
+            <li>Team leaders still approve on the page, because choosing engineers and their time cannot be done in a reply. They can return or reject by reply.</li>
+            <li>The system needs read access to the sending mailbox; replies remain visible there and are labelled as processed.</li>
+            <li>An approver who edits the subject line or the address breaks the reply; the system answers with instructions.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel option">
+      <div class="option-head">
+        <h2>Option 3: Buttons inside Outlook</h2>
+        <span class="tag">Not feasible without NEC IT</span>
+      </div>
+      <p>Microsoft's Actionable Messages place working buttons, and if needed a comment box, inside an Outlook message. Clicking Approve calls the system directly from Outlook and the message updates to show the result, with no browser and no reply. This is the best experience, and the reason it is not proposed now is entirely organisational.</p>
+
+      <h3>What it requires</h3>
+      <ul class="req">
+        <li>
+          <span><b>Register the system as an actionable email provider with Microsoft.</b> The registration names the sending address and the web addresses the buttons call.</span>
+          <span class="who us">Our side</span>
+        </li>
+        <li>
+          <span><b>Approval by an Exchange administrator of NEC.</b> For messages to work for everyone in the company, the registration must be approved for the organisation. Without that approval the buttons work only in test messages sent to the developer's own mailbox, and every other recipient sees ordinary links.</span>
+          <span class="who it">NEC IT</span>
+        </li>
+        <li>
+          <span><b>A company sending mailbox.</b> The registration is tied to the address the email comes from. Sending from a personal Gmail address is not appropriate for a company-approved integration, and a company mailbox normally means IT provides it and its SMTP access.</span>
+          <span class="who it">NEC IT</span>
+        </li>
+        <li>
+          <span><b>Verification of Microsoft-signed requests.</b> The system must check, on every button press, a token signed by Microsoft that identifies the user. This is development work on our side.</span>
+          <span class="who us">Our side</span>
+        </li>
+      </ul>
+
+      <h3>Why it is not feasible now</h3>
+      <p>Two of the four requirements sit with NEC IT: the organisation-wide approval and the company sending mailbox. The system cannot obtain either by itself, and the approval process and its timing are outside the project's control. Without them, the buttons would appear only to the developer during testing, so the feature would bring no benefit to directors or team leaders.</p>
+      <p>It becomes a sensible step when the system is adopted formally and IT is involved anyway, for example to provide single sign-on with company accounts and a company sending mailbox. At that point the same request to IT can cover Actionable Messages.</p>
+    </section>
+
+    <section class="panel reco">
+      <h2>Recommendation</h2>
+      <ol>
+        <li><b>Implement Option 2 now</b> for the director's Approve, Return and Reject, and for team leaders' Return and Reject. It keeps approvers in Outlook and cannot be triggered by mail scanners.</li>
+        <li><b>Keep Option 1</b> as the way team leaders approve (they choose engineers and their time) and as a fallback link in every email.</li>
+        <li><b>Plan Option 3</b> together with the formal rollout, in one request to NEC IT that also covers a company sending mailbox and single sign-on.</li>
+      </ol>
+      <h3>Decision needed</h3>
+      <p>Approve the implementation of Option 2, and confirm that the system may read replies in the current sending mailbox.</p>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">Engineering Resource Requests · Prepared 10 November 2026 · Times are Singapore time.</div>
+</footer>
+</body>
+</html>
