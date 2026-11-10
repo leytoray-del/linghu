@@ -5,7 +5,7 @@ import type { RequestDetail } from '@/types/api'
 
 const props = defineProps<{ request: RequestDetail }>()
 
-type StepState = 'done' | 'current' | 'stopped' | 'todo'
+type StepState = 'done' | 'current' | 'stopped' | 'todo' | 'skipped'
 interface Step {
   title: string
   who: string
@@ -21,6 +21,25 @@ function names(step: 'TL_REVIEW' | 'DIRECTOR_APPROVAL'): string {
   if (pending.length) return pending.join(', ')
   return step === 'TL_REVIEW' ? `${r.team?.name ?? 'Team'} leader` : 'Director'
 }
+
+// The last step is completed automatically when the director approves.
+const confirmedText = computed(() => {
+  switch (props.request.status) {
+    case 'APPROVED':
+    case 'CLOSED':
+      return 'Requester and engineers notified'
+    case 'REJECTED':
+      return 'Not reached: the request was rejected permanently'
+    case 'WITHDRAWN':
+      return 'Not reached: the request was withdrawn'
+    case 'CANCELLED':
+      return 'Not reached: the request was cancelled'
+    case 'RETURNED':
+      return 'Completes when the revised request is approved by the director'
+    default:
+      return 'Completes automatically when the director approves'
+  }
+})
 
 const steps = computed<Step[]>(() => {
   const r = props.request
@@ -40,21 +59,23 @@ const steps = computed<Step[]>(() => {
       case 'RETURNED':
       case 'REJECTED': {
         const stopIndex = stoppedAt === 'DIRECTOR_APPROVAL' ? 2 : 1
-        return index < stopIndex ? 'done' : index === stopIndex ? 'stopped' : 'todo'
+        const after = r.status === 'REJECTED' ? 'skipped' : 'todo'
+        return index < stopIndex ? 'done' : index === stopIndex ? 'stopped' : after
       }
       default:
-        return index === 0 ? 'done' : 'todo'
+        // Withdrawn or cancelled before approval: the remaining steps will never happen.
+        return index === 0 ? 'done' : 'skipped'
     }
   }
   return [
     { title: 'Submitted', who: r.requester.display_name, state: state(0) },
     { title: 'Team leader review', who: names('TL_REVIEW'), state: state(1) },
     { title: 'Director approval', who: names('DIRECTOR_APPROVAL'), state: state(2) },
-    { title: 'Resources confirmed', who: 'Requester and engineers notified', state: state(3) },
+    { title: 'Resources confirmed', who: confirmedText.value, state: state(3) },
   ]
 })
 
-const note: Record<StepState, string> = { done: '', current: ' · waiting', stopped: '', todo: '' }
+const note: Record<StepState, string> = { done: '', current: ' · waiting', stopped: '', todo: '', skipped: '' }
 </script>
 
 <template>
@@ -124,6 +145,13 @@ li:last-child::after {
 }
 .title {
   font-weight: 500;
+}
+.skipped .mark {
+  border-style: dashed;
+}
+.skipped .title {
+  color: var(--erf-muted);
+  text-decoration: line-through;
 }
 .who {
   font-size: 12px;
