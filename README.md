@@ -106,7 +106,8 @@ notice period and reminder intervals are changed by administrators in the applic
 
 The application is designed to share a small server with other services: one Python process of about
 100 MB, a SQLite file, and an existing Caddy instance for HTTPS. See `docs/部署指南.md` for the
-step-by-step guide. In short:
+step-by-step guide, and `docs/server-setup-from-scratch.md` for setting up a new server, from creating the
+Google account to the first automatic deployment. In short:
 
 ```bash
 deploy/scripts/build-release.sh --demo
