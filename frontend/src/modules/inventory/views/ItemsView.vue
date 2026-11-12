@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ElMessage } from 'element-plus'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -10,6 +9,7 @@ import { inventoryApi } from '../api'
 import BarcodeScanner from '../components/BarcodeScanner.vue'
 import ItemStatusTag from '../components/ItemStatusTag.vue'
 import { ITEM_STATUS_LABEL, showValue } from '../format'
+import { normaliseCode, pickSerial } from '../barcode'
 import { useInventoryLookups } from '../lookups'
 import type { Item, ItemStatus } from '../types'
 
@@ -67,18 +67,32 @@ watch([projectId, categoryId, status, withinDays, () => props.warranty], () => {
 })
 watch(page, load)
 
-async function findScanned(code: string): Promise<void> {
+const scanFeedback = ref<{ tone: 'ok' | 'warn' | 'bad'; text: string } | null>(null)
+
+/** Try the code as read and without a label identifier (such as the S before a serial number). */
+async function findScanned(code: string): Promise<boolean> {
+  const raw = normaliseCode(code)
+  const verdict = pickSerial(code, null)
+  const tries = [...new Set([verdict.kind === 'serial' ? verdict.serial : raw, raw])]
   try {
-    const check = await inventoryApi.checkSerial(code)
-    if (check.exists && check.item_id) {
-      scanning.value = false
-      await router.push(`/inventory/items/${check.item_id}`)
-    } else {
-      ElMessage.warning(`${check.serial_no} is not registered.`)
+    for (const serial of tries) {
+      const check = await inventoryApi.checkSerial(serial)
+      if (check.exists && check.item_id) {
+        scanning.value = false
+        await router.push(`/inventory/items/${check.item_id}`)
+        return true
+      }
     }
+    scanFeedback.value = { tone: 'warn', text: `${tries[0]} is not registered.` }
   } catch (e) {
     showError(e)
   }
+  return false
+}
+
+async function findInPhoto(codes: string[]): Promise<void> {
+  for (const c of codes) if (await findScanned(c)) return
+  scanFeedback.value = { tone: 'warn', text: `None of these is registered: ${codes.join(', ')}.` }
 }
 
 onMounted(async () => {
@@ -111,7 +125,7 @@ onMounted(async () => {
     </div>
 
     <section v-if="scanning" class="panel">
-      <BarcodeScanner :continuous="true" @code="findScanned" @close="scanning = false" />
+      <BarcodeScanner :feedback="scanFeedback" @code="findScanned" @codes="findInPhoto" @close="scanning = false" />
     </section>
 
     <section class="panel">

@@ -11,6 +11,7 @@ import { errorMessage, fieldErrors, showSuccess } from '@/utils/feedback'
 import { inventoryApi } from '../api'
 import AttributeFields from '../components/AttributeFields.vue'
 import BarcodeScanner from '../components/BarcodeScanner.vue'
+import { pickSerial } from '../barcode'
 import { useInventoryLookups } from '../lookups'
 import type { AttributeValue, DeliveryInput } from '../types'
 
@@ -88,38 +89,46 @@ function normalise(value: string): string {
   return value.replace(/\s+/g, '').toUpperCase()
 }
 
-function matchesPattern(serial: string): boolean {
-  const pattern = model.value?.serial_pattern
-  if (!pattern) return true
-  try {
-    return new RegExp(`^(?:${pattern})$`).test(serial)
-  } catch {
-    return true
-  }
-}
+/** The latest outcome, also shown on the camera view so it is seen while scanning. */
+const scanFeedback = computed(() =>
+  notice.value
+    ? { tone: notice.value.type === 'success' ? ('ok' as const) : notice.value.type === 'warning' ? ('warn' as const) : ('bad' as const), text: notice.value.text }
+    : null,
+)
 
-async function add(raw: string, fromCamera: boolean): Promise<void> {
-  const serial = normalise(raw)
-  if (!serial) return
+/**
+ * Add one serial number. Codes from the camera go through pickSerial, which removes label identifiers
+ * such as the "S" before a serial number and skips part numbers and dates. Typed values are taken as
+ * typed, and checked against the model's serial number format when it has one.
+ */
+async function add(raw: string, fromCamera: boolean): Promise<boolean> {
+  if (!normalise(raw)) return false
   if (!modelId.value || !model.value) {
     notice.value = { type: 'error', text: 'Choose the model first.' }
-    return
+    return false
   }
-  if (!matchesPattern(serial)) {
-    // Labels often carry several barcodes; ignore those that are not this model's serial number.
-    if (!fromCamera) notice.value = { type: 'error', text: `${serial} does not look like a ${model.value.model_no} serial number.` }
-    else notice.value = { type: 'warning', text: `Ignored ${serial}: not a ${model.value.model_no} serial number.` }
-    return
+  let serial: string
+  if (fromCamera || model.value.serial_pattern) {
+    const verdict = pickSerial(raw, model.value.serial_pattern, model.value.model_no)
+    if (verdict.kind === 'skip') {
+      notice.value = { type: fromCamera ? 'warning' : 'error', text: fromCamera ? `Skipped: ${verdict.reason}` : verdict.reason }
+      return false
+    }
+    serial = verdict.serial
+  } else {
+    serial = normalise(raw)
   }
   if (rows.value.some((r) => r.serial_no === serial)) {
+    // The label of the item just added is usually still in view; do not replace "Added" for it.
+    if (fromCamera && rows.value[0]?.serial_no === serial) return false
     notice.value = { type: 'warning', text: `${serial} is already in this delivery.` }
-    return
+    return false
   }
   try {
     const check = await inventoryApi.checkSerial(serial)
     if (check.exists) {
       notice.value = { type: 'error', text: check.message ?? `${serial} is already registered.` }
-      return
+      return false
     }
   } catch {
     /* the server checks again when the delivery is saved */
@@ -131,8 +140,32 @@ async function add(raw: string, fromCamera: boolean): Promise<void> {
     warranty_end: header.warranty_end,
     attributes: { ...commonValues.value },
   })
-  notice.value = { type: 'success', text: `Added ${serial}.` }
+  notice.value = { type: 'success', text: `Added ${serial} (${rows.value.length} in this delivery).` }
   typed.value = ''
+  return true
+}
+
+/** All barcodes read from one photo: add the serial numbers, and say what was skipped. */
+async function addFromPhoto(codes: string[]): Promise<void> {
+  const added: string[] = []
+  const skipped: string[] = []
+  for (const c of codes) {
+    if (await add(c, true)) added.push(rows.value[0]!.serial_no)
+    else skipped.push(notice.value?.text ?? c)
+  }
+  if (added.length) {
+    notice.value = {
+      type: 'success',
+      text: `Added ${added.join(', ')}.${skipped.length ? ` ${skipped.length} other barcode${skipped.length === 1 ? '' : 's'} on the label skipped.` : ''}`,
+    }
+  } else if (skipped.length === 1) {
+    notice.value = { type: 'warning', text: skipped[0]! }
+  } else {
+    notice.value = {
+      type: 'warning',
+      text: `No serial number was found among ${codes.length} barcodes: ${codes.join(', ')}. Check the model you chose.`,
+    }
+  }
 }
 
 function onTypedEnter(): void {
@@ -347,7 +380,13 @@ onMounted(async () => {
             <AttributeFields v-model="commonValues" :fields="category.fields" id-prefix="common" />
           </details>
 
-          <BarcodeScanner v-if="scanning" @code="(c) => add(c, true)" @close="scanning = false" />
+          <BarcodeScanner
+            v-if="scanning"
+            :feedback="scanFeedback"
+            @code="(c) => add(c, true)"
+            @codes="addFromPhoto"
+            @close="scanning = false"
+          />
           <div class="entry">
             <el-button v-if="!scanning" type="primary" @click="scanning = true">Scan with camera</el-button>
             <el-input
