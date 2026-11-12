@@ -1,10 +1,10 @@
-<title>ERS Inventory Module Design</title>
+<title>PSBU OpsHub Platform Design</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>
-/* Layout: a single reading column for the design, with wide "screens" (prototype, workflow) breaking out to the full content width. Colours follow the ERS app. */
+/* Layout: one reading column for the design, with the wide prototype and diagrams using the full content width. Colours follow the existing ERS app, so the prototype looks like the real system. */
 :root {
   --bg: #f3f5f8;
   --surface: #ffffff;
@@ -20,6 +20,12 @@
   --warn-soft: #f8ecd9;
   --bad: #b3261e;
   --bad-soft: #f8e3e1;
+  --res: #2f6fd6;
+  --res-soft: #e2ecfb;
+  --inv: #0f8a72;
+  --inv-soft: #dff3ee;
+  --core: #5b4bb7;
+  --core-soft: #ebe8f8;
   --rail: #1b2533;
   --rail-fg: #c9d2df;
   --rail-dim: #8693a6;
@@ -35,135 +41,112 @@
   :root:not([data-theme="light"]) {
     --bg: #10151d; --surface: #171f2a; --sunk: #1d2633; --fg: #e5eaf1; --muted: #9aa5b5; --line: #2b3646;
     --accent: #7ba2ff; --accent-soft: #1f2d4a; --ok: #56c491; --ok-soft: #173326; --warn: #e3a957; --warn-soft: #3a2b14;
-    --bad: #ff8a80; --bad-soft: #3d1d1b; --rail: #0b1017; --rail-fg: #c3cddb; --rail-dim: #7d899b; --rail-active: #1d2938;
+    --bad: #ff8a80; --bad-soft: #3d1d1b; --res: #7ba2ff; --res-soft: #1c2a45; --inv: #4fd1b2; --inv-soft: #14322b;
+    --core: #a99bff; --core-soft: #29244a; --rail: #0b1017; --rail-fg: #c3cddb; --rail-dim: #7d899b; --rail-active: #1d2938;
     --badge: #e9a94a; --camera: #05080c; --scan: #3ddc84; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #10151d; --surface: #171f2a; --sunk: #1d2633; --fg: #e5eaf1; --muted: #9aa5b5; --line: #2b3646;
   --accent: #7ba2ff; --accent-soft: #1f2d4a; --ok: #56c491; --ok-soft: #173326; --warn: #e3a957; --warn-soft: #3a2b14;
-  --bad: #ff8a80; --bad-soft: #3d1d1b; --rail: #0b1017; --rail-fg: #c3cddb; --rail-dim: #7d899b; --rail-active: #1d2938;
+  --bad: #ff8a80; --bad-soft: #3d1d1b; --res: #7ba2ff; --res-soft: #1c2a45; --inv: #4fd1b2; --inv-soft: #14322b;
+  --core: #a99bff; --core-soft: #29244a; --rail: #0b1017; --rail-fg: #c3cddb; --rail-dim: #7d899b; --rail-active: #1d2938;
   --badge: #e9a94a; --camera: #05080c; --scan: #3ddc84; color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
-body {
-  background: var(--bg);
-  color: var(--fg);
-  font-family: var(--font);
-  font-size: 15px;
-  line-height: 1.6;
-}
+body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 15px; line-height: 1.6; }
 .wrap {
-  max-width: 1120px;
-  margin: 0 auto;
+  max-width: 1120px; margin: 0 auto;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 40px 72px;
-  display: grid;
-  gap: 56px;
+  display: grid; gap: 56px;
 }
-h1, h2, h3 { text-wrap: balance; line-height: 1.25; margin: 0; }
+h1, h2, h3, h4 { text-wrap: balance; line-height: 1.25; margin: 0; }
 h1 { font-size: clamp(28px, 4vw, 38px); font-weight: 700; letter-spacing: -0.01em; }
 h2 { font-size: 24px; font-weight: 600; }
 h3 { font-size: 17px; font-weight: 600; }
 p { margin: 0; }
-.prose { max-width: 68ch; display: grid; gap: 12px; }
+.prose { max-width: 70ch; display: grid; gap: 12px; }
 .muted { color: var(--muted); }
-.eyebrow {
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
+.small { font-size: 13.5px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 code, .mono { font-family: var(--mono); font-size: 0.92em; }
 section { display: grid; gap: 20px; min-width: 0; }
-.section-head { display: grid; gap: 6px; max-width: 72ch; }
+.section-head { display: grid; gap: 6px; max-width: 74ch; }
 
-/* Header */
 .doc-head { display: grid; gap: 16px; }
 .meta { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13px; color: var(--muted); }
 .meta b { color: var(--fg); font-weight: 600; }
-.pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px;
-  background: var(--warn-soft); color: var(--warn);
-}
-.goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
-.goal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 4px; }
-.goal b { font-weight: 600; }
-.goal span { color: var(--muted); font-size: 14px; }
+.pill { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); }
+.principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.principle { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.principle b { font-weight: 600; }
+.principle span { color: var(--muted); font-size: 14px; }
 
-/* Prototype: desktop app frame */
+/* Name options */
+.names { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.name { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 6px; align-content: start; }
+.name.pick { border: 2px solid var(--accent); }
+.name-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.name-top b { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.name .full { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.name p { font-size: 14px; color: var(--muted); }
+
+/* Module chips */
+.mod { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.mod.res { background: var(--res-soft); color: var(--res); }
+.mod.inv { background: var(--inv-soft); color: var(--inv); }
+.mod.core { background: var(--core-soft); color: var(--core); }
+
+/* Prototype frame */
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .toolbar label { font-size: 13px; color: var(--muted); margin-right: 4px; }
 .seg { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-.seg button {
-  font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 999px;
-  border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer;
-}
+.seg button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 .seg button:focus-visible, .nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .screen-scroll { overflow-x: auto; border-radius: 12px; }
 .app {
-  min-width: 940px;
-  display: grid;
-  grid-template-columns: 236px minmax(0, 1fr);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  overflow: hidden;
-  background: var(--bg);
-  font-size: 14px;
+  min-width: 980px; display: grid; grid-template-columns: 240px minmax(0, 1fr);
+  border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--bg); font-size: 14px;
   box-shadow: 0 10px 30px -18px rgba(15, 25, 40, 0.45);
 }
-.rail { background: var(--rail); color: var(--rail-fg); padding: 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+.rail { background: var(--rail); color: var(--rail-fg); padding: 18px 12px; display: flex; flex-direction: column; gap: 16px; }
 .brand { padding: 0 8px; display: grid; }
-.brand b { color: #fff; font-size: 15px; }
+.brand b { color: #fff; font-size: 18px; letter-spacing: -0.01em; }
 .brand span { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
-.nav { display: grid; gap: 14px; }
-.nav-group { display: grid; gap: 2px; }
-.nav-group > span {
-  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--rail-dim); padding: 0 10px 4px;
-}
-.nav a {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 7px 10px; border-radius: 6px; color: var(--rail-fg); text-decoration: none;
-}
+.new-btn { margin: 0 4px; display: flex; justify-content: center; align-items: center; gap: 6px; padding: 8px; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 600; font-size: 13.5px; }
+.nav { display: grid; gap: 12px; }
+.nav-group { display: grid; gap: 1px; }
+.nav-group > span { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--rail-dim); padding: 0 10px 4px; display: flex; align-items: center; gap: 6px; }
+.nav-group > span i { width: 7px; height: 7px; border-radius: 2px; display: inline-block; }
+.nav a { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-radius: 6px; color: var(--rail-fg); text-decoration: none; }
 .nav a:hover { background: var(--rail-active); color: #fff; }
 .nav a[aria-current="page"] { background: var(--rail-active); color: #fff; font-weight: 600; }
-.nav a .new { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em; color: var(--scan); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; }
 .nav a .count { font-family: var(--mono); font-size: 11px; background: var(--badge); color: #1b2533; border-radius: 10px; padding: 0 7px; }
 .who { margin-top: auto; padding: 10px; border-top: 1px solid var(--rail-active); display: grid; font-size: 13px; }
 .who b { color: #fff; font-weight: 600; }
 .who span { color: var(--rail-dim); font-size: 12px; }
 
-.main { padding: 20px 24px 26px; display: grid; gap: 18px; align-content: start; min-width: 0; }
-.main-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.main-head h3 { font-size: 21px; }
-.main-head p { color: var(--muted); font-size: 13px; }
-.btn {
-  font: inherit; font-size: 13px; font-weight: 600; border-radius: 6px; padding: 7px 14px;
-  border: 1px solid var(--line); background: var(--surface); color: var(--fg); white-space: nowrap;
-}
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.action {
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 12px 14px; display: grid; gap: 2px;
-}
-.action b { font-weight: 600; }
-.action span { color: var(--muted); font-size: 12.5px; line-height: 1.45; }
-.tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
-.tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; display: grid; }
-.tile span { color: var(--muted); font-size: 12px; }
+.main { min-width: 0; display: grid; align-content: start; }
+.topbar { display: flex; align-items: center; gap: 12px; padding: 12px 24px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.search { flex: 1; display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; color: var(--muted); font-size: 13px; background: var(--bg); }
+.search svg { width: 16px; height: 16px; flex: none; }
+.search kbd { margin-left: auto; font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+.scan-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+.content { padding: 20px 24px 26px; display: grid; gap: 16px; }
+.content-head h3 { font-size: 21px; }
+.content-head p { color: var(--muted); font-size: 13px; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; display: grid; gap: 2px; }
+.tile .tl { display: flex; justify-content: space-between; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .tile b { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.tile.attention { border-color: var(--warn); }
 .tile.attention b { color: var(--warn); }
-.panels { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 12px; }
+.panels { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 10px; align-content: start; }
-.panel h4 { margin: 0; font-size: 14px; font-weight: 600; }
+.panel h4 { font-size: 14px; font-weight: 600; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 4px 8px 6px 0; border-bottom: 1px solid var(--line); }
 td { padding: 7px 8px 7px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -174,53 +157,44 @@ td.mono { white-space: nowrap; }
 .tag.green { background: var(--ok-soft); color: var(--ok); }
 .tag.amber { background: var(--warn-soft); color: var(--warn); }
 .tag.red { background: var(--bad-soft); color: var(--bad); }
+.feed { display: grid; gap: 8px; font-size: 13px; }
+.feed div { display: grid; gap: 2px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.feed div:last-child { border-bottom: 0; padding-bottom: 0; }
+.feed span { color: var(--muted); font-size: 12px; }
 .sample { font-size: 12px; color: var(--muted); }
 
-/* Menu explanation list */
-.menu-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
-.menu-note { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 8px; align-content: start; }
-.menu-note dl { margin: 0; display: grid; gap: 6px; font-size: 14px; align-content: start; }
-.menu-note dt { font-weight: 600; }
-.menu-note dd { margin: 0 0 4px; color: var(--muted); }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.note { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 8px; align-content: start; }
+.note dl { margin: 0; display: grid; gap: 4px; font-size: 14px; align-content: start; }
+.note dt { font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.note dd { margin: 0 0 6px; color: var(--muted); }
 
 /* Phones */
 .phones { display: flex; flex-wrap: wrap; gap: 28px; justify-content: center; }
-.phone-wrap { display: grid; gap: 10px; justify-items: center; }
+.phone-wrap { display: grid; gap: 10px; justify-items: center; margin: 0; }
 .phone-wrap figcaption { font-size: 13px; color: var(--muted); text-align: center; max-width: 280px; }
-.phone {
-  width: 272px; max-width: 100%; border-radius: 34px; padding: 10px;
-  background: #0b0f15; box-shadow: 0 14px 34px -16px rgba(10, 15, 25, 0.6);
-}
+.phone { width: 272px; max-width: 100%; border-radius: 34px; padding: 10px; background: #0b0f15; box-shadow: 0 14px 34px -16px rgba(10, 15, 25, 0.6); }
 .phone-screen { border-radius: 26px; overflow: hidden; background: var(--bg); height: 540px; display: flex; flex-direction: column; font-size: 13px; }
 .status-bar { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10.5px; padding: 8px 18px 4px; color: var(--muted); }
 .m-head { background: var(--rail); color: #fff; padding: 10px 16px 12px; display: grid; gap: 2px; }
 .m-head small { color: var(--rail-fg); font-size: 11px; }
 .m-head b { font-size: 16px; font-weight: 600; }
-.m-body { padding: 12px; display: grid; gap: 10px; align-content: start; flex: 1; overflow: hidden; }
-.m-btn {
-  display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-radius: 10px;
-  background: var(--surface); border: 1px solid var(--line);
-}
-.m-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.m-btn.primary .m-sub { color: rgba(255, 255, 255, 0.82); }
-.m-icon { width: 30px; height: 30px; flex: none; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
-.m-btn.primary .m-icon { background: rgba(255, 255, 255, 0.18); color: #fff; }
-.m-icon svg { width: 18px; height: 18px; }
-.m-title { font-weight: 600; font-size: 14px; display: block; }
-.m-sub { color: var(--muted); font-size: 11.5px; display: block; line-height: 1.35; }
-.m-mini { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.m-mini div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; }
-.m-mini span { font-size: 11px; color: var(--muted); }
-.m-mini b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.m-body { padding: 12px; display: grid; gap: 9px; align-content: start; flex: 1; overflow: hidden; }
+.m-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.m-task { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; display: grid; gap: 3px; }
+.m-task .row { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.m-task b { font-size: 13px; font-weight: 600; }
+.m-task span { color: var(--muted); font-size: 11.5px; }
+.m-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.m-quick div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 2px; font-weight: 600; font-size: 12.5px; }
+.m-quick div span { font-weight: 400; color: var(--muted); font-size: 11px; }
 .m-tabs { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); background: var(--surface); font-size: 10.5px; text-align: center; }
 .m-tabs span { padding: 8px 2px 12px; color: var(--muted); }
 .m-tabs span.on { color: var(--accent); font-weight: 600; }
-
+.m-tabs span.plus { color: #fff; }
+.m-tabs span.plus i { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); font-style: normal; font-size: 18px; line-height: 1; margin-top: -2px; }
 .camera { position: relative; height: 230px; background: var(--camera); display: grid; place-items: center; overflow: hidden; }
-.label {
-  width: 196px; background: #f4f4f0; color: #111; border-radius: 4px; padding: 8px 10px; display: grid; gap: 5px;
-  font-family: var(--mono); font-size: 8.5px; transform: rotate(-2deg);
-}
+.label { width: 196px; background: #f4f4f0; color: #111; border-radius: 4px; padding: 8px 10px; display: grid; gap: 5px; font-family: var(--mono); font-size: 8.5px; transform: rotate(-2deg); }
 .bars { height: 22px; background: repeating-linear-gradient(90deg, #111 0 2px, transparent 2px 3px, #111 3px 4px, transparent 4px 7px, #111 7px 10px, transparent 10px 11px); }
 .bars.short { width: 70%; }
 .hit { outline: 2px solid var(--scan); outline-offset: 3px; border-radius: 2px; }
@@ -228,7 +202,6 @@ td.mono { white-space: nowrap; }
 .torch { position: absolute; right: 12px; bottom: 10px; color: #fff; font-size: 11px; background: rgba(255, 255, 255, 0.16); border-radius: 999px; padding: 3px 10px; }
 .found { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; }
 .found-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; }
-.found-row .mono { font-size: 12px; }
 .found-row.ignored { color: var(--muted); text-decoration: line-through; }
 .counter { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
 .counter b { font-size: 15px; }
@@ -236,8 +209,25 @@ td.mono { white-space: nowrap; }
 .scan-list div { display: flex; justify-content: space-between; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
 .scan-list .dup { border-color: var(--bad); color: var(--bad); }
 
+/* Architecture */
+.stack { display: grid; gap: 10px; }
+.layer { border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 10px; border: 1px solid var(--line); background: var(--surface); }
+.layer-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.layer-head h3 { font-size: 15px; }
+.layer-head span { font-size: 12.5px; color: var(--muted); }
+.blocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.block { border-radius: 6px; padding: 9px 11px; font-size: 13px; display: grid; gap: 2px; border: 1px solid var(--line); background: var(--bg); }
+.block b { font-weight: 600; font-size: 13.5px; }
+.block span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.block.res { background: var(--res-soft); border-color: transparent; }
+.block.inv { background: var(--inv-soft); border-color: transparent; }
+.block.future { background: transparent; border-style: dashed; }
+.block.core { background: var(--core-soft); border-color: transparent; }
+.block.res b { color: var(--res); }
+.block.inv b { color: var(--inv); }
+.block.core b { color: var(--core); }
+
 /* Workflow */
-.flow-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
 .lanes-key { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--muted); }
 .lanes-key span { display: inline-flex; align-items: center; gap: 6px; }
 .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
@@ -246,22 +236,27 @@ td.mono { white-space: nowrap; }
 .who-om { background: #c2410c; }
 .who-sys { background: #64748b; }
 .who-clerk { background: #0f8a72; }
-.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: step; }
-.step { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; position: relative; padding-bottom: 18px; }
-.step::before {
-  counter-increment: step; content: counter(step);
-  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
-  font-family: var(--mono); font-weight: 500; font-size: 13px;
-  background: var(--surface); border: 2px solid var(--line); color: var(--fg); z-index: 1;
-}
+.who-tl { background: #b8860b; }
+.who-dir { background: #be185d; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; counter-reset: step; }
+.step { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; position: relative; padding-bottom: 16px; }
+.step::before { counter-increment: step; content: counter(step); width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-family: var(--mono); font-weight: 500; font-size: 13px; background: var(--surface); border: 2px solid var(--line); color: var(--fg); z-index: 1; }
 .step::after { content: ""; position: absolute; left: 15px; top: 32px; bottom: 0; width: 2px; background: var(--line); }
 .step:last-child::after { display: none; }
 .step-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; display: grid; gap: 6px; }
 .step-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .actor { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .step-card p { color: var(--muted); font-size: 14px; }
-.branch { border-left: 3px solid var(--bad); background: var(--bad-soft); border-radius: 0 6px 6px 0; padding: 8px 12px; font-size: 13.5px; color: var(--fg); }
+.branch { border-left: 3px solid var(--bad); background: var(--bad-soft); border-radius: 0 6px 6px 0; padding: 8px 12px; font-size: 13.5px; }
 .branch b { color: var(--bad); }
+
+.routes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.route { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 10px; align-content: start; }
+.route-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+.chain .node { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 6px; padding: 4px 9px; background: var(--bg); }
+.chain .arrowtxt { color: var(--muted); }
+.route ul { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--muted); display: grid; gap: 3px; }
 
 .diagram { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
 .diagram svg { min-width: 760px; width: 100%; height: auto; display: block; }
@@ -277,16 +272,16 @@ td.mono { white-space: nowrap; }
 .diagram .elabel { fill: var(--muted); font-size: 11.5px; }
 .diagram .arrow { fill: var(--muted); }
 
-/* Generic content blocks */
 .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 16px; }
-.table-wrap table { font-size: 14px; min-width: 620px; }
+.table-wrap table { font-size: 14px; min-width: 640px; }
 .table-wrap th { font-size: 12.5px; padding-top: 10px; }
 .table-wrap td { padding: 9px 12px 9px 0; }
+.yes { color: var(--ok); font-weight: 600; }
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
 .card ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
-.card .fields { font-family: var(--mono); font-size: 12.5px; color: var(--muted); line-height: 1.7; }
-.req { color: var(--fg); font-weight: 500; }
+.tree { font-family: var(--mono); font-size: 12.5px; line-height: 1.65; white-space: pre; overflow-x: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 0; }
+.tree .c { color: var(--muted); }
 .phase { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; }
 .phase .num { font-family: var(--mono); font-size: 28px; font-weight: 500; color: var(--accent); line-height: 1; }
 .decisions td:first-child { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
@@ -304,30 +299,62 @@ td.mono { white-space: nowrap; }
 <div class="wrap">
 
   <header class="doc-head">
-    <span class="eyebrow">Engineering Resource Request System · design proposal</span>
-    <h1>Inventory module for FR readers</h1>
+    <span class="eyebrow">System design · revised</span>
+    <h1>PSBU OpsHub: one system for engineering operations</h1>
     <div class="meta">
       <span class="pill">Draft for review</span>
       <span><b>Date</b> 12 Nov 2026</span>
-      <span><b>Scope</b> Record, track and withdraw FR readers</span>
-      <span><b>Built</b> Not yet; this is the design</span>
+      <span><b>Modules</b> Resources (live today), Inventory (new)</span>
+      <span><b>Address</b> psbu.duckdns.org</span>
     </div>
     <div class="prose">
-      <p>Suppliers deliver FR readers to NEC, and support engineers deploy them to project sites. Today there is no shared record of where each reader is, which project it belongs to, or when its warranty ends. This module adds that record to ERS. It also adds a controlled way for engineers to withdraw readers from stock, with approval by the project manager and the operations manager.</p>
+      <p>The resource request system and the new inventory function serve the same people: project managers, engineers, team leaders, directors and operations managers. They should therefore be one system, with one sign-in, one menu and one inbox, organised into modules. This revision replaces the earlier design, which treated inventory as a separate area.</p>
+      <p>The system is built as a platform with a shared core and pluggable modules. Resource requests become the first module, inventory becomes the second, and further modules can be added later without changing the core or the existing modules.</p>
     </div>
-    <div class="goals">
-      <div class="goal"><b>Record every reader at delivery</b><span>One record per reader, identified by its serial number.</span></div>
-      <div class="goal"><b>Register on a phone</b><span>Scan the barcode label with the camera; no app to install.</span></div>
-      <div class="goal"><b>Approve every withdrawal</b><span>Project manager first, then operations manager, as in resource requests.</span></div>
-      <div class="goal"><b>Keep the full history</b><span>Every receipt, issue, return and repair is logged and cannot be edited.</span></div>
+    <div class="principles">
+      <div class="principle"><b>One system, one front door</b><span>One address, one account, one menu and one approvals inbox for every module.</span></div>
+      <div class="principle"><b>Menu by task, not by module</b><span>Home, New, Approvals and My work cover all modules. Module pages sit below them.</span></div>
+      <div class="principle"><b>Shared core, separate modules</b><span>Accounts, projects, approvals, email and history are built once and used by every module.</span></div>
+      <div class="principle"><b>Ready for more modules</b><span>A new module plugs in with its own pages, data and approval route, and can be switched on or off.</span></div>
     </div>
   </header>
+
+  <section id="name" aria-labelledby="h-name">
+    <div class="section-head">
+      <span class="eyebrow">System name</span>
+      <h2 id="h-name">A name that covers every module</h2>
+      <p class="muted">"Engineering Resource Requests" describes only the first module. The new name should cover engineering operations as a whole, so it stays accurate as modules are added. Each module keeps a plain descriptive name inside the system.</p>
+    </div>
+    <div class="names">
+      <div class="name pick">
+        <div class="name-top"><b>OpsHub</b><span class="tag blue">Recommended</span></div>
+        <span class="full">PSBU OpsHub · Engineering Operations</span>
+        <p>One hub for engineering operations: people, devices and the approvals between them. It is short, easy to say ("raise it in OpsHub"), and does not depend on any one module.</p>
+      </div>
+      <div class="name">
+        <div class="name-top"><b>PSBU Workbench</b></div>
+        <span class="full">Engineering Workbench</span>
+        <p>Suggests the place where engineering work is prepared and organised. It suits a tool used every day by engineers.</p>
+      </div>
+      <div class="name">
+        <div class="name-top"><b>FieldDesk</b></div>
+        <span class="full">PSBU FieldDesk</span>
+        <p>Emphasises field and site work, which both modules support. It is less suitable if future modules are mainly office tasks.</p>
+      </div>
+      <div class="name">
+        <div class="name-top"><b>Atlas</b></div>
+        <span class="full">PSBU Atlas</span>
+        <p>A brandable name about knowing where everything is. It needs explaining to new staff, which the others do not.</p>
+      </div>
+    </div>
+    <p class="muted small">The name is a single setting. It appears in the browser title, the sign-in page, the menu and every email, and can be changed at any time. The rest of this page uses OpsHub.</p>
+  </section>
 
   <section id="prototype" aria-labelledby="h-proto">
     <div class="section-head">
       <span class="eyebrow">Prototype</span>
-      <h2 id="h-proto">Home page and menus</h2>
-      <p class="muted">Inventory becomes a second area in the left menu, next to the existing resource request pages. Each person only sees the menu items their role needs. Choose a role to see how the menu and the inventory home page change.</p>
+      <h2 id="h-proto">Home page and the combined menu</h2>
+      <p class="muted">The top of the menu is about the person's work across all modules. The module sections below it hold each module's own pages. Everyone sees the same structure, and only the items their roles allow. Choose a person to see how the menu and the home page change. Many people hold more than one role, as a project manager does here.</p>
     </div>
 
     <div class="toolbar">
@@ -336,35 +363,43 @@ td.mono { white-space: nowrap; }
     </div>
 
     <div class="screen-scroll">
-      <div class="app" id="app">
+      <div class="app">
         <aside class="rail">
-          <div class="brand"><b>Resource Requests</b><span>Engineering</span></div>
+          <div class="brand"><b>OpsHub</b><span>PSBU Engineering Operations</span></div>
+          <div class="new-btn">+ New</div>
           <nav class="nav" aria-label="Prototype menu" id="nav"></nav>
           <div class="who" id="who"></div>
         </aside>
-        <div class="main" id="main"></div>
+        <div class="main">
+          <div class="topbar">
+            <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search requests, readers, projects and people<kbd>/</kbd></div>
+            <span class="scan-btn">Scan</span>
+          </div>
+          <div class="content" id="content"></div>
+        </div>
       </div>
     </div>
     <p class="sample">All figures, names and serial numbers in the prototype are examples.</p>
 
-    <div class="menu-notes">
-      <div class="menu-note">
-        <h3>Shared items</h3>
+    <div class="notes">
+      <div class="note">
+        <h3>Shared by all modules</h3>
         <dl>
-          <dt>Dashboard</dt><dd>Unchanged. People who use inventory also see a short inventory summary here.</dd>
-          <dt>Approvals</dt><dd>One inbox for everything waiting for a decision: resource requests and reader withdrawals, with a filter for each.</dd>
-          <dt>Settings</dt><dd>For administrators. Gains tabs for reader models, projects and their PMs, store locations and suppliers.</dd>
+          <dt>+ New</dt><dd>One button to start anything: a resource request, a reader withdrawal or a delivery. It lists only what the person may create.</dd>
+          <dt>Home</dt><dd>What needs the person's attention across all modules, with figures for their roles.</dd>
+          <dt>Approvals</dt><dd>One inbox for every decision, from any module, with a module filter. The badge counts all of them.</dd>
+          <dt>My work</dt><dd>The person's own requests of every type, their assignments and the readers they hold.</dd>
+          <dt>Projects</dt><dd>One page per project that brings the modules together: engineers allocated, resource requests, readers in stock and deployed, and withdrawals.</dd>
+          <dt>Reports and Administration</dt><dd>One place each, with a tab per module.</dd>
         </dl>
       </div>
-      <div class="menu-note">
-        <h3>Inventory items</h3>
+      <div class="note">
+        <h3>Module sections</h3>
         <dl>
-          <dt>Inventory home</dt><dd>Quick actions, stock by status, readers waiting for collection and warranties ending soon.</dd>
-          <dt>Register delivery</dt><dd>Inventory clerks only. Record a supplier delivery and scan its readers.</dd>
-          <dt>Readers</dt><dd>Search and filter all readers. Scan a label to open one reader and its history.</dd>
-          <dt>Withdrawals</dt><dd>Raise a request for readers, and follow your requests. Clerks also see the readers to hand over.</dd>
-          <dt>My readers</dt><dd>Readers you hold, with Deploy, Return and Report fault.</dd>
-          <dt>Warranty</dt><dd>Readers whose warranty ends within 30, 60 or 90 days.</dd>
+          <dt><span class="mod res">Resources</span></dt><dd>Resource requests and Resource load. These are today's pages, unchanged in function.</dd>
+          <dt><span class="mod inv">Inventory</span></dt><dd>Readers, Deliveries (inventory clerks), Withdrawals and Warranty.</dd>
+          <dt><span class="mod core">Future modules</span></dt><dd>Each new module adds its own section in the same place, plus its items in New, Approvals, Projects and Reports. Nothing else in the menu moves.</dd>
+          <dt>Search and Scan</dt><dd>The search bar finds anything by number, serial number, project or person. Scan opens the camera on a phone and goes straight to the reader.</dd>
         </dl>
       </div>
     </div>
@@ -373,27 +408,28 @@ td.mono { white-space: nowrap; }
   <section id="mobile" aria-labelledby="h-mobile">
     <div class="section-head">
       <span class="eyebrow">Prototype · phone</span>
-      <h2 id="h-mobile">Registering readers on a phone</h2>
-      <p class="muted">Engineers open the same web address on their phone. The inventory home shows the main tasks as large buttons. Registering a delivery opens the camera, and each scan adds one reader.</p>
+      <h2 id="h-mobile">The same system on a phone</h2>
+      <p class="muted">On a phone, the menu becomes a bottom bar with Home, Approvals, New, Scan and Me. Home lists the person's tasks from every module. Registering a delivery opens the camera, and each scan adds one reader.</p>
     </div>
     <div class="phones">
       <figure class="phone-wrap">
         <div class="phone"><div class="phone-screen">
           <div class="status-bar"><span>9:41</span><span>4G</span></div>
-          <div class="m-head"><small>Inventory</small><b>Good morning, Ravi</b></div>
+          <div class="m-head"><small>OpsHub</small><b>Good morning, James</b></div>
           <div class="m-body">
-            <div class="m-btn primary"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 8v8M11 8v8M14 8v8M17 8v8"/></svg></span><span><span class="m-title">Register delivery</span><span class="m-sub">Scan readers from a supplier delivery</span></span></div>
-            <div class="m-btn"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg></span><span><span class="m-title">Find a reader</span><span class="m-sub">Scan a label to see where it is</span></span></div>
-            <div class="m-btn"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span><span class="m-title">Request readers</span><span class="m-sub">For a project, approved by PM and OM</span></span></div>
-            <div class="m-btn"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h6"/></svg></span><span><span class="m-title">My readers</span><span class="m-sub">3 issued to you</span></span></div>
-            <div class="m-mini">
-              <div><span>Ready to collect</span><b>1</b></div>
-              <div><span>My open requests</span><b>2</b></div>
+            <span class="m-label">Needs your action</span>
+            <div class="m-task"><div class="row"><b>Approve 2 readers</b><span class="mod inv">Inventory</span></div><span>WDR-2026-0017 · Jason Teo · HSA Permit Portal</span></div>
+            <div class="m-task"><div class="row"><b>Revise your request</b><span class="mod res">Resources</span></div><span>ERR-2026-0015 · rejected by Dir_user: revise schedule</span></div>
+            <div class="m-task"><div class="row"><b>Readers ready to collect</b><span class="mod inv">Inventory</span></div><span>WDR-2026-0014 · NEC Store, Level 3</span></div>
+            <span class="m-label">Start something</span>
+            <div class="m-quick">
+              <div>Request engineers<span>Resource request</span></div>
+              <div>Request readers<span>Reader withdrawal</span></div>
             </div>
           </div>
-          <div class="m-tabs"><span class="on">Home</span><span>Readers</span><span>Requests</span><span>Me</span></div>
+          <div class="m-tabs" style="grid-template-columns: repeat(5, 1fr)"><span class="on">Home</span><span>Approvals</span><span class="plus"><i>+</i></span><span>Scan</span><span>Me</span></div>
         </div></div>
-        <figcaption>Inventory home on a phone: the four tasks engineers do most.</figcaption>
+        <figcaption>Home on a phone: tasks from both modules in one list.</figcaption>
       </figure>
 
       <figure class="phone-wrap">
@@ -422,23 +458,144 @@ td.mono { white-space: nowrap; }
             </div>
           </div>
         </div></div>
-        <figcaption>The camera reads every code on the label and keeps only the one that matches the model's serial number format.</figcaption>
+        <figcaption>Scanning a delivery: the camera keeps only the code that matches the model's serial number format.</figcaption>
       </figure>
+    </div>
+  </section>
+
+  <section id="architecture" aria-labelledby="h-arch">
+    <div class="section-head">
+      <span class="eyebrow">Architecture</span>
+      <h2 id="h-arch">A shared core with pluggable modules</h2>
+      <p class="muted">The system stays one application on one server, in a style known as a modular monolith. Everything that more than one module needs lives in the platform core. Each module owns its own data, rules and pages, and talks to the core through defined interfaces, never directly to another module.</p>
+    </div>
+
+    <div class="stack" role="img" aria-label="Three layers: business modules on top, the platform core in the middle, and the technical foundation at the bottom.">
+      <div class="layer">
+        <div class="layer-head"><h3>Business modules</h3><span>Each one can be switched on or off</span></div>
+        <div class="blocks">
+          <div class="block res"><b>Resources</b><span>Resource requests, engineer allocation, resource load, calendar invites</span></div>
+          <div class="block inv"><b>Inventory</b><span>Readers, deliveries, withdrawals, handover, warranty, stocktake</span></div>
+          <div class="block future"><b>Future module</b><span>For example: equipment loans, site visit logs, spare parts</span></div>
+          <div class="block future"><b>Future module</b><span>For example: certifications and training, on-call roster</span></div>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="layer-head"><h3>Platform core</h3><span>Built once, used by every module</span></div>
+        <div class="blocks">
+          <div class="block core"><b>Accounts and access</b><span>Sign-in, users, roles and permissions</span></div>
+          <div class="block core"><b>Organisation</b><span>Teams, projects with their PM, locations</span></div>
+          <div class="block core"><b>Approval engine</b><span>Configurable approval routes for any document type</span></div>
+          <div class="block core"><b>Notifications</b><span>Email queue, email approval links, reminders, digests</span></div>
+          <div class="block core"><b>History and audit</b><span>Who did what and when, for every record</span></div>
+          <div class="block core"><b>Numbering</b><span>ERR-, WDR-, GRN- and future prefixes</span></div>
+          <div class="block core"><b>Import and export</b><span>Excel with preview, reports</span></div>
+          <div class="block core"><b>Navigation and search</b><span>Menu, home page and search built from the modules</span></div>
+        </div>
+      </div>
+      <div class="layer">
+        <div class="layer-head"><h3>Technical foundation</h3><span>Unchanged from today</span></div>
+        <div class="blocks">
+          <div class="block"><b>Web app</b><span>Vue 3, works on desktop and phone</span></div>
+          <div class="block"><b>API</b><span>FastAPI, <code>/api/v1/{module}/...</code></span></div>
+          <div class="block"><b>Database</b><span>SQLite, incremental migrations, daily backup</span></div>
+          <div class="block"><b>Hosting</b><span>Google Cloud VM, Caddy, automatic deployment</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="card">
+        <h3>What every module provides</h3>
+        <p class="muted small">A module plugs into the core by declaring these items in one module definition. The core builds the menu, home page, inbox, search and reports from them.</p>
+        <ul>
+          <li>Its menu section and its items in <b>+ New</b></li>
+          <li>Its permissions, such as <code>inventory.withdrawal.create</code></li>
+          <li>Its document types and their approval routes</li>
+          <li>Home page cards and "needs your action" items</li>
+          <li>Search providers, for example by serial number</li>
+          <li>Tabs for the project page, Reports and Administration</li>
+          <li>Its own tables, migrations and email templates</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Rules that keep it extensible</h3>
+        <ul>
+          <li>Modules use the core only through its interfaces, and never read another module's tables.</li>
+          <li>Cross-module links go through shared records, mainly projects and users.</li>
+          <li>Access is checked by permission, not by role name, so new roles need no code changes.</li>
+          <li>Each module's tables have its prefix (<code>res_</code>, <code>inv_</code>) and its own migrations in the single migration chain.</li>
+          <li>A module can be switched off in settings without affecting the others.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Code structure</h3>
+<pre class="tree">backend/src/opshub/
+  platform/        <span class="c"># the core</span>
+    identity/      <span class="c"># users, roles, permissions</span>
+    org/           <span class="c"># teams, projects, locations</span>
+    approvals/     <span class="c"># approval engine</span>
+    notify/        <span class="c"># email, links, reminders</span>
+    audit/  numbering/  imports/
+  modules/
+    resources/     <span class="c"># today's code, moved</span>
+    inventory/
+  api/  jobs/  db/
+frontend/src/
+  platform/        <span class="c"># shell, menu, inbox</span>
+  modules/resources/  modules/inventory/</pre>
+      </div>
+    </div>
+  </section>
+
+  <section id="access" aria-labelledby="h-access">
+    <div class="section-head">
+      <span class="eyebrow">Access</span>
+      <h2 id="h-access">Roles across modules</h2>
+      <p class="muted">Roles are shared across the whole system, and one person can hold several. Each role is a named set of permissions, so the administrator can adjust what a role may do, and new modules add permissions without new code for access checks.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Role</th><th><span class="mod res">Resources</span></th><th><span class="mod inv">Inventory</span></th></tr></thead>
+        <tbody>
+          <tr><td><b>Requester / Project manager</b></td><td>Raise resource requests</td><td>Approve withdrawals for the projects they manage (first level)</td></tr>
+          <tr><td><b>Engineer</b></td><td>See their assignments and calendar invites</td><td>Request readers, confirm handover, deploy, return, report faults</td></tr>
+          <tr><td><b>Team leader</b></td><td>Review requests and assign engineers</td><td>As an engineer</td></tr>
+          <tr><td><b>Director</b></td><td>Final approval of resource requests</td><td>View inventory and reports</td></tr>
+          <tr><td><b>Operations manager</b> <span class="tag blue">new</span></td><td>View resource load and reports</td><td>Final approval of withdrawals; all inventory and reports</td></tr>
+          <tr><td><b>Inventory clerk</b> <span class="tag blue">new</span></td><td>None</td><td>Register deliveries, hand over readers, record returns and repairs, stocktake</td></tr>
+          <tr><td><b>Viewer</b></td><td>Reports</td><td>Reports</td></tr>
+          <tr><td><b>Administrator</b></td><td colspan="2">Users, roles, projects, locations, module settings and approval routes</td></tr>
+        </tbody>
+      </table>
     </div>
   </section>
 
   <section id="workflow" aria-labelledby="h-flow">
     <div class="section-head">
       <span class="eyebrow">Workflow</span>
-      <h2 id="h-flow">How readers move through the system</h2>
-      <p class="muted">There are two everyday workflows: registering a delivery, and withdrawing readers for a project. Both change the state of each reader, shown in the lifecycle diagram at the end of this section.</p>
+      <h2 id="h-flow">Approval routes on one engine</h2>
+      <p class="muted">Every module uses the same approval engine. A route is a list of steps, and each step names who decides. The engine handles the rest in the same way for every module: email with Approve and Reject buttons, reminders, Reject sending the request back for revision, no self-approval, and the full history.</p>
+    </div>
+    <div class="routes">
+      <div class="route">
+        <div class="route-head"><h3>Resource request</h3><span class="mod res">Resources</span></div>
+        <div class="chain"><span class="node"><i class="dot who-pm"></i>Requester</span><span class="arrowtxt">→</span><span class="node"><i class="dot who-tl"></i>Team leader of the team</span><span class="arrowtxt">→</span><span class="node"><i class="dot who-dir"></i>Director</span></div>
+        <ul><li>The team leader also assigns engineers and their time.</li><li>Live today; moves onto the shared engine without changing how it works.</li></ul>
+      </div>
+      <div class="route">
+        <div class="route-head"><h3>Reader withdrawal</h3><span class="mod inv">Inventory</span></div>
+        <div class="chain"><span class="node"><i class="dot who-eng"></i>Engineer</span><span class="arrowtxt">→</span><span class="node"><i class="dot who-pm"></i>PM of the project</span><span class="arrowtxt">→</span><span class="node"><i class="dot who-om"></i>Operations manager</span></div>
+        <ul><li>The PM step is skipped, with the reason recorded, when the engineer is the project's PM.</li><li>Approved readers are reserved until handover.</li></ul>
+      </div>
+      <div class="route">
+        <div class="route-head"><h3>Future document type</h3><span class="mod core">Any module</span></div>
+        <div class="chain"><span class="node">Requester</span><span class="arrowtxt">→</span><span class="node">Step 1</span><span class="arrowtxt">→</span><span class="node">Step 2 …</span></div>
+        <ul><li>Each step's approver is chosen by a rule: a role, the project's PM, the team's leader, or a named person.</li><li>Configured in Administration, not in code.</li></ul>
+      </div>
     </div>
 
-    <div class="flow-tabs seg" role="group" aria-label="Choose a workflow" id="flow-tabs">
-      <button type="button" aria-pressed="true" data-flow="withdraw">Withdrawal request</button>
-      <button type="button" aria-pressed="false" data-flow="receive">Register a delivery</button>
-    </div>
-
+    <h3>Reader withdrawal, step by step</h3>
     <div class="lanes-key">
       <span><i class="dot who-eng"></i>Engineer</span>
       <span><i class="dot who-pm"></i>Project manager</span>
@@ -446,55 +603,31 @@ td.mono { white-space: nowrap; }
       <span><i class="dot who-clerk"></i>Inventory clerk</span>
       <span><i class="dot who-sys"></i>System</span>
     </div>
-
-    <ol class="steps" id="flow-withdraw">
+    <ol class="steps">
       <li class="step"><div class="step-card">
-        <div class="step-top"><span class="actor"><i class="dot who-eng"></i>Engineer</span><h3>Create the request</h3></div>
-        <p>Choose the project, then add readers by scanning them or picking from the available stock. Give the purpose, the destination site and the date needed.</p>
-      </div></li>
-      <li class="step"><div class="step-card">
-        <div class="step-top"><span class="actor"><i class="dot who-eng"></i>Engineer</span><h3>Submit</h3><span class="tag blue">Waiting for PM</span></div>
-        <p>The system checks that every reader is in stock, belongs to the project and is not in another open request. The project's PM gets an email with Approve and Reject buttons.</p>
+        <div class="step-top"><span class="actor"><i class="dot who-eng"></i>Engineer</span><h3>Create and submit</h3><span class="tag blue">Waiting for PM</span></div>
+        <p>From + New, choose Request readers, pick the project, and add readers by scanning or from the available stock. The system checks that each reader is in stock, belongs to the project and is not in another open request.</p>
       </div></li>
       <li class="step"><div class="step-card">
         <div class="step-top"><span class="actor"><i class="dot who-pm"></i>Project manager</span><h3>First approval</h3><span class="tag blue">Waiting for OM</span></div>
-        <p>The PM approves in the system or from the email. If the requester is the PM, this step is skipped and the reason is recorded.</p>
+        <p>The request appears in the PM's Approvals inbox next to their other approvals, and they also get an email with Approve and Reject buttons.</p>
       </div></li>
       <li class="step"><div class="step-card">
         <div class="step-top"><span class="actor"><i class="dot who-om"></i>Operations manager</span><h3>Final approval</h3><span class="tag green">Approved</span></div>
         <p>Any operations manager can approve. Nobody can approve their own request.</p>
-        <div class="branch"><b>If the PM or OM rejects:</b> the request goes back to the engineer with the comment. The engineer can revise and resubmit it, or withdraw it. The readers stay available to others.</div>
+        <div class="branch"><b>If the PM or OM rejects:</b> the request goes back to the engineer with the comment, who can revise and resubmit it or withdraw it. The readers stay available.</div>
       </div></li>
       <li class="step"><div class="step-card">
         <div class="step-top"><span class="actor"><i class="dot who-sys"></i>System</span><h3>Reserve the readers</h3><span class="tag amber">Reserved</span></div>
-        <p>The readers are held for this request so no one else can take them. The engineer and the clerks get a "ready for collection" email. If nobody collects them within 10 working days, the clerk is reminded.</p>
+        <p>The readers are held for this request. The engineer and the clerks are told they are ready for collection, and the clerk is reminded if nobody collects them within 10 working days.</p>
       </div></li>
       <li class="step"><div class="step-card">
-        <div class="step-top"><span class="actor"><i class="dot who-clerk"></i>Clerk and engineer</span><h3>Handover</h3><span class="tag green">Issued</span></div>
-        <p>The engineer scans each reader at the store. A reader that is not in the request is refused, and the handover cannot finish while one is missing. The engineer becomes the holder of the readers.</p>
+        <div class="step-top"><span class="actor"><i class="dot who-clerk"></i>Clerk and engineer</span><h3>Handover by scanning</h3><span class="tag green">Issued</span></div>
+        <p>The engineer scans each reader at the store. A reader not in the request is refused, and the handover cannot finish while one is missing.</p>
       </div></li>
       <li class="step"><div class="step-card">
         <div class="step-top"><span class="actor"><i class="dot who-eng"></i>Engineer</span><h3>Deploy or return</h3><span class="tag green">Deployed</span></div>
-        <p>The engineer marks each reader as deployed, with the site and date, or returns unused readers to the store. The request closes when every reader is deployed or returned.</p>
-      </div></li>
-    </ol>
-
-    <ol class="steps" id="flow-receive" hidden>
-      <li class="step"><div class="step-card">
-        <div class="step-top"><span class="actor"><i class="dot who-clerk"></i>Inventory clerk</span><h3>Start a delivery</h3></div>
-        <p>Enter once for the whole delivery: supplier, delivery order number, project, reader model, store location, warranty start and end dates.</p>
-      </div></li>
-      <li class="step"><div class="step-card">
-        <div class="step-top"><span class="actor"><i class="dot who-clerk"></i>Inventory clerk</span><h3>Scan the readers</h3></div>
-        <p>Point the phone camera at each label. Each scan adds a reader with a beep and a counter. A duplicate within the delivery, or a serial number already in the system, is flagged straight away. A handheld scanner or typing also works.</p>
-      </div></li>
-      <li class="step"><div class="step-card">
-        <div class="step-top"><span class="actor"><i class="dot who-clerk"></i>Inventory clerk</span><h3>Add optional details</h3></div>
-        <p>Tap any reader to add FR ID, deployment date, OS, firmware and APK versions, or mounting type. These can also be added later, or by Excel import.</p>
-      </div></li>
-      <li class="step"><div class="step-card">
-        <div class="step-top"><span class="actor"><i class="dot who-sys"></i>System</span><h3>Save the delivery</h3><span class="tag blue">In stock</span></div>
-        <p>All readers are saved together. Each gets a "Received" entry in its history, linked to the delivery record.</p>
+        <p>Each reader is marked as deployed at a site, or returned to the store. The request closes when all readers are accounted for. The project page shows the result.</p>
       </div></li>
     </ol>
 
@@ -504,7 +637,6 @@ td.mono { white-space: nowrap; }
         <defs>
           <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow" d="M0,0 L10,5 L0,10 z"/></marker>
         </defs>
-        <!-- main row -->
         <rect class="box home" x="20" y="40" width="130" height="46" rx="8"/><text class="state" x="85" y="68" text-anchor="middle">IN STOCK</text>
         <rect class="box warn" x="250" y="40" width="130" height="46" rx="8"/><text class="state" x="315" y="68" text-anchor="middle">RESERVED</text>
         <rect class="box ok" x="480" y="40" width="130" height="46" rx="8"/><text class="state" x="545" y="68" text-anchor="middle">ISSUED</text>
@@ -513,12 +645,10 @@ td.mono { white-space: nowrap; }
         <path class="edge back" d="M250 76 H152" marker-end="url(#arr)"/><text class="elabel" x="200" y="102" text-anchor="middle">released</text>
         <path class="edge" d="M380 63 H478" marker-end="url(#arr)"/><text class="elabel" x="429" y="52" text-anchor="middle">handed over</text>
         <path class="edge" d="M610 63 H708" marker-end="url(#arr)"/><text class="elabel" x="659" y="52" text-anchor="middle">installed</text>
-        <!-- returned -->
         <rect class="box" x="480" y="150" width="130" height="46" rx="8"/><text class="state" x="545" y="178" text-anchor="middle">RETURNED</text>
         <path class="edge" d="M545 86 V148" marker-end="url(#arr)"/><text class="elabel" x="553" y="122">returned</text>
         <path class="edge" d="M785 86 V173 H612" marker-end="url(#arr)"/><text class="elabel" x="700" y="166" text-anchor="middle">removed from site</text>
         <path class="edge" d="M480 173 H85 V88" marker-end="url(#arr)"/><text class="elabel" x="290" y="166" text-anchor="middle">checked, back in stock</text>
-        <!-- faults -->
         <rect class="box warn" x="20" y="260" width="130" height="46" rx="8"/><text class="state" x="85" y="288" text-anchor="middle">FAULTY</text>
         <rect class="box" x="250" y="260" width="130" height="46" rx="8"/><text class="state" x="315" y="288" text-anchor="middle">IN REPAIR</text>
         <rect class="box final" x="480" y="260" width="130" height="46" rx="8"/><text class="state" x="545" y="288" text-anchor="middle">DISPOSED</text>
@@ -528,97 +658,41 @@ td.mono { white-space: nowrap; }
         <text class="elabel" x="20" y="244">reported faulty from any state</text>
       </svg>
     </div>
-    <p class="muted" style="font-size:14px">A reader's state changes only through actions such as Issue, Return or Report fault. Nobody edits the state directly, and each change is written to the reader's history.</p>
-  </section>
-
-  <section id="roles-sec" aria-labelledby="h-roles">
-    <div class="section-head">
-      <span class="eyebrow">Access</span>
-      <h2 id="h-roles">Roles and permissions</h2>
-      <p class="muted">The module uses the existing ERS accounts. It adds two roles, Inventory clerk and Operations manager. The PM is not a role: each project names its PM, and withdrawals for that project go to that person.</p>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Role</th><th>Who</th><th>What they can do</th></tr></thead>
-        <tbody>
-          <tr><td><b>Inventory clerk</b> <span class="tag blue">new</span></td><td>Support engineers who receive deliveries</td><td>Register deliveries, edit reader details, hand over approved readers, record returns, transfers and repairs, run stocktakes.</td></tr>
-          <tr><td><b>Engineer</b></td><td>Field and support engineers</td><td>View stock, request readers, confirm handover, deploy, return and report faults.</td></tr>
-          <tr><td><b>Project manager</b></td><td>The PM named on each project</td><td>Approve or reject withdrawals for their own projects (first level).</td></tr>
-          <tr><td><b>Operations manager</b> <span class="tag blue">new</span></td><td>OM</td><td>Approve or reject withdrawals after the PM (second level). See all inventory and reports.</td></tr>
-          <tr><td><b>Viewer</b></td><td>Management</td><td>Read-only access to inventory and reports.</td></tr>
-          <tr><td><b>Administrator</b></td><td>System administrator</td><td>Maintain models, projects, locations and suppliers. Correct records, always with a recorded reason.</td></tr>
-        </tbody>
-      </table>
-    </div>
   </section>
 
   <section id="data" aria-labelledby="h-data">
     <div class="section-head">
       <span class="eyebrow">Data</span>
-      <h2 id="h-data">What is recorded</h2>
-      <p class="muted">Each physical reader is one record, identified by its serial number. Lists such as models, projects and locations are chosen from maintained lists rather than typed, which keeps the reports accurate.</p>
+      <h2 id="h-data">Shared records connect the modules</h2>
+      <p class="muted">Users, teams and projects belong to the core, so every module refers to the same project and the same person. This is what lets the project page show engineers and readers together.</p>
     </div>
     <div class="cols">
       <div class="card">
-        <h3>Reader</h3>
-        <div class="fields"><span class="req">serial no.</span> (unique) · <span class="req">model no.</span> · <span class="req">project</span> · <span class="req">location</span> · <span class="req">warranty start</span> · <span class="req">warranty end</span> · status · holder<br>optional: FR ID · deployment date · OS version · firmware version · APK version · mounting type · remarks</div>
-        <p class="muted" style="font-size:13px">Bold fields are mandatory, as in your requirement.</p>
-      </div>
-      <div class="card">
-        <h3>Delivery (goods receipt)</h3>
-        <div class="fields">receipt no. (GRN-2026-0042) · supplier · delivery order no. · received on · received by · default project, model, location and warranty dates</div>
-      </div>
-      <div class="card">
-        <h3>Reader history</h3>
-        <div class="fields">reader · action (received, reserved, issued, deployed, returned, repaired, disposed, edited) · from and to state · from and to location · from and to holder · request · who · when · reason</div>
-        <p class="muted" style="font-size:13px">Only ever added to. It is the audit trail.</p>
-      </div>
-      <div class="card">
-        <h3>Withdrawal request</h3>
-        <div class="fields">request no. (WDR-2026-0014) · engineer · project · purpose · destination · date needed · status · readers in the request · PM and OM approval steps with comments</div>
-      </div>
-      <div class="card">
-        <h3>Lists maintained by the administrator</h3>
-        <div class="fields">reader models (with serial no. format) · projects with their PM · store and site locations · suppliers</div>
-      </div>
-    </div>
-  </section>
-
-  <section id="arch" aria-labelledby="h-arch">
-    <div class="section-head">
-      <span class="eyebrow">Architecture</span>
-      <h2 id="h-arch">How it fits into ERS</h2>
-      <p class="muted">Inventory is a separate module inside the same application, an approach known as a modular monolith. It has its own data, rules, pages and API, and it reuses the parts of ERS that already work. This suits a small team and the current server, and the module could still be separated later if needed.</p>
-    </div>
-    <div class="cols">
-      <div class="card">
-        <h3>Reused from ERS</h3>
+        <h3><span class="mod core">Core</span> Shared records</h3>
         <ul>
-          <li>Accounts, sign-in and roles</li>
-          <li>Two-level approval with email Approve and Reject buttons</li>
-          <li>Email queue, reminders and the working-day calendar</li>
-          <li>Excel import with a preview, and Excel export</li>
-          <li>Automatic deployment and daily database backup</li>
+          <li><b>Users</b> and their roles</li>
+          <li><b>Teams</b> and team leaders</li>
+          <li><b>Projects</b>: WBS code, name, client and PM. Today a project is typed into each resource request; it becomes a list, with existing names matched during migration.</li>
+          <li><b>Locations</b>: stores and sites</li>
+          <li><b>Approval tasks and history</b> for every document type</li>
         </ul>
       </div>
       <div class="card">
-        <h3>New in the module</h3>
+        <h3><span class="mod res">Resources</span> Module records</h3>
         <ul>
-          <li>Reader, delivery, history and withdrawal tables, added by an incremental database update</li>
-          <li>Lifecycle and withdrawal rules, each defined as a table of allowed transitions</li>
-          <li>Camera scanning component for phones</li>
-          <li>Inventory pages and the <code>/api/v1/inventory</code> API</li>
+          <li>Resource requests, linked to a project</li>
+          <li>Engineer allocations with percentages</li>
+          <li>Changes after approval</li>
         </ul>
       </div>
       <div class="card">
-        <h3>Industry practices followed</h3>
+        <h3><span class="mod inv">Inventory</span> Module records</h3>
         <ul>
-          <li>Serialised asset register (ISO/IEC 19770-1)</li>
-          <li>Goods receipt for each delivery</li>
-          <li>History log that cannot be edited</li>
-          <li>Separation of duties: no self-approval</li>
-          <li>Reservation on approval, confirmed handover</li>
-          <li>Regular stocktake by scanning</li>
+          <li><b>Readers</b>: serial no., model, project, location, warranty start and end (mandatory); FR ID, deployment date, OS, firmware and APK versions, mounting type (optional)</li>
+          <li><b>Deliveries</b> (goods receipts)</li>
+          <li><b>Withdrawals</b> and their readers</li>
+          <li><b>Reader history</b>, which is only ever added to</li>
+          <li>Reader models and suppliers</li>
         </ul>
       </div>
     </div>
@@ -627,208 +701,206 @@ td.mono { white-space: nowrap; }
   <section id="phases" aria-labelledby="h-phases">
     <div class="section-head">
       <span class="eyebrow">Delivery</span>
-      <h2 id="h-phases">Three phases</h2>
-      <p class="muted">Each phase is released on its own, with an incremental database update and no data replaced.</p>
+      <h2 id="h-phases">Four phases</h2>
+      <p class="muted">The platform work comes first, so that inventory is built on the shared core from the start. Every phase keeps the existing data and uses incremental database updates only.</p>
     </div>
     <div class="cols">
-      <div class="card phase"><span class="num">1</span><div><h3>Register and find</h3><p class="muted" style="font-size:14px">Lists, mobile delivery registration with scanning, reader list and details with history, Excel import of existing readers, Excel export.</p></div></div>
-      <div class="card phase"><span class="num">2</span><div><h3>Withdraw and issue</h3><p class="muted" style="font-size:14px">Withdrawal requests, PM and OM approval including from email, reservation, handover by scanning, deploy, return and report fault.</p></div></div>
-      <div class="card phase"><span class="num">3</span><div><h3>Monitor</h3><p class="muted" style="font-size:14px">Warranty reminders and report, stock reports, stocktake by scanning a whole store.</p></div></div>
+      <div class="card phase"><span class="num">0</span><div><h3>Platform foundation</h3><p class="muted small">New name, combined menu, + New, one Approvals inbox, project list, permission-based roles, and the approval engine. Resource requests move onto the core with no change for users, protected by the existing automated tests.</p></div></div>
+      <div class="card phase"><span class="num">1</span><div><h3>Inventory: register and find</h3><p class="muted small">Reader models, deliveries with scanning on a phone, reader list and history, Scan and search, Excel import and export.</p></div></div>
+      <div class="card phase"><span class="num">2</span><div><h3>Inventory: withdraw and issue</h3><p class="muted small">Withdrawals with PM and OM approval, reservation, handover by scanning, deploy, return and report fault, project page tab.</p></div></div>
+      <div class="card phase"><span class="num">3</span><div><h3>Monitor and extend</h3><p class="muted small">Warranty reminders, stocktake by scanning, combined reports. Then the next module, using the same pattern.</p></div></div>
     </div>
   </section>
 
   <section id="decisions" aria-labelledby="h-dec">
     <div class="section-head">
       <span class="eyebrow">Next step</span>
-      <h2 id="h-dec">Decisions needed before development</h2>
+      <h2 id="h-dec">Decisions needed</h2>
     </div>
     <div class="table-wrap decisions">
       <table>
         <thead><tr><th>No.</th><th>Question</th><th>Recommendation</th></tr></thead>
         <tbody>
-          <tr><td>D1</td><td>Who are the inventory clerks, and do the same people hand readers over?</td><td>Support engineers, as in the requirement.</td></tr>
-          <tr><td>D2</td><td>Do engineers request specific readers by serial number, or a model and quantity with the clerk picking the units?</td><td>Allow both. Specific readers only is simpler, if that is enough.</td></tr>
-          <tr><td>D3</td><td>When the requester is the project's PM, skip the PM step or send it to someone else?</td><td>Skip it, record why, and keep the OM approval.</td></tr>
-          <tr><td>D4</td><td>Is there one OM or several, and can any of them approve?</td><td>Any active OM can approve.</td></tr>
-          <tr><td>D5</td><td>Do issued readers come back to the store, or stay at the site?</td><td>Support both: Deploy for installed readers, Return for unused ones.</td></tr>
-          <tr><td>D6</td><td>Is there an existing spreadsheet of readers to import?</td><td>Import it in Phase 1, with a preview.</td></tr>
-          <tr><td>D7</td><td>Should delivery orders or warranty documents be attached as files?</td><td>Not at first. Record the document numbers instead.</td></tr>
+          <tr><td>D1</td><td>Which system name should be used?</td><td>OpsHub, shown as "PSBU OpsHub".</td></tr>
+          <tr><td>D2</td><td>Should projects become a shared list maintained by the administrator, with a PM for each?</td><td>Yes. It links both modules and decides who approves withdrawals.</td></tr>
+          <tr><td>D3</td><td>Should the web address stay psbu.duckdns.org?</td><td>Yes. It already names the business unit, not a module.</td></tr>
+          <tr><td>D4</td><td>Do engineers request specific readers by serial number, or a model and quantity?</td><td>Allow both. Specific readers only is simpler, if that is enough.</td></tr>
+          <tr><td>D5</td><td>When the requester is the project's PM, skip the PM step?</td><td>Yes, record why, and keep the OM approval.</td></tr>
+          <tr><td>D6</td><td>Who are the inventory clerks and operations managers?</td><td>Support engineers as clerks; OM as named by management.</td></tr>
+          <tr><td>D7</td><td>Is there an existing spreadsheet of readers to import?</td><td>Import it in Phase 1, with a preview.</td></tr>
+          <tr><td>D8</td><td>Which modules are likely next?</td><td>Name one or two now, so the core is checked against them.</td></tr>
         </tbody>
       </table>
     </div>
   </section>
 
-  <p class="foot">The full written design, with table definitions and API details, is in the repository at <code>docs/design/inventory-module-design.md</code>.</p>
+  <p class="foot">The written design is in the repository at <code>docs/design/platform-architecture.md</code> (platform) and <code>docs/design/inventory-module-design.md</code> (inventory module).</p>
 </div>
 
 <script>
 (() => {
-  const ROLES = [
-    { id: 'clerk', label: 'Inventory clerk', name: 'Ravi Kumar', title: 'Support Engineer · Inventory clerk' },
+  const PEOPLE = [
+    { id: 'pm', label: 'Project manager', name: 'James Lim', title: 'Project Manager · Requester' },
     { id: 'eng', label: 'Engineer', name: 'Jason Teo', title: 'Developer · Engineer' },
-    { id: 'pm', label: 'Project manager', name: 'James Lim', title: 'Project Manager' },
-    { id: 'om', label: 'Operations manager', name: 'Wee Lee Tan', title: 'Operations Manager' },
+    { id: 'clerk', label: 'Inventory clerk', name: 'Ravi Kumar', title: 'Support Engineer · Inventory clerk' },
+    { id: 'tl', label: 'Team leader', name: 'Zuocai Yu', title: 'Team Leader, Development' },
+    { id: 'dir', label: 'Director', name: 'Wee Lee Tan', title: 'Director' },
+    { id: 'om', label: 'Operations manager', name: 'Grace Wong', title: 'Operations Manager' },
     { id: 'admin', label: 'Administrator', name: 'System Admin', title: 'Administrator' },
   ];
-  const ALL = ['clerk', 'eng', 'pm', 'om', 'admin'];
+  const ALL = PEOPLE.map((p) => p.id);
+  const APPROVERS = ['pm', 'tl', 'dir', 'om'];
   const MENU = [
-    { group: 'Resource requests', items: [
-      { label: 'Dashboard', roles: ALL },
-      { label: 'New request', roles: ALL },
-      { label: 'Requests', roles: ALL },
-      { label: 'Approvals', roles: ['pm', 'om', 'admin'], count: { pm: 2, om: 3, admin: 0 } },
-      { label: 'Resource load', roles: ['om', 'admin'] },
-      { label: 'Reports', roles: ['om', 'admin'] },
+    { items: [
+      { label: 'Home', roles: ALL, current: true },
+      { label: 'Approvals', roles: APPROVERS, count: { pm: 2, tl: 3, dir: 2, om: 3 } },
+      { label: 'My work', roles: ALL },
+      { label: 'Projects', roles: ALL },
     ]},
-    { group: 'Inventory', items: [
-      { label: 'Inventory home', roles: ALL, home: true, isNew: true },
-      { label: 'Register delivery', roles: ['clerk', 'admin'], isNew: true },
-      { label: 'Readers', roles: ALL, isNew: true },
-      { label: 'Withdrawals', roles: ALL, isNew: true, count: { clerk: 2 } },
-      { label: 'My readers', roles: ['clerk', 'eng'], isNew: true },
-      { label: 'Warranty', roles: ['clerk', 'om', 'admin'], isNew: true },
+    { group: 'Resources', color: 'var(--res)', items: [
+      { label: 'Resource requests', roles: ALL },
+      { label: 'Resource load', roles: ['tl', 'dir', 'om', 'admin'] },
+    ]},
+    { group: 'Inventory', color: 'var(--inv)', items: [
+      { label: 'Readers', roles: ALL },
+      { label: 'Deliveries', roles: ['clerk', 'admin'] },
+      { label: 'Withdrawals', roles: ALL, count: { clerk: 2 } },
+      { label: 'Warranty', roles: ['clerk', 'om', 'admin'] },
+    ]},
+    { group: 'Insights', items: [
+      { label: 'Reports', roles: ['tl', 'dir', 'om', 'admin'] },
     ]},
     { group: 'System', items: [
-      { label: 'Settings', roles: ['admin'] },
+      { label: 'Administration', roles: ['admin'] },
     ]},
   ];
-  const ACTIONS = {
-    clerk: [
-      ['Register delivery', 'Scan readers from a supplier delivery'],
-      ['Hand over readers', '2 approved requests waiting for collection'],
-      ['Find a reader', 'Scan a label to see its record'],
-      ['Record a return', 'Readers coming back from site'],
-    ],
-    eng: [
-      ['Request readers', 'For a project, approved by PM and OM'],
-      ['Find a reader', 'Scan a label to see its record'],
-      ['My readers', '3 issued to you'],
-      ['Report a fault', 'Mark a reader as faulty'],
-    ],
-    pm: [
-      ['Review withdrawals', '2 waiting for your approval'],
-      ['My projects’ readers', 'Stock and deployed readers by project'],
-      ['Find a reader', 'Search by serial number'],
-      ['Request readers', 'For your own project'],
-    ],
-    om: [
-      ['Review withdrawals', '3 waiting for final approval'],
-      ['Warranty', '23 warranties end in the next 60 days'],
-      ['Stock report', 'By project, model and location'],
-      ['Find a reader', 'Search by serial number'],
-    ],
-    admin: [
-      ['Reader models', 'Models and their serial number format'],
-      ['Projects and PMs', 'Who approves each project’s withdrawals'],
-      ['Locations', 'Stores and sites'],
-      ['Import readers', 'From an Excel file, with a preview'],
-    ],
+  const R = ['Resources', 'res'];
+  const I = ['Inventory', 'inv'];
+  const HOME = {
+    pm: {
+      tiles: [['Waiting for your approval', 2, I, true], ['Your open resource requests', 3, R], ['Engineers on your projects', 7, R], ['Readers on your projects', 64, I]],
+      action: [
+        [I, 'WDR-2026-0017', 'Approve 2 readers for HSA Permit Portal', 'Jason Teo', ['Waiting for you', 'blue']],
+        [I, 'WDR-2026-0018', 'Approve 5 readers for HSA Permit Portal', 'Ravi Kumar', ['Waiting for you', 'blue']],
+        [R, 'ERR-2026-0015', 'Revise and resubmit: "revise schedule"', 'Wee Lee Tan', ['Rejected, can resubmit', 'amber']],
+      ],
+      side: ['Your projects', [['HSA Permit Portal', '4 engineers · 38 readers'], ['CSPL Data Migration', '3 engineers · 26 readers'], ['MOM Kiosk Refresh', 'Starts 1 Dec · 12 readers in stock']]],
+    },
+    eng: {
+      tiles: [['Your assignments', 2, R], ['Readers you hold', 3, I], ['Your open requests', 2, I], ['Ready to collect', 1, I, true]],
+      action: [
+        [I, 'WDR-2026-0014', 'Collect 4 readers from NEC Store, Level 3', 'Approved by Grace Wong', ['Ready to collect', 'green']],
+        [I, 'FRX24A0177', 'Mark as deployed or return to store', 'Issued 3 Nov', ['Issued to you', 'blue']],
+        [R, 'ERR-2026-0012', 'Assigned at 50% from 16 Nov to 27 Nov', 'HSA Permit Portal', ['Starts Monday', 'blue']],
+      ],
+      side: ['Coming up', [['16 Nov', 'HSA Permit Portal, 50%'], ['24 Nov', 'Install 4 readers at HSA Outram'], ['1 Dec', 'MOM Kiosk Refresh, 100%']]],
+    },
+    clerk: {
+      tiles: [['To hand over', 2, I, true], ['Readers in stock', 142, I], ['Returned, to check', 3, I], ['Warranty ends in 60 days', 23, I]],
+      action: [
+        [I, 'WDR-2026-0014', 'Hand over 4 readers to Jason Teo', 'HSA Permit Portal', ['Approved', 'green']],
+        [I, 'WDR-2026-0011', 'Hand over 2 readers to Nurul Huda', 'CSPL Data Migration', ['Approved', 'green']],
+        [I, 'FRX23B0402', 'Check returned reader', 'Returned by Chua Mei Ling', ['Returned', 'amber']],
+      ],
+      side: ['Recent deliveries', [['GRN-2026-0042', '20 readers · HSA Permit Portal'], ['GRN-2026-0041', '12 readers · CSPL Data Migration'], ['GRN-2026-0040', '8 readers · MOM Kiosk Refresh']]],
+    },
+    tl: {
+      tiles: [['Waiting for your review', 3, R, true], ['Open team requests', 6, R], ['Engineers over 100%', 1, R, true], ['Readers held by your team', 11, I]],
+      action: [
+        [R, 'ERR-2026-0016', 'Review and assign engineers', 'James Lim · HSA Permit Portal', ['Waiting for you', 'blue']],
+        [R, 'ERR-2026-0017', 'Review and assign engineers', 'Alex Tan · CSPL Data Migration', ['Urgent', 'red']],
+        [R, 'ERR-2026-0018', 'Review and assign engineers', 'James Lim · MOM Kiosk Refresh', ['Waiting for you', 'blue']],
+      ],
+      side: ['Team load next week', [['Jason Teo', '150% · over-booked'], ['Ravi Kumar', '80%'], ['Nurul Huda', '50%']]],
+    },
+    dir: {
+      tiles: [['Waiting for your approval', 2, R, true], ['Approved this month', 14, R], ['Engineers allocated', 23, R], ['Readers deployed', 311, I]],
+      action: [
+        [R, 'ERR-2026-0014', 'Final approval, engineers proposed', 'Zuocai Yu · HSA Permit Portal', ['Waiting for you', 'blue']],
+        [R, 'ERR-2026-0013', 'Final approval, engineers proposed', 'Priya Nair · NLB Branch Upgrade', ['Urgent', 'red']],
+      ],
+      side: ['This week', [['Resource requests', '5 submitted · 4 approved'], ['Reader withdrawals', '3 approved · 22 readers'], ['Warranties ending', '23 in 60 days']]],
+    },
+    om: {
+      tiles: [['Waiting for your approval', 3, I, true], ['Readers in stock', 142, I], ['Faulty or in repair', 4, I, true], ['Warranty ends in 60 days', 23, I]],
+      action: [
+        [I, 'WDR-2026-0016', 'Final approval: 6 readers', 'Chua Mei Ling · HSA Permit Portal', ['Waiting for you', 'blue']],
+        [I, 'WDR-2026-0015', 'Final approval: 3 readers', 'Nurul Huda · CSPL Data Migration', ['Waiting for you', 'blue']],
+        [I, 'WDR-2026-0013', 'Final approval: 8 readers', 'Jason Teo · MOM Kiosk Refresh', ['Waiting for you', 'blue']],
+      ],
+      side: ['Stock by status', [['In stock', '142'], ['Issued or reserved', '24'], ['Deployed', '311'], ['Faulty or in repair', '4']]],
+    },
+    admin: {
+      tiles: [['Active users', 48, null], ['Projects', 12, null], ['Emails sent today', 37, null], ['Emails failed', 0, null]],
+      action: [
+        [null, 'Projects', 'MOM Kiosk Refresh has no PM yet', 'Withdrawals for it cannot be routed', ['Needs attention', 'amber']],
+        [null, 'Users', '3 new users imported today', 'Must change password at first sign-in', ['Done', 'green']],
+      ],
+      side: ['Modules', [['Resources', 'On'], ['Inventory', 'On'], ['Next module', 'Not installed']]],
+    },
   };
-  const PRIMARY = { clerk: 'Register delivery', eng: 'Request readers', pm: 'Request readers', om: 'Export to Excel', admin: 'Import readers' };
-  const TILES = [['In stock', 142], ['Reserved', 6], ['Issued', 18], ['Deployed', 311], ['Faulty or in repair', 4]];
-  const WAITING = {
-    clerk: { title: 'Ready to hand over', rows: [
-      ['WDR-2026-0014', 'Jason Teo', 'HSA Permit Portal', '4 readers', ['Approved', 'green']],
-      ['WDR-2026-0011', 'Nurul Huda', 'CSPL Data Migration', '2 readers', ['Approved', 'green']],
-      ['WDR-2026-0016', 'Chua Mei Ling', 'HSA Permit Portal', '6 readers', ['Waiting for OM', 'blue']],
-    ]},
-    eng: { title: 'My withdrawal requests', rows: [
-      ['WDR-2026-0014', 'HSA Permit Portal', '4 readers', 'Collect from NEC Store L3', ['Approved', 'green']],
-      ['WDR-2026-0017', 'HSA Permit Portal', '2 readers', 'Submitted 12 Nov', ['Waiting for PM', 'blue']],
-      ['WDR-2026-0009', 'CSPL Data Migration', '1 reader', 'PM: wrong model', ['Rejected, can resubmit', 'amber']],
-    ]},
-    pm: { title: 'Waiting for your approval', rows: [
-      ['WDR-2026-0017', 'Jason Teo', 'HSA Permit Portal', '2 readers', ['Waiting for PM', 'blue']],
-      ['WDR-2026-0018', 'Ravi Kumar', 'HSA Permit Portal', '5 readers', ['Waiting for PM', 'blue']],
-    ]},
-    om: { title: 'Waiting for final approval', rows: [
-      ['WDR-2026-0016', 'Chua Mei Ling', 'HSA Permit Portal', '6 readers', ['Waiting for OM', 'blue']],
-      ['WDR-2026-0015', 'Nurul Huda', 'CSPL Data Migration', '3 readers', ['Waiting for OM', 'blue']],
-      ['WDR-2026-0013', 'Jason Teo', 'MOM Kiosk Refresh', '8 readers', ['Waiting for OM', 'blue']],
-    ]},
-    admin: { title: 'Recent deliveries', rows: [
-      ['GRN-2026-0042', 'Ravi Kumar', 'HSA Permit Portal', '20 readers', ['Received', 'green']],
-      ['GRN-2026-0041', 'Ravi Kumar', 'CSPL Data Migration', '12 readers', ['Received', 'green']],
-    ]},
-  };
-  const WARRANTY = [
-    ['FRX23B0451', 'MOM Kiosk Refresh', '30 Nov 2026', 'red'],
-    ['FRX23B0466', 'MOM Kiosk Refresh', '30 Nov 2026', 'red'],
-    ['FRX23C0102', 'CSPL Data Migration', '14 Dec 2026', 'amber'],
-    ['FRX23C0117', 'CSPL Data Migration', '14 Dec 2026', 'amber'],
-  ];
 
   const el = (tag, attrs = {}, ...kids) => {
     const n = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs)) {
-      if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v; else n.setAttribute(k, v);
+      if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v; else if (k === 'style') n.style.cssText = v; else n.setAttribute(k, v);
     }
     for (const k of kids) if (k != null) n.append(k);
     return n;
   };
-  const tag = ([label, tone]) => el('span', { class: `tag ${tone}`, text: label });
+  const modChip = (m) => (m ? el('span', { class: `mod ${m[1]}`, text: m[0] }) : el('span', { class: 'mod core', text: 'Platform' }));
 
-  let role = 'clerk';
-  try { const saved = localStorage.getItem('ers-proto-role'); if (saved && ROLES.some((r) => r.id === saved)) role = saved; } catch (e) { /* optional */ }
+  let who = 'pm';
+  try { const s = localStorage.getItem('opshub-proto-person'); if (s && ALL.includes(s)) who = s; } catch (e) { /* optional */ }
 
-  const rolesBox = document.getElementById('roles');
-  ROLES.forEach((r) => {
-    const b = el('button', { type: 'button', 'aria-pressed': String(r.id === role), text: r.label });
-    b.addEventListener('click', () => { role = r.id; try { localStorage.setItem('ers-proto-role', role); } catch (e) { /* optional */ } render(); });
-    rolesBox.append(b);
+  const roles = document.getElementById('roles');
+  PEOPLE.forEach((p) => {
+    const b = el('button', { type: 'button', 'aria-pressed': String(p.id === who), text: p.label });
+    b.addEventListener('click', () => { who = p.id; try { localStorage.setItem('opshub-proto-person', who); } catch (e) { /* optional */ } render(); });
+    roles.append(b);
   });
 
   function render() {
-    [...rolesBox.children].forEach((b, i) => b.setAttribute('aria-pressed', String(ROLES[i].id === role)));
-    const r = ROLES.find((x) => x.id === role);
+    [...roles.children].forEach((b, i) => b.setAttribute('aria-pressed', String(PEOPLE[i].id === who)));
+    const person = PEOPLE.find((p) => p.id === who);
 
     const nav = document.getElementById('nav');
     nav.replaceChildren();
     MENU.forEach((g) => {
-      const items = g.items.filter((i) => i.roles.includes(role));
+      const items = g.items.filter((i) => i.roles.includes(who));
       if (!items.length) return;
-      const group = el('div', { class: 'nav-group' }, el('span', { text: g.group }));
+      const group = el('div', { class: 'nav-group' });
+      if (g.group) group.append(el('span', {}, g.color ? el('i', { style: `background:${g.color}` }) : null, g.group));
       items.forEach((i) => {
         const a = el('a', { href: '#prototype' }, el('span', { text: i.label }));
-        if (i.home) a.setAttribute('aria-current', 'page');
-        const c = i.count && i.count[role];
+        if (i.current) a.setAttribute('aria-current', 'page');
+        const c = i.count && i.count[who];
         if (c) a.append(el('span', { class: 'count', text: String(c) }));
-        else if (i.isNew) a.append(el('span', { class: 'new', text: 'NEW' }));
         a.addEventListener('click', (e) => e.preventDefault());
         group.append(a);
       });
       nav.append(group);
     });
-    document.getElementById('who').replaceChildren(el('b', { text: r.name }), el('span', { text: r.title }));
+    document.getElementById('who').replaceChildren(el('b', { text: person.name }), el('span', { text: person.title }));
 
-    const main = document.getElementById('main');
-    const head = el('div', { class: 'main-head' },
-      el('div', {}, el('h3', { text: 'Inventory' }), el('p', { text: 'FR readers across all projects. Scan a label or search by serial number.' })),
-      el('button', { class: 'btn primary', type: 'button', text: PRIMARY[role] }));
-    const actions = el('div', { class: 'actions' }, ...ACTIONS[role].map(([t, s]) => el('div', { class: 'action' }, el('b', { text: t }), el('span', { text: s }))));
-    const tiles = el('div', { class: 'tiles' }, ...TILES.map(([l, v]) => el('div', { class: `tile${l.startsWith('Faulty') ? ' attention' : ''}` }, el('span', { text: l }), el('b', { text: String(v) }))));
-
-    const w = WAITING[role];
-    const wTable = el('table', {},
-      el('thead', {}, el('tr', {}, ...['Number', role === 'eng' ? 'Project' : 'Person', role === 'eng' ? 'Readers' : 'Project', role === 'eng' ? 'Note' : 'Readers', 'Status'].map((h) => el('th', { text: h })))),
-      el('tbody', {}, ...w.rows.map((row) => el('tr', {}, ...row.slice(0, 4).map((c, i) => el('td', { class: i === 0 ? 'mono' : '', text: c })), el('td', {}, tag(row[4]))))));
-    const warranty = el('table', {},
-      el('thead', {}, el('tr', {}, ...['Serial no.', 'Project', 'Warranty ends'].map((h) => el('th', { text: h })))),
-      el('tbody', {}, ...WARRANTY.map(([s, p, d, tone]) => el('tr', {}, el('td', { class: 'mono', text: s }), el('td', { text: p }), el('td', {}, el('span', { class: `tag ${tone}`, text: d }))))));
+    const h = HOME[who];
+    const head = el('div', { class: 'content-head' },
+      el('h3', { text: `Good morning, ${person.name.split(' ')[0]}` }),
+      el('p', { text: 'Everything that needs you, from every module.' }));
+    const tiles = el('div', { class: 'tiles' }, ...h.tiles.map(([label, value, mod, warn]) =>
+      el('div', { class: `tile${warn ? ' attention' : ''}` }, el('div', { class: 'tl' }, el('span', { text: label })), el('b', { text: String(value) }), el('div', {}, modChip(mod)))));
+    const table = el('table', {},
+      el('thead', {}, el('tr', {}, ...['Module', 'Number', 'What to do', 'Status'].map((t) => el('th', { text: t })))),
+      el('tbody', {}, ...h.action.map(([mod, no, what, from, st]) => el('tr', {},
+        el('td', {}, modChip(mod)), el('td', { class: 'mono', text: no }),
+        el('td', {}, el('div', { text: what }), el('div', { class: 'muted', style: 'font-size:12px', text: from })),
+        el('td', {}, el('span', { class: `tag ${st[1]}`, text: st[0] }))))));
+    const side = el('div', { class: 'feed' }, ...h.side[1].map(([a, b]) => el('div', {}, el('b', { text: a }), el('span', { text: b }))));
     const panels = el('div', { class: 'panels' },
-      el('div', { class: 'panel' }, el('h4', { text: w.title }), wTable),
-      el('div', { class: 'panel' }, el('h4', { text: 'Warranty ending soon' }), warranty));
-
-    main.replaceChildren(head, actions, tiles, panels);
+      el('div', { class: 'panel' }, el('h4', { text: 'Needs your action' }), table),
+      el('div', { class: 'panel' }, el('h4', { text: h.side[0] }), side));
+    document.getElementById('content').replaceChildren(head, tiles, panels);
   }
-
-  const flowBtns = document.querySelectorAll('#flow-tabs button');
-  flowBtns.forEach((b) => b.addEventListener('click', () => {
-    flowBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-    document.getElementById('flow-withdraw').hidden = b.dataset.flow !== 'withdraw';
-    document.getElementById('flow-receive').hidden = b.dataset.flow !== 'receive';
-  }));
-
   render();
 })();
 </script>

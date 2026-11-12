@@ -2,12 +2,12 @@
 
 | Item | Value |
 |---|---|
-| System | Engineering Resource Request System (ERS) |
+| System | PSBU OpsHub (see `platform-architecture.md`) |
 | Module | Inventory recording, tracking and withdrawal of FR readers |
 | Status | Draft for review. Nothing in this document has been built yet. |
 | Date | 12 Nov 2026 |
 
-This document proposes how to add inventory management to ERS. It covers the scope, roles, data model, workflows, the mobile pages with barcode scanning, the architecture and a phased delivery plan. Section 12 lists the decisions the business needs to confirm before development starts.
+This document specifies the Inventory module of PSBU OpsHub. The platform as a whole, including the system name, the combined menu, shared records, permissions and the approval engine, is described in `platform-architecture.md`; this document covers what is specific to inventory. It proposes how to add inventory management to the system. It covers the scope, roles, data model, workflows, the mobile pages with barcode scanning, the architecture and a phased delivery plan. Section 12 lists the decisions the business needs to confirm before development starts.
 
 ---
 
@@ -87,12 +87,14 @@ projects ──────┘                        │   ▲
    │                                    ▼   │
    └──────< withdrawal_requests ──< withdrawal_items
                  │
-                 └──< withdrawal_tasks (PM step, OM step)
+                 └──< approval tasks (shared platform core: PM step, OM step)
 
 assets ──< asset_movements  (append-only ledger)
 ```
 
 ### 4.2 Master data
+
+Projects (with their PM) and locations belong to the platform core, because both modules use them (`platform-architecture.md`, Section 5). Device models and suppliers belong to the inventory module.
 
 **device_models**: the reader models that can be registered.
 
@@ -217,7 +219,7 @@ The asset row and its movement row are always written in the same database trans
 | asset_id | asset | A specific reader (see decision D2 in Section 12) |
 | issued_at, returned_at | timestamps | Filled in at handover and on return |
 
-**withdrawal_tasks**: one row per approval step, with the same structure as the existing approval tasks: step (PM_APPROVAL or OM_APPROVAL), round, assignee, status, decision comment, due date, reminders sent and decision time. The existing email-link approval is reused, with tokens that name this task type.
+**Approval tasks** are not an inventory table. The PM and OM steps are tasks of the shared approval engine in the platform core (`platform-architecture.md`, Section 4.4), the same engine that handles resource requests, including the email Approve and Reject links.
 
 ### 4.6 Rules enforced by the database
 
@@ -354,7 +356,7 @@ Deliveries usually contain many readers of the same model for the same project. 
 
 ### 7.3 Navigation
 
-ERS gets a second top-level area, Inventory, beside Requests. Users only see the area if their role gives them access to it. On a phone, the Inventory home page shows the main actions as large buttons: Register delivery, Find a reader, Request readers and My readers.
+Inventory is not a separate area. Its pages appear in the combined OpsHub menu described in `platform-architecture.md`, Section 3: withdrawal approvals appear in the shared Approvals inbox, the person's withdrawals and readers appear in My work, "Request readers" and "Register delivery" appear under + New, and the project page has an Inventory tab. The Inventory section of the menu holds Readers, Deliveries, Withdrawals and Warranty.
 
 ### 7.4 Notifications
 
@@ -374,33 +376,25 @@ The first release needs a network connection. Mobile data is normally available 
 
 ## 8. Architecture
 
-### 8.1 A module inside ERS
+### 8.1 A module of the platform
 
-Inventory is added as a new module, or "bounded context", in the same application, rather than as a separate system. This is the "modular monolith" approach. It suits a small team and a single e2-micro server, while keeping the module's code separate enough to be moved out later if that is ever needed.
+Inventory is built as a module that follows the module contract in `platform-architecture.md`, Section 4.2. It uses the platform core for accounts and permissions, projects and locations, the approval engine, notifications, history, numbering, import and export, and search. It owns only the inventory records and rules.
 
 ```
-backend/src/erf/
-  domain/inventory/        statuses, lifecycle and withdrawal transition tables, rules
-  db/models/inventory.py   tables in Section 4
-  repositories/inventory/  database queries
-  services/inventory/      registration, withdrawal workflow, handover, stocktake, reports
-  api/v1/inventory/        REST endpoints under /api/v1/inventory/...
-  templates/email/         new email templates
-frontend/src/
-  views/inventory/         the pages in Section 7
-  components/scan/         the camera scanner component
+backend/src/opshub/modules/inventory/
+  domain/      reader lifecycle and withdrawal rules
+  models.py    tables prefixed inv_
+  services/    deliveries, readers, withdrawals, handover, stocktake, reports
+  api.py       /api/v1/inventory/...
+  templates/   email templates
+  module.py    the module definition: permissions, menu, approval route, home and search providers
+frontend/src/modules/inventory/
+  pages, components (including the camera scanner), routes, module.ts
 ```
 
-### 8.2 What is shared with the request module
+### 8.2 Approval route
 
-| Shared part | How the inventory module uses it |
-|---|---|
-| Users, sign-in and roles | Two new roles are added. Nothing else changes |
-| Workflow pattern | The same transition-table style, with optimistic locking and a recorded event for every action |
-| Email outbox and email approval links | Reused, with a task type in the token so that a link opens the right kind of approval page |
-| Working-day calendar | Due dates and reminders |
-| Excel import and export | The same preview-then-import pattern as the user import |
-| Scheduler | Warranty and collection reminders |
+The withdrawal approval runs on the shared approval engine with the route "PM of the project, then any operations manager", and a skip rule when the requester is the PM. Reservation of readers on approval, and their release on rejection, are hooks the engine calls. The withdrawal_tasks table in Section 4.5 is therefore not needed; the engine's shared approval tasks are used instead.
 
 ### 8.3 API
 
