@@ -12,7 +12,8 @@ import { BarcodeFormat, DecodeHintType } from '@zxing/library'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 defineProps<{
-  feedback?: { tone: 'ok' | 'warn' | 'bad'; text: string; action?: string } | null
+  /** The outcome of the last read. Give a new `key` for every new outcome so it flashes, even with the same text. */
+  feedback?: { tone: 'ok' | 'warn' | 'bad'; text: string; action?: string; key?: number } | null
   /** Shown at the top of the camera view, for example the model being scanned. */
   caption?: string
 }>()
@@ -26,6 +27,10 @@ const reading = ref(false)
 const torchOn = ref(false)
 const torchAvailable = ref(false)
 const lastRead = ref<string | null>(null)
+/** True after a while without reading anything, to suggest the photo instead. */
+const quiet = ref(false)
+let lastReadAt = Date.now()
+let quietTimer: number | undefined
 
 let stream: MediaStream | null = null
 let timer: number | undefined
@@ -58,6 +63,8 @@ function found(raw: string): void {
   const value = raw.trim()
   if (!value) return
   lastRead.value = value
+  lastReadAt = Date.now()
+  quiet.value = false
   const now = Date.now()
   // The same code stays in view for a while; report it again only after a pause.
   if ((recent.get(value) ?? 0) > now - 2500) return
@@ -288,11 +295,15 @@ async function toggleTorch(): Promise<void> {
 
 function stop(): void {
   window.clearInterval(timer)
+  window.clearInterval(quietTimer)
   stream?.getTracks().forEach((t) => t.stop())
   stream = null
 }
 
-onMounted(start)
+onMounted(() => {
+  start()
+  quietTimer = window.setInterval(() => (quiet.value = Date.now() - lastReadAt > 7000), 1000)
+})
 onBeforeUnmount(stop)
 </script>
 
@@ -301,25 +312,32 @@ onBeforeUnmount(stop)
     <div class="viewport">
       <video ref="video" muted playsinline aria-label="Camera view for scanning barcodes" />
       <div class="reticle" aria-hidden="true" />
-      <p v-if="caption" class="caption">{{ caption }}</p>
+      <div class="top">
+        <p class="caption">{{ caption }}</p>
+        <div class="icons">
+          <button v-if="torchAvailable" type="button" class="icon" :class="{ on: torchOn }" :aria-label="torchOn ? 'Torch off' : 'Torch on'" :aria-pressed="torchOn" @click="toggleTorch">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 2h6l-1 6h3l-7 14 1-9H7z" /></svg>
+          </button>
+          <button type="button" class="icon" aria-label="Take a photo of the label" :disabled="reading" @click="photoInput?.click()">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3l2-3h6l2 3h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z" /><circle cx="12" cy="13" r="4" /></svg>
+          </button>
+          <button type="button" class="icon" aria-label="Stop scanning" @click="emit('close')">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
+      </div>
+      <input ref="photoInput" type="file" accept="image/*" capture="environment" hidden @change="onPhoto" />
       <p v-if="starting" class="state">Opening the camera…</p>
       <p v-else-if="reading" class="state">Reading the photo…</p>
-      <div v-else-if="feedback" class="state" :class="feedback.tone" role="status">
+      <div v-else-if="feedback" :key="feedback.key ?? feedback.text" class="state pop" :class="feedback.tone" role="status">
         <p>{{ feedback.text }}</p>
         <button v-if="feedback.action" type="button" class="state-action" @click="emit('action')">{{ feedback.action }}</button>
       </div>
       <p v-else-if="error" class="state bad">{{ error }}</p>
-      <p v-else class="state">Point at the barcode. Codes are read automatically.</p>
+      <p v-else-if="quiet" class="state">Hard to read? Tap the camera button at the top to take a photo of the label instead.</p>
+      <p v-else class="state">Point at the barcode. It is read automatically.</p>
     </div>
     <p v-if="error && feedback" class="error-line">{{ error }}</p>
-    <div class="controls">
-      <el-button type="primary" plain :loading="reading" @click="photoInput?.click()">Take a photo of the label</el-button>
-      <input ref="photoInput" type="file" accept="image/*" capture="environment" hidden @change="onPhoto" />
-      <el-button v-if="torchAvailable" @click="toggleTorch">{{ torchOn ? 'Torch off' : 'Torch on' }}</el-button>
-      <span class="spacer" />
-      <el-button @click="emit('close')">Stop scanning</el-button>
-    </div>
-    <p v-if="lastRead" class="muted last">Last read: <span class="mono">{{ lastRead }}</span></p>
   </div>
 </template>
 
@@ -331,10 +349,10 @@ onBeforeUnmount(stop)
 .viewport {
   position: relative;
   background: #0b0f15;
-  border-radius: var(--erf-radius);
+  border-radius: 12px;
   overflow: hidden;
   aspect-ratio: 4 / 3;
-  max-height: 46vh;
+  max-height: 52vh;
   width: 100%;
 }
 video {
@@ -345,73 +363,128 @@ video {
 }
 .reticle {
   position: absolute;
-  inset: 22% 8%;
-  border: 2px solid rgba(255, 255, 255, 0.7);
+  inset: 16% 4% 26%;
+  border: 2px solid rgba(255, 255, 255, 0.75);
   border-radius: 10px;
+}
+.top {
+  position: absolute;
+  inset: 8px 8px auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.caption {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.icons {
+  display: flex;
+  gap: 8px;
+}
+.icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  cursor: pointer;
+}
+.icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon.on {
+  background: #f5c542;
+  color: #1b2533;
+}
+.icon:disabled {
+  opacity: 0.5;
+}
+.icon:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 .state {
   position: absolute;
-  inset: auto 10px 10px;
+  inset: auto 8px 8px;
   margin: 0;
   color: #fff;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 500;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 7px 10px;
-  border-radius: 6px;
+  line-height: 1.4;
+  background: rgba(0, 0, 0, 0.62);
+  padding: 10px 12px;
+  border-radius: 10px;
 }
 .state p {
   margin: 0;
 }
+.state.ok,
+.state.warn,
+.state.bad {
+  font-size: 17px;
+  font-weight: 600;
+  padding: 12px 14px;
+}
+.state.ok {
+  background: rgba(23, 120, 74, 0.95);
+}
+.state.warn {
+  background: rgba(163, 92, 0, 0.95);
+}
+.state.bad {
+  background: rgba(179, 38, 30, 0.95);
+}
+.pop {
+  animation: pop 0.35s ease-out;
+}
+@keyframes pop {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    animation: none;
+  }
+}
 .state-action {
-  margin-top: 6px;
+  margin-top: 8px;
   font: inherit;
+  font-size: 15px;
   font-weight: 600;
   color: #1b2533;
   background: #fff;
   border: 0;
-  border-radius: 6px;
-  padding: 6px 10px;
+  border-radius: 8px;
+  padding: 8px 12px;
   cursor: pointer;
-}
-.caption {
-  position: absolute;
-  inset: 10px 10px auto;
-  margin: 0;
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 600;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-}
-.state.ok {
-  background: rgba(23, 120, 74, 0.92);
-}
-.state.warn {
-  background: rgba(163, 92, 0, 0.92);
-}
-.state.bad {
-  background: rgba(179, 38, 30, 0.92);
 }
 .error-line {
   margin: 0;
   color: var(--erf-bad);
   font-size: 13px;
-}
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.controls .el-button + .el-button {
-  margin-left: 0;
-}
-.spacer {
-  flex: 1;
-}
-.last {
-  margin: 0;
-  font-size: 12.5px;
-  overflow-wrap: anywhere;
 }
 </style>

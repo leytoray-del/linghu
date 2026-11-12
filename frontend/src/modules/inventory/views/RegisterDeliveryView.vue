@@ -43,7 +43,12 @@ interface Notice {
   type: 'success' | 'warning' | 'error'
   text: string
   /** A follow-up the person can take with one tap. */
-  action?: { label: string; kind: 'switch'; modelId: number; code: string } | { label: string; kind: 'new-model'; code: string }
+  action?:
+    | { label: string; kind: 'switch'; modelId: number; code: string }
+    | { label: string; kind: 'new-model'; code: string }
+    | { label: string; kind: 're-add'; code: string }
+  /** Changes with every new message, so the camera view flashes even when the text repeats. */
+  key?: number
 }
 
 const route = useRoute()
@@ -67,7 +72,15 @@ const modelId = ref<number | null>(null)
 const common = ref<Record<number, Record<string, AttributeValue>>>({})
 const rows = ref<Row[]>([])
 const typed = ref('')
-const notice = ref<Notice | null>(null)
+const noticeRef = ref<Notice | null>(null)
+let noticeCount = 0
+/** Every new message gets a new key, so it is visibly shown again even with the same text. */
+const notice = computed<Notice | null>({
+  get: () => noticeRef.value,
+  set: (n) => (noticeRef.value = n ? { ...n, key: ++noticeCount } : null),
+})
+/** Items removed in this delivery. The camera does not add them back on its own while the label is in view. */
+const removed = new Map<string, Row>()
 const errors = ref<Record<string, string>>({})
 const formError = ref<string | null>(null)
 const saving = ref(false)
@@ -177,6 +190,7 @@ const scanFeedback = computed(() =>
         tone: notice.value.type === 'success' ? ('ok' as const) : notice.value.type === 'warning' ? ('warn' as const) : ('bad' as const),
         text: notice.value.text,
         action: notice.value.action?.label,
+        key: notice.value.key,
       }
     : null,
 )
@@ -220,6 +234,15 @@ async function add(raw: string, fromCamera: boolean): Promise<boolean> {
     serial = raw.replace(/\s+/g, '').toUpperCase()
   }
   if (checking.has(serial)) return false
+  if (fromCamera && removed.has(serial)) {
+    notice.value = {
+      type: 'warning',
+      text: `${serial} was removed from this delivery.`,
+      action: { label: 'Add it again', kind: 're-add', code: serial },
+    }
+    return false
+  }
+  removed.delete(serial)
   if (rows.value.some((r) => r.serial_no === serial)) {
     if (fromCamera && rows.value[0]?.serial_no === serial) return false
     notice.value = { type: 'warning', text: `${serial} is already in this delivery.` }
@@ -273,6 +296,17 @@ async function addFromPhoto(codes: string[]): Promise<void> {
 async function onAction(): Promise<void> {
   const action = notice.value?.action
   if (!action) return
+  if (action.kind === 're-add') {
+    const row = removed.get(action.code)
+    removed.delete(action.code)
+    if (row && !rows.value.some((r) => r.serial_no === row.serial_no)) {
+      rows.value.unshift(row)
+      notice.value = { type: 'success', text: `Added ${row.serial_no} back (${rows.value.length} in this delivery).` }
+    } else if (!row) {
+      await add(action.code, false)
+    }
+    return
+  }
   if (action.kind === 'switch') {
     modelId.value = action.modelId
     await add(action.code, true)
@@ -296,7 +330,14 @@ function openNewModel(): void {
 }
 
 function remove(serial: string): void {
+  const row = rows.value.find((r) => r.serial_no === serial)
   rows.value = rows.value.filter((r) => r.serial_no !== serial)
+  if (row) removed.set(serial, row)
+  notice.value = {
+    type: 'warning',
+    text: `Removed ${serial}. ${rows.value.length} in this delivery.`,
+    action: { label: 'Undo', kind: 're-add', code: serial },
+  }
 }
 
 function openDetails(serial: string): void {
@@ -519,13 +560,6 @@ onMounted(async () => {
     <!-- 4. Scan -->
     <section v-else-if="step === 'scan'" class="step scan-step">
       <BarcodeScanner :feedback="scanFeedback" :caption="model ? `Scanning ${modelLabel(model.id)}` : ''" @code="(c) => add(c, true)" @codes="addFromPhoto" @action="onAction" @close="go('review')" />
-      <el-input v-model="typed" size="large" placeholder="Or type a serial number" aria-label="Serial number" autocapitalize="characters" @keyup.enter="add(typed, false)">
-        <template #append><el-button @click="add(typed, false)">Add</el-button></template>
-      </el-input>
-      <div class="tools">
-        <el-button @click="go('model')">Change model</el-button>
-        <el-button v-if="category?.fields.some((f) => !f.retired)" @click="commonOpen = true">Same details for every {{ model?.model_no }}</el-button>
-      </div>
       <div class="scanned">
         <div class="scanned-head">
           <b>{{ rows.length }} scanned</b>
@@ -539,6 +573,13 @@ onMounted(async () => {
             <el-button link type="danger" :aria-label="`Remove ${r.serial_no}`" @click="remove(r.serial_no)">Remove</el-button>
           </li>
         </ol>
+      </div>
+      <el-input v-model="typed" size="large" placeholder="Or type a serial number" aria-label="Serial number" autocapitalize="characters" @keyup.enter="add(typed, false)">
+        <template #append><el-button @click="add(typed, false)">Add</el-button></template>
+      </el-input>
+      <div class="tools">
+        <el-button @click="go('model')">Change model</el-button>
+        <el-button v-if="category?.fields.some((f) => !f.retired)" @click="commonOpen = true">Same details for every {{ model?.model_no }}</el-button>
       </div>
     </section>
 
