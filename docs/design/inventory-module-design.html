@@ -287,6 +287,34 @@ td.mono { white-space: nowrap; }
 .decisions td:first-child { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
 .foot { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
 
+
+/* Project inventory page mock */
+.frame { border: 1px solid var(--line); border-radius: 12px; background: var(--bg); overflow: hidden; box-shadow: 0 10px 30px -18px rgba(15, 25, 40, 0.45); min-width: 900px; }
+.crumbs { font-size: 12.5px; color: var(--muted); padding: 12px 22px 0; }
+.proj-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 6px 22px 14px; }
+.proj-head h3 { font-size: 21px; }
+.proj-head p { font-size: 13px; color: var(--muted); }
+.proj-actions { display: flex; gap: 8px; }
+.btn { font: inherit; font-size: 13px; font-weight: 600; border-radius: 6px; padding: 7px 14px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); white-space: nowrap; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.proj-body { padding: 0 22px 20px; display: grid; gap: 14px; }
+.cat-table td, .cat-table th { text-align: right; font-variant-numeric: tabular-nums; }
+.cat-table td:first-child, .cat-table th:first-child { text-align: left; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.tabs span { padding: 8px 12px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs span.on { color: var(--fg); font-weight: 600; border-bottom-color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chips button { font: inherit; font-size: 12.5px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.chips button[aria-pressed="true"] { background: var(--inv); border-color: var(--inv); color: #fff; }
+.chips button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cf { background: var(--inv-soft); }
+th.cf { color: var(--inv); }
+.legend { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; background: var(--inv-soft); border: 1px solid var(--inv); display: inline-block; }
+.split { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 760px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.fielddefs td:nth-child(3), .fielddefs td:nth-child(4) { white-space: nowrap; }
+
 @media (max-width: 700px) {
   .wrap { gap: 44px; padding-block: 28px 56px; }
   .step { grid-template-columns: 36px minmax(0, 1fr); gap: 10px; }
@@ -304,7 +332,7 @@ td.mono { white-space: nowrap; }
     <div class="meta">
       <span class="pill">Draft for review</span>
       <span><b>Date</b> 12 Nov 2026</span>
-      <span><b>Modules</b> Resources (live today), Inventory (new)</span>
+      <span><b>Modules</b> Resources (live today), Inventory (new: any equipment, kept by project)</span>
       <span><b>Address</b> psbu.duckdns.org</span>
     </div>
     <div class="prose">
@@ -372,7 +400,7 @@ td.mono { white-space: nowrap; }
         </aside>
         <div class="main">
           <div class="topbar">
-            <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search requests, readers, projects and people<kbd>/</kbd></div>
+            <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg>Search requests, items, projects and people<kbd>/</kbd></div>
             <span class="scan-btn">Scan</span>
           </div>
           <div class="content" id="content"></div>
@@ -385,11 +413,11 @@ td.mono { white-space: nowrap; }
       <div class="note">
         <h3>Shared by all modules</h3>
         <dl>
-          <dt>+ New</dt><dd>One button to start anything: a resource request, a reader withdrawal or a delivery. It lists only what the person may create.</dd>
+          <dt>+ New</dt><dd>One button to start anything: a resource request, an item withdrawal or a delivery. Inventory actions ask for the project first. It lists only what the person may create.</dd>
           <dt>Home</dt><dd>What needs the person's attention across all modules, with figures for their roles.</dd>
           <dt>Approvals</dt><dd>One inbox for every decision, from any module, with a module filter. The badge counts all of them.</dd>
-          <dt>My work</dt><dd>The person's own requests of every type, their assignments and the readers they hold.</dd>
-          <dt>Projects</dt><dd>One page per project that brings the modules together: engineers allocated, resource requests, readers in stock and deployed, and withdrawals.</dd>
+          <dt>My work</dt><dd>The person's own requests of every type, their assignments and the items they hold.</dd>
+          <dt>Projects</dt><dd>One page per project that brings the modules together: engineers allocated, resource requests, and the project's inventory by category.</dd>
           <dt>Reports and Administration</dt><dd>One place each, with a tab per module.</dd>
         </dl>
       </div>
@@ -397,9 +425,9 @@ td.mono { white-space: nowrap; }
         <h3>Module sections</h3>
         <dl>
           <dt><span class="mod res">Resources</span></dt><dd>Resource requests and Resource load. These are today's pages, unchanged in function.</dd>
-          <dt><span class="mod inv">Inventory</span></dt><dd>Readers, Deliveries (inventory clerks), Withdrawals and Warranty.</dd>
+          <dt><span class="mod inv">Inventory</span></dt><dd>Project inventory (one page per project, the main place to work), All items across projects, Deliveries, Withdrawals and Warranty.</dd>
           <dt><span class="mod core">Future modules</span></dt><dd>Each new module adds its own section in the same place, plus its items in New, Approvals, Projects and Reports. Nothing else in the menu moves.</dd>
-          <dt>Search and Scan</dt><dd>The search bar finds anything by number, serial number, project or person. Scan opens the camera on a phone and goes straight to the reader.</dd>
+          <dt>Search and Scan</dt><dd>The search bar finds anything by number, serial number, project or person. Scan opens the camera on a phone and goes straight to the scanned item.</dd>
         </dl>
       </div>
     </div>
@@ -409,7 +437,7 @@ td.mono { white-space: nowrap; }
     <div class="section-head">
       <span class="eyebrow">Prototype · phone</span>
       <h2 id="h-mobile">The same system on a phone</h2>
-      <p class="muted">On a phone, the menu becomes a bottom bar with Home, Approvals, New, Scan and Me. Home lists the person's tasks from every module. Registering a delivery opens the camera, and each scan adds one reader.</p>
+      <p class="muted">On a phone, the menu becomes a bottom bar with Home, Approvals, New, Scan and Me. Home lists the person's tasks from every module. Registering a delivery starts by choosing the project, then the camera adds one item per scan. A delivery can hold several models; the clerk switches the model and keeps scanning.</p>
     </div>
     <div class="phones">
       <figure class="phone-wrap">
@@ -418,13 +446,13 @@ td.mono { white-space: nowrap; }
           <div class="m-head"><small>OpsHub</small><b>Good morning, James</b></div>
           <div class="m-body">
             <span class="m-label">Needs your action</span>
-            <div class="m-task"><div class="row"><b>Approve 2 readers</b><span class="mod inv">Inventory</span></div><span>WDR-2026-0017 · Jason Teo · HSA Permit Portal</span></div>
+            <div class="m-task"><div class="row"><b>Approve 3 items</b><span class="mod inv">Inventory</span></div><span>WDR-2026-0017 · 2 FR readers, 1 gateway · HSA Permit Portal</span></div>
             <div class="m-task"><div class="row"><b>Revise your request</b><span class="mod res">Resources</span></div><span>ERR-2026-0015 · rejected by Dir_user: revise schedule</span></div>
-            <div class="m-task"><div class="row"><b>Readers ready to collect</b><span class="mod inv">Inventory</span></div><span>WDR-2026-0014 · NEC Store, Level 3</span></div>
+            <div class="m-task"><div class="row"><b>Items ready to collect</b><span class="mod inv">Inventory</span></div><span>WDR-2026-0014 · NEC Store, Level 3</span></div>
             <span class="m-label">Start something</span>
             <div class="m-quick">
               <div>Request engineers<span>Resource request</span></div>
-              <div>Request readers<span>Reader withdrawal</span></div>
+              <div>Request items<span>From a project's stock</span></div>
             </div>
           </div>
           <div class="m-tabs" style="grid-template-columns: repeat(5, 1fr)"><span class="on">Home</span><span>Approvals</span><span class="plus"><i>+</i></span><span>Scan</span><span>Me</span></div>
@@ -435,7 +463,7 @@ td.mono { white-space: nowrap; }
       <figure class="phone-wrap">
         <div class="phone"><div class="phone-screen">
           <div class="status-bar"><span>9:43</span><span>4G</span></div>
-          <div class="m-head"><small>GRN-2026-0042 · HSA Permit Portal · FRX-200</small><b>Scan readers</b></div>
+          <div class="m-head"><small>HSA Permit Portal · GRN-2026-0042</small><b>Scan items</b></div>
           <div class="camera" aria-hidden="true">
             <div class="label">
               <span>MODEL FRX-200</span><div class="bars short"></div>
@@ -446,6 +474,7 @@ td.mono { white-space: nowrap; }
             <span class="torch">Torch</span>
           </div>
           <div class="m-body">
+            <div class="counter"><span>Model: <b style="font-size:12px">FRX-200 · FR reader</b></span><span class="tag blue">Change</span></div>
             <div class="found">
               <div class="found-row"><span class="mono">FRX24A0193</span><span class="tag green">Serial no.</span></div>
               <div class="found-row ignored"><span class="mono">00:1B:44:11:3A:B7</span><span>Ignored</span></div>
@@ -454,12 +483,78 @@ td.mono { white-space: nowrap; }
             <div class="scan-list">
               <div><span>FRX24A0193</span><span>Added</span></div>
               <div class="dup"><span>FRX24A0188</span><span>Already scanned</span></div>
-              <div><span>FRX24A0187</span><span>Added</span></div>
             </div>
           </div>
         </div></div>
-        <figcaption>Scanning a delivery: the camera keeps only the code that matches the model's serial number format.</figcaption>
+        <figcaption>Scanning a delivery for a project: the camera keeps only the code that matches the current model's serial number format.</figcaption>
       </figure>
+    </div>
+  </section>
+
+  <section id="project-inventory" aria-labelledby="h-projinv">
+    <div class="section-head">
+      <span class="eyebrow">Prototype · inventory</span>
+      <h2 id="h-projinv">Inventory is kept under each project</h2>
+      <p class="muted">Every item belongs to one project, and the project inventory page is where it is viewed and managed. Registering a delivery or requesting items starts here, or from + New, which asks for the project first. FR readers are one category among many. Each category has its own fields, which the administrator sets up without any development. Choose a category to see the list change to show that category's fields.</p>
+    </div>
+
+    <div class="screen-scroll">
+      <div class="frame">
+        <div class="crumbs">Inventory › Project inventory › HSA Permit Portal</div>
+        <div class="proj-head">
+          <div>
+            <h3>HSA Permit Portal</h3>
+            <p>WBS P26-0418 · Client HSA · PM James Lim · Store: NEC Store, Level 3</p>
+          </div>
+          <div class="proj-actions"><span class="btn">Export to Excel</span><span class="btn">Request items</span><span class="btn primary">Register delivery</span></div>
+        </div>
+        <div class="proj-body">
+          <div class="panel">
+            <h4>Equipment by category</h4>
+            <table class="cat-table">
+              <thead><tr><th>Category</th><th>In stock</th><th>Reserved</th><th>Issued</th><th>Deployed</th><th>Faulty or in repair</th><th>Total</th></tr></thead>
+              <tbody id="cat-summary"></tbody>
+            </table>
+          </div>
+          <div class="tabs"><span class="on">Items</span><span>Deliveries</span><span>Withdrawals</span><span>History</span><span>Warranty</span></div>
+          <div class="chips" role="group" aria-label="Choose a category" id="cat-chips"></div>
+          <div class="panel">
+            <table id="item-table"></table>
+            <span class="legend"><i></i>Fields defined for this category by the administrator</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="sample">All figures, names and serial numbers are examples.</p>
+
+    <div class="split">
+      <div class="card">
+        <h3>Administration › Categories › FR reader</h3>
+        <p class="muted small">The common fields (serial no., model, project, location, warranty dates) apply to every category. Below them, each category lists its own fields. The same definition draws the registration form, checks the values, adds the list columns and builds the Excel template.</p>
+        <div style="overflow-x:auto">
+          <table class="fielddefs" style="min-width:520px">
+            <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Show in list</th></tr></thead>
+            <tbody>
+              <tr><td>FR ID</td><td>Text</td><td>No</td><td>Yes</td></tr>
+              <tr><td>Deployment date</td><td>Date</td><td>No</td><td>No</td></tr>
+              <tr><td>OS version</td><td>Text</td><td>No</td><td>No</td></tr>
+              <tr><td>Firmware version</td><td>Text</td><td>No</td><td>Yes</td></tr>
+              <tr><td>APK version</td><td>Text</td><td>No</td><td>Yes</td></tr>
+              <tr><td>Mounting type</td><td>Choice: Wall, Pedestal, Turnstile, Desk, Other</td><td>No</td><td>Yes</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Adding a new category</h3>
+        <ul>
+          <li>Name it, for example "Camera", and choose whether warranty dates are required.</li>
+          <li>Add its fields: text, number, date, choice or yes/no.</li>
+          <li>Add its models, each with an optional serial number format for scanning.</li>
+          <li>It is ready to use at once, in every project.</li>
+        </ul>
+        <p class="muted small">Fields can be added or retired later. Retired fields keep their recorded values.</p>
+      </div>
     </div>
   </section>
 
@@ -475,7 +570,7 @@ td.mono { white-space: nowrap; }
         <div class="layer-head"><h3>Business modules</h3><span>Each one can be switched on or off</span></div>
         <div class="blocks">
           <div class="block res"><b>Resources</b><span>Resource requests, engineer allocation, resource load, calendar invites</span></div>
-          <div class="block inv"><b>Inventory</b><span>Readers, deliveries, withdrawals, handover, warranty, stocktake</span></div>
+          <div class="block inv"><b>Inventory</b><span>Equipment of any category, kept by project: deliveries, withdrawals, transfers, warranty, stocktake</span></div>
           <div class="block future"><b>Future module</b><span>For example: equipment loans, site visit logs, spare parts</span></div>
           <div class="block future"><b>Future module</b><span>For example: certifications and training, on-call roster</span></div>
         </div>
@@ -558,14 +653,14 @@ frontend/src/
       <table>
         <thead><tr><th>Role</th><th><span class="mod res">Resources</span></th><th><span class="mod inv">Inventory</span></th></tr></thead>
         <tbody>
-          <tr><td><b>Requester / Project manager</b></td><td>Raise resource requests</td><td>Approve withdrawals for the projects they manage (first level)</td></tr>
-          <tr><td><b>Engineer</b></td><td>See their assignments and calendar invites</td><td>Request readers, confirm handover, deploy, return, report faults</td></tr>
+          <tr><td><b>Requester / Project manager</b></td><td>Raise resource requests</td><td>See their projects' inventory; approve withdrawals for their projects (first level)</td></tr>
+          <tr><td><b>Engineer</b></td><td>See their assignments and calendar invites</td><td>Request items, confirm handover, deploy, return, report faults</td></tr>
           <tr><td><b>Team leader</b></td><td>Review requests and assign engineers</td><td>As an engineer</td></tr>
           <tr><td><b>Director</b></td><td>Final approval of resource requests</td><td>View inventory and reports</td></tr>
-          <tr><td><b>Operations manager</b> <span class="tag blue">new</span></td><td>View resource load and reports</td><td>Final approval of withdrawals; all inventory and reports</td></tr>
-          <tr><td><b>Inventory clerk</b> <span class="tag blue">new</span></td><td>None</td><td>Register deliveries, hand over readers, record returns and repairs, stocktake</td></tr>
+          <tr><td><b>Operations manager</b> <span class="tag blue">new</span></td><td>View resource load and reports</td><td>Final approval of withdrawals and transfers; all inventory and reports</td></tr>
+          <tr><td><b>Inventory clerk</b> <span class="tag blue">new</span></td><td>None</td><td>Register deliveries for any project, hand over items, record returns and repairs, stocktake</td></tr>
           <tr><td><b>Viewer</b></td><td>Reports</td><td>Reports</td></tr>
-          <tr><td><b>Administrator</b></td><td colspan="2">Users, roles, projects, locations, module settings and approval routes</td></tr>
+          <tr><td><b>Administrator</b></td><td colspan="2">Users, roles, projects, locations, inventory categories and their fields, module settings and approval routes</td></tr>
         </tbody>
       </table>
     </div>
@@ -584,9 +679,14 @@ frontend/src/
         <ul><li>The team leader also assigns engineers and their time.</li><li>Live today; moves onto the shared engine without changing how it works.</li></ul>
       </div>
       <div class="route">
-        <div class="route-head"><h3>Reader withdrawal</h3><span class="mod inv">Inventory</span></div>
+        <div class="route-head"><h3>Item withdrawal</h3><span class="mod inv">Inventory</span></div>
         <div class="chain"><span class="node"><i class="dot who-eng"></i>Engineer</span><span class="arrowtxt">→</span><span class="node"><i class="dot who-pm"></i>PM of the project</span><span class="arrowtxt">→</span><span class="node"><i class="dot who-om"></i>Operations manager</span></div>
-        <ul><li>The PM step is skipped, with the reason recorded, when the engineer is the project's PM.</li><li>Approved readers are reserved until handover.</li></ul>
+        <ul><li>The PM step is skipped, with the reason recorded, when the engineer is the project's PM.</li><li>Approved items are reserved until handover.</li></ul>
+      </div>
+      <div class="route">
+        <div class="route-head"><h3>Transfer between projects</h3><span class="mod inv">Inventory</span></div>
+        <div class="chain"><span class="node"><i class="dot who-clerk"></i>Clerk or PM</span><span class="arrowtxt">→</span><span class="node"><i class="dot who-pm"></i>PM of the receiving project</span><span class="arrowtxt">→</span><span class="node"><i class="dot who-om"></i>Operations manager</span></div>
+        <ul><li>For example, spare readers from one project reused on another.</li><li>The history records both projects and the reason.</li></ul>
       </div>
       <div class="route">
         <div class="route-head"><h3>Future document type</h3><span class="mod core">Any module</span></div>
@@ -595,7 +695,7 @@ frontend/src/
       </div>
     </div>
 
-    <h3>Reader withdrawal, step by step</h3>
+    <h3>Item withdrawal, step by step</h3>
     <div class="lanes-key">
       <span><i class="dot who-eng"></i>Engineer</span>
       <span><i class="dot who-pm"></i>Project manager</span>
@@ -606,7 +706,7 @@ frontend/src/
     <ol class="steps">
       <li class="step"><div class="step-card">
         <div class="step-top"><span class="actor"><i class="dot who-eng"></i>Engineer</span><h3>Create and submit</h3><span class="tag blue">Waiting for PM</span></div>
-        <p>From + New, choose Request readers, pick the project, and add readers by scanning or from the available stock. The system checks that each reader is in stock, belongs to the project and is not in another open request.</p>
+        <p>From the project's inventory page, or + New, choose Request items. Add specific items by scanning or from the project's stock, or ask for a model and a quantity. The system checks that each item is in stock, belongs to the project and is not in another open request.</p>
       </div></li>
       <li class="step"><div class="step-card">
         <div class="step-top"><span class="actor"><i class="dot who-pm"></i>Project manager</span><h3>First approval</h3><span class="tag blue">Waiting for OM</span></div>
@@ -615,24 +715,24 @@ frontend/src/
       <li class="step"><div class="step-card">
         <div class="step-top"><span class="actor"><i class="dot who-om"></i>Operations manager</span><h3>Final approval</h3><span class="tag green">Approved</span></div>
         <p>Any operations manager can approve. Nobody can approve their own request.</p>
-        <div class="branch"><b>If the PM or OM rejects:</b> the request goes back to the engineer with the comment, who can revise and resubmit it or withdraw it. The readers stay available.</div>
+        <div class="branch"><b>If the PM or OM rejects:</b> the request goes back to the engineer with the comment, who can revise and resubmit it or withdraw it. The items stay available.</div>
       </div></li>
       <li class="step"><div class="step-card">
-        <div class="step-top"><span class="actor"><i class="dot who-sys"></i>System</span><h3>Reserve the readers</h3><span class="tag amber">Reserved</span></div>
-        <p>The readers are held for this request. The engineer and the clerks are told they are ready for collection, and the clerk is reminded if nobody collects them within 10 working days.</p>
+        <div class="step-top"><span class="actor"><i class="dot who-sys"></i>System</span><h3>Reserve the items</h3><span class="tag amber">Reserved</span></div>
+        <p>Specific items are held for this request. The engineer and the clerks are told they are ready for collection, and the clerk is reminded if nobody collects them within 10 working days.</p>
       </div></li>
       <li class="step"><div class="step-card">
         <div class="step-top"><span class="actor"><i class="dot who-clerk"></i>Clerk and engineer</span><h3>Handover by scanning</h3><span class="tag green">Issued</span></div>
-        <p>The engineer scans each reader at the store. A reader not in the request is refused, and the handover cannot finish while one is missing.</p>
+        <p>The clerk picks items for any model-and-quantity lines, and the engineer scans every item. An item not in the request is refused, and the handover cannot finish while one is missing.</p>
       </div></li>
       <li class="step"><div class="step-card">
         <div class="step-top"><span class="actor"><i class="dot who-eng"></i>Engineer</span><h3>Deploy or return</h3><span class="tag green">Deployed</span></div>
-        <p>Each reader is marked as deployed at a site, or returned to the store. The request closes when all readers are accounted for. The project page shows the result.</p>
+        <p>Each item is marked as deployed at a site, or returned to the store. The request closes when all items are accounted for. The project's inventory page shows the result.</p>
       </div></li>
     </ol>
 
-    <h3>Reader lifecycle</h3>
-    <div class="diagram" role="img" aria-label="Reader lifecycle: In stock to Reserved to Issued to Deployed; Issued or Deployed to Returned and back to In stock; any state to Faulty, then In repair back to In stock, or Disposed.">
+    <h3>Item lifecycle, the same for every category</h3>
+    <div class="diagram" role="img" aria-label="Item lifecycle: In stock to Reserved to Issued to Deployed; Issued or Deployed to Returned and back to In stock; any state to Faulty, then In repair back to In stock, or Disposed.">
       <svg viewBox="0 0 880 362" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow" d="M0,0 L10,5 L0,10 z"/></marker>
@@ -664,7 +764,7 @@ frontend/src/
     <div class="section-head">
       <span class="eyebrow">Data</span>
       <h2 id="h-data">Shared records connect the modules</h2>
-      <p class="muted">Users, teams and projects belong to the core, so every module refers to the same project and the same person. This is what lets the project page show engineers and readers together.</p>
+      <p class="muted">Users, teams and projects belong to the core, so every module refers to the same project and the same person. This is what lets the project page show engineers and equipment together.</p>
     </div>
     <div class="cols">
       <div class="card">
@@ -672,7 +772,7 @@ frontend/src/
         <ul>
           <li><b>Users</b> and their roles</li>
           <li><b>Teams</b> and team leaders</li>
-          <li><b>Projects</b>: WBS code, name, client and PM. Today a project is typed into each resource request; it becomes a list, with existing names matched during migration.</li>
+          <li><b>Projects</b>: WBS code, name, client and PM. Inventory is kept under projects, and resource requests link to them. Today a project is typed into each resource request; it becomes a list, with existing names matched during migration.</li>
           <li><b>Locations</b>: stores and sites</li>
           <li><b>Approval tasks and history</b> for every document type</li>
         </ul>
@@ -688,11 +788,12 @@ frontend/src/
       <div class="card">
         <h3><span class="mod inv">Inventory</span> Module records</h3>
         <ul>
-          <li><b>Readers</b>: serial no., model, project, location, warranty start and end (mandatory); FR ID, deployment date, OS, firmware and APK versions, mounting type (optional)</li>
-          <li><b>Deliveries</b> (goods receipts)</li>
-          <li><b>Withdrawals</b> and their readers</li>
-          <li><b>Reader history</b>, which is only ever added to</li>
-          <li>Reader models and suppliers</li>
+          <li><b>Categories</b> such as FR reader, camera, gateway, tablet, each with its own fields</li>
+          <li><b>Models</b>, each in one category, and suppliers</li>
+          <li><b>Items</b>: serial no., model, project, location, warranty dates, plus the category's own fields</li>
+          <li><b>Deliveries</b>, each for one project</li>
+          <li><b>Withdrawals</b> and <b>transfers</b> between projects</li>
+          <li><b>Item history</b>, which is only ever added to</li>
         </ul>
       </div>
     </div>
@@ -706,9 +807,9 @@ frontend/src/
     </div>
     <div class="cols">
       <div class="card phase"><span class="num">0</span><div><h3>Platform foundation</h3><p class="muted small">New name, combined menu, + New, one Approvals inbox, project list, permission-based roles, and the approval engine. Resource requests move onto the core with no change for users, protected by the existing automated tests.</p></div></div>
-      <div class="card phase"><span class="num">1</span><div><h3>Inventory: register and find</h3><p class="muted small">Reader models, deliveries with scanning on a phone, reader list and history, Scan and search, Excel import and export.</p></div></div>
-      <div class="card phase"><span class="num">2</span><div><h3>Inventory: withdraw and issue</h3><p class="muted small">Withdrawals with PM and OM approval, reservation, handover by scanning, deploy, return and report fault, project page tab.</p></div></div>
-      <div class="card phase"><span class="num">3</span><div><h3>Monitor and extend</h3><p class="muted small">Warranty reminders, stocktake by scanning, combined reports. Then the next module, using the same pattern.</p></div></div>
+      <div class="card phase"><span class="num">1</span><div><h3>Inventory: register and find</h3><p class="muted small">Categories with their fields (FR reader first), models, the project inventory page, deliveries with scanning on a phone, item history, Scan and search, Excel import and export per project.</p></div></div>
+      <div class="card phase"><span class="num">2</span><div><h3>Inventory: withdraw and issue</h3><p class="muted small">Withdrawals with PM and OM approval, reservation, handover by scanning, deploy, return and report fault, transfers between projects.</p></div></div>
+      <div class="card phase"><span class="num">3</span><div><h3>Monitor and extend</h3><p class="muted small">Warranty reminders, stocktake by scanning, reports by project and category, items counted by quantity if needed. Then the next module, using the same pattern.</p></div></div>
     </div>
   </section>
 
@@ -724,10 +825,11 @@ frontend/src/
           <tr><td>D1</td><td>Which system name should be used?</td><td>OpsHub, shown as "PSBU OpsHub".</td></tr>
           <tr><td>D2</td><td>Should projects become a shared list maintained by the administrator, with a PM for each?</td><td>Yes. It links both modules and decides who approves withdrawals.</td></tr>
           <tr><td>D3</td><td>Should the web address stay psbu.duckdns.org?</td><td>Yes. It already names the business unit, not a module.</td></tr>
-          <tr><td>D4</td><td>Do engineers request specific readers by serial number, or a model and quantity?</td><td>Allow both. Specific readers only is simpler, if that is enough.</td></tr>
+          <tr><td>D4</td><td>Which equipment categories are needed at the start, and with which fields?</td><td>FR reader with the fields from the requirement, plus any others you name. More can be added at any time without development.</td></tr>
           <tr><td>D5</td><td>When the requester is the project's PM, skip the PM step?</td><td>Yes, record why, and keep the OM approval.</td></tr>
           <tr><td>D6</td><td>Who are the inventory clerks and operations managers?</td><td>Support engineers as clerks; OM as named by management.</td></tr>
-          <tr><td>D7</td><td>Is there an existing spreadsheet of readers to import?</td><td>Import it in Phase 1, with a preview.</td></tr>
+          <tr><td>D7</td><td>Do transfers between projects need approval, and do engineers request specific items or a model and quantity?</td><td>Transfers: receiving PM, then OM. Requests: allow both.</td></tr>
+          <tr><td>D9</td><td>Are there existing spreadsheets of equipment to import?</td><td>Import them per project in Phase 1, with a preview.</td></tr>
           <tr><td>D8</td><td>Which modules are likely next?</td><td>Name one or two now, so the core is checked against them.</td></tr>
         </tbody>
       </table>
@@ -762,7 +864,8 @@ frontend/src/
       { label: 'Resource load', roles: ['tl', 'dir', 'om', 'admin'] },
     ]},
     { group: 'Inventory', color: 'var(--inv)', items: [
-      { label: 'Readers', roles: ALL },
+      { label: 'Project inventory', roles: ALL },
+      { label: 'All items', roles: ['clerk', 'dir', 'om', 'admin'] },
       { label: 'Deliveries', roles: ['clerk', 'admin'] },
       { label: 'Withdrawals', roles: ALL, count: { clerk: 2 } },
       { label: 'Warranty', roles: ['clerk', 'om', 'admin'] },
@@ -778,34 +881,34 @@ frontend/src/
   const I = ['Inventory', 'inv'];
   const HOME = {
     pm: {
-      tiles: [['Waiting for your approval', 2, I, true], ['Your open resource requests', 3, R], ['Engineers on your projects', 7, R], ['Readers on your projects', 64, I]],
+      tiles: [['Waiting for your approval', 2, I, true], ['Your open resource requests', 3, R], ['Engineers on your projects', 7, R], ['Items on your projects', 267, I]],
       action: [
-        [I, 'WDR-2026-0017', 'Approve 2 readers for HSA Permit Portal', 'Jason Teo', ['Waiting for you', 'blue']],
-        [I, 'WDR-2026-0018', 'Approve 5 readers for HSA Permit Portal', 'Ravi Kumar', ['Waiting for you', 'blue']],
+        [I, 'WDR-2026-0017', 'Approve 2 items for HSA Permit Portal', 'Jason Teo', ['Waiting for you', 'blue']],
+        [I, 'WDR-2026-0018', 'Approve 5 items for HSA Permit Portal', 'Ravi Kumar', ['Waiting for you', 'blue']],
         [R, 'ERR-2026-0015', 'Revise and resubmit: "revise schedule"', 'Wee Lee Tan', ['Rejected, can resubmit', 'amber']],
       ],
-      side: ['Your projects', [['HSA Permit Portal', '4 engineers · 38 readers'], ['CSPL Data Migration', '3 engineers · 26 readers'], ['MOM Kiosk Refresh', 'Starts 1 Dec · 12 readers in stock']]],
+      side: ['Your projects', [['HSA Permit Portal', '4 engineers · 229 items'], ['CSPL Data Migration', '3 engineers · 26 items'], ['MOM Kiosk Refresh', 'Starts 1 Dec · 12 items in stock']]],
     },
     eng: {
-      tiles: [['Your assignments', 2, R], ['Readers you hold', 3, I], ['Your open requests', 2, I], ['Ready to collect', 1, I, true]],
+      tiles: [['Your assignments', 2, R], ['Items you hold', 3, I], ['Your open requests', 2, I], ['Ready to collect', 1, I, true]],
       action: [
-        [I, 'WDR-2026-0014', 'Collect 4 readers from NEC Store, Level 3', 'Approved by Grace Wong', ['Ready to collect', 'green']],
+        [I, 'WDR-2026-0014', 'Collect 4 items from NEC Store, Level 3', 'Approved by Grace Wong', ['Ready to collect', 'green']],
         [I, 'FRX24A0177', 'Mark as deployed or return to store', 'Issued 3 Nov', ['Issued to you', 'blue']],
         [R, 'ERR-2026-0012', 'Assigned at 50% from 16 Nov to 27 Nov', 'HSA Permit Portal', ['Starts Monday', 'blue']],
       ],
-      side: ['Coming up', [['16 Nov', 'HSA Permit Portal, 50%'], ['24 Nov', 'Install 4 readers at HSA Outram'], ['1 Dec', 'MOM Kiosk Refresh, 100%']]],
+      side: ['Coming up', [['16 Nov', 'HSA Permit Portal, 50%'], ['24 Nov', 'Install 4 items at HSA Outram'], ['1 Dec', 'MOM Kiosk Refresh, 100%']]],
     },
     clerk: {
-      tiles: [['To hand over', 2, I, true], ['Readers in stock', 142, I], ['Returned, to check', 3, I], ['Warranty ends in 60 days', 23, I]],
+      tiles: [['To hand over', 2, I, true], ['Items in stock', 142, I], ['Returned, to check', 3, I], ['Warranty ends in 60 days', 23, I]],
       action: [
-        [I, 'WDR-2026-0014', 'Hand over 4 readers to Jason Teo', 'HSA Permit Portal', ['Approved', 'green']],
-        [I, 'WDR-2026-0011', 'Hand over 2 readers to Nurul Huda', 'CSPL Data Migration', ['Approved', 'green']],
-        [I, 'FRX23B0402', 'Check returned reader', 'Returned by Chua Mei Ling', ['Returned', 'amber']],
+        [I, 'WDR-2026-0014', 'Hand over 4 items to Jason Teo', 'HSA Permit Portal', ['Approved', 'green']],
+        [I, 'WDR-2026-0011', 'Hand over 2 items to Nurul Huda', 'CSPL Data Migration', ['Approved', 'green']],
+        [I, 'FRX23B0402', 'Check returned item', 'Returned by Chua Mei Ling', ['Returned', 'amber']],
       ],
-      side: ['Recent deliveries', [['GRN-2026-0042', '20 readers · HSA Permit Portal'], ['GRN-2026-0041', '12 readers · CSPL Data Migration'], ['GRN-2026-0040', '8 readers · MOM Kiosk Refresh']]],
+      side: ['Recent deliveries', [['GRN-2026-0042', '20 items · HSA Permit Portal'], ['GRN-2026-0041', '12 items · CSPL Data Migration'], ['GRN-2026-0040', '8 items · MOM Kiosk Refresh']]],
     },
     tl: {
-      tiles: [['Waiting for your review', 3, R, true], ['Open team requests', 6, R], ['Engineers over 100%', 1, R, true], ['Readers held by your team', 11, I]],
+      tiles: [['Waiting for your review', 3, R, true], ['Open team requests', 6, R], ['Engineers over 100%', 1, R, true], ['Items held by your team', 11, I]],
       action: [
         [R, 'ERR-2026-0016', 'Review and assign engineers', 'James Lim · HSA Permit Portal', ['Waiting for you', 'blue']],
         [R, 'ERR-2026-0017', 'Review and assign engineers', 'Alex Tan · CSPL Data Migration', ['Urgent', 'red']],
@@ -814,19 +917,19 @@ frontend/src/
       side: ['Team load next week', [['Jason Teo', '150% · over-booked'], ['Ravi Kumar', '80%'], ['Nurul Huda', '50%']]],
     },
     dir: {
-      tiles: [['Waiting for your approval', 2, R, true], ['Approved this month', 14, R], ['Engineers allocated', 23, R], ['Readers deployed', 311, I]],
+      tiles: [['Waiting for your approval', 2, R, true], ['Approved this month', 14, R], ['Engineers allocated', 23, R], ['Items deployed', 311, I]],
       action: [
         [R, 'ERR-2026-0014', 'Final approval, engineers proposed', 'Zuocai Yu · HSA Permit Portal', ['Waiting for you', 'blue']],
         [R, 'ERR-2026-0013', 'Final approval, engineers proposed', 'Priya Nair · NLB Branch Upgrade', ['Urgent', 'red']],
       ],
-      side: ['This week', [['Resource requests', '5 submitted · 4 approved'], ['Reader withdrawals', '3 approved · 22 readers'], ['Warranties ending', '23 in 60 days']]],
+      side: ['This week', [['Resource requests', '5 submitted · 4 approved'], ['Item withdrawals', '3 approved · 22 items'], ['Warranties ending', '23 in 60 days']]],
     },
     om: {
-      tiles: [['Waiting for your approval', 3, I, true], ['Readers in stock', 142, I], ['Faulty or in repair', 4, I, true], ['Warranty ends in 60 days', 23, I]],
+      tiles: [['Waiting for your approval', 3, I, true], ['Items in stock', 142, I], ['Faulty or in repair', 4, I, true], ['Warranty ends in 60 days', 23, I]],
       action: [
-        [I, 'WDR-2026-0016', 'Final approval: 6 readers', 'Chua Mei Ling · HSA Permit Portal', ['Waiting for you', 'blue']],
-        [I, 'WDR-2026-0015', 'Final approval: 3 readers', 'Nurul Huda · CSPL Data Migration', ['Waiting for you', 'blue']],
-        [I, 'WDR-2026-0013', 'Final approval: 8 readers', 'Jason Teo · MOM Kiosk Refresh', ['Waiting for you', 'blue']],
+        [I, 'WDR-2026-0016', 'Final approval: 6 items', 'Chua Mei Ling · HSA Permit Portal', ['Waiting for you', 'blue']],
+        [I, 'WDR-2026-0015', 'Final approval: 3 items', 'Nurul Huda · CSPL Data Migration', ['Waiting for you', 'blue']],
+        [I, 'WDR-2026-0013', 'Final approval: 8 items', 'Jason Teo · MOM Kiosk Refresh', ['Waiting for you', 'blue']],
       ],
       side: ['Stock by status', [['In stock', '142'], ['Issued or reserved', '24'], ['Deployed', '311'], ['Faulty or in repair', '4']]],
     },
@@ -902,5 +1005,54 @@ frontend/src/
     document.getElementById('content').replaceChildren(head, tiles, panels);
   }
   render();
+
+  // Project inventory mock
+  const CATS = [
+    { name: 'FR reader', counts: [38, 4, 6, 120, 2], fields: ['FR ID', 'Firmware', 'APK', 'Mounting'],
+      rows: [
+        ['FRX24A0193', 'FRX-200', ['In stock', 'blue'], 'NEC Store, L3', '30 Oct 2028', ['', '4.2.1', '2.8.0', 'Pedestal']],
+        ['FRX24A0177', 'FRX-200', ['Issued', 'amber'], 'Jason Teo', '30 Oct 2028', ['FR-0177', '4.2.1', '2.8.0', 'Turnstile']],
+        ['FRX23B0451', 'FRX-100', ['Deployed', 'green'], 'HSA Outram, Gate 2', '30 Nov 2026', ['FR-0451', '3.9.4', '2.6.3', 'Wall']],
+        ['FRX23B0402', 'FRX-100', ['In repair', 'red'], 'Supplier repair', '30 Nov 2026', ['FR-0402', '3.9.4', '2.6.3', 'Wall']],
+      ]},
+    { name: 'Camera', counts: [12, 0, 2, 26, 1], fields: ['Resolution', 'Lens', 'Outdoor rated'],
+      rows: [
+        ['CAM8K20311', 'VC-4K', ['In stock', 'blue'], 'NEC Store, L3', '15 Jan 2029', ['4K', '2.8 mm', 'Yes']],
+        ['CAM8K20290', 'VC-4K', ['Deployed', 'green'], 'HSA Outram, Lobby', '15 Jan 2029', ['4K', '4 mm', 'No']],
+        ['CAM5M19876', 'VC-5M', ['Faulty', 'red'], 'NEC Store, L3', '2 Aug 2027', ['5 MP', '2.8 mm', 'Yes']],
+      ]},
+    { name: 'Gateway', counts: [3, 1, 0, 6, 0], fields: ['Firmware', 'Ports'],
+      rows: [
+        ['GW1A000412', 'EG-210', ['Reserved', 'amber'], 'NEC Store, L3', '1 Mar 2028', ['1.14', '8']],
+        ['GW1A000388', 'EG-210', ['Deployed', 'green'], 'HSA Outram, Server room', '1 Mar 2028', ['1.14', '8']],
+      ]},
+    { name: 'Tablet', counts: [5, 0, 3, 0, 0], fields: ['OS version', 'Managed by MDM'],
+      rows: [
+        ['TAB7Q55120', 'TX-10', ['In stock', 'blue'], 'NEC Store, L3', '20 Jun 2027', ['Android 14', 'Yes']],
+        ['TAB7Q55133', 'TX-10', ['Issued', 'amber'], 'Nurul Huda', '20 Jun 2027', ['Android 14', 'Yes']],
+      ]},
+  ];
+  const sum = (a) => a.reduce((x, y) => x + y, 0);
+  document.getElementById('cat-summary').replaceChildren(
+    ...CATS.map((c) => el('tr', {}, el('td', {}, el('b', { text: c.name })), ...c.counts.map((n) => el('td', { text: String(n) })), el('td', { text: String(sum(c.counts)) }))),
+    el('tr', {}, el('td', {}, el('b', { text: 'All categories' })), ...[0, 1, 2, 3, 4].map((i) => el('td', {}, el('b', { text: String(sum(CATS.map((c) => c.counts[i]))) }))), el('td', {}, el('b', { text: String(sum(CATS.map((c) => sum(c.counts)))) }))),
+  );
+  let cat = 0;
+  const chips = document.getElementById('cat-chips');
+  CATS.forEach((c, i) => {
+    const b = el('button', { type: 'button', 'aria-pressed': String(i === cat), text: `${c.name} (${sum(c.counts)})` });
+    b.addEventListener('click', () => { cat = i; drawItems(); });
+    chips.append(b);
+  });
+  function drawItems() {
+    [...chips.children].forEach((b, i) => b.setAttribute('aria-pressed', String(i === cat)));
+    const c = CATS[cat];
+    document.getElementById('item-table').replaceChildren(
+      el('thead', {}, el('tr', {}, ...['Serial no.', 'Model', 'Status', 'Location or holder', 'Warranty ends'].map((t) => el('th', { text: t })), ...c.fields.map((f) => el('th', { class: 'cf', text: f })))),
+      el('tbody', {}, ...c.rows.map(([sn, model, st, loc, wty, vals]) => el('tr', {},
+        el('td', { class: 'mono', text: sn }), el('td', { text: model }), el('td', {}, el('span', { class: `tag ${st[1]}`, text: st[0] })),
+        el('td', { text: loc }), el('td', { text: wty }), ...vals.map((v) => el('td', { class: 'cf', text: v || '—' }))))));
+  }
+  drawItems();
 })();
 </script>

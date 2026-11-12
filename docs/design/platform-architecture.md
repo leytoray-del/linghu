@@ -3,7 +3,7 @@
 | Item | Value |
 |---|---|
 | System | PSBU OpsHub (proposed name; currently "Engineering Resource Requests") |
-| Scope | One system with a shared core and business modules: Resources (live) and Inventory (new) |
+| Scope | One system with a shared core and business modules: Resources (live) and Inventory (new, project-based, any equipment category) |
 | Status | Draft for review. Replaces the earlier proposal that treated inventory as a separate area. |
 | Date | 12 Nov 2026 |
 | Related | `inventory-module-design.md` (inventory module details), `系统设计说明书.md` (resource module) |
@@ -33,13 +33,14 @@ OpsHub
 [ + New ]                     start anything the person may create, from any module
 Home                          needs your action, figures for your roles, across modules
 Approvals            (5)      one inbox for every module, with a module filter
-My work                       my requests of every type, my assignments, readers I hold
+My work                       my requests of every type, my assignments, items I hold
 Projects                      one page per project, with a tab per module
 RESOURCES
   Resource requests
   Resource load
 INVENTORY
-  Readers
+  Project inventory     one page per project: its items by category, deliveries, withdrawals
+  All items             across all projects
   Deliveries                  inventory clerks
   Withdrawals
   Warranty
@@ -49,7 +50,7 @@ SYSTEM
   Administration              users, roles, projects, locations, modules, approval routes
 ```
 
-The top bar holds a global search (by number, serial number, project or person) and, on phones, a Scan button that opens the camera and goes straight to the scanned reader.
+The top bar holds a global search (by number, serial number, project or person) and, on phones, a Scan button that opens the camera and goes straight to the scanned item.
 
 ### 3.2 Rules
 
@@ -59,7 +60,7 @@ The top bar holds a global search (by number, serial number, project or person) 
 
 ### 3.3 URLs
 
-Shared pages: `/`, `/approvals`, `/my-work`, `/projects/:id`, `/reports`, `/admin`. Module pages sit under the module: `/resources/requests/...`, `/inventory/readers/...`. The existing addresses, such as `/requests/42` and the `/act/:token` email links, keep working through redirects, so old emails and bookmarks are not broken.
+Shared pages: `/`, `/approvals`, `/my-work`, `/projects/:id`, `/reports`, `/admin`. Module pages sit under the module: `/resources/requests/...`, `/inventory/projects/:id/...`, `/inventory/items/...`. The existing addresses, such as `/requests/42` and the `/act/:token` email links, keep working through redirects, so old emails and bookmarks are not broken.
 
 ## 4. Architecture
 
@@ -80,12 +81,12 @@ A module plugs into the core by providing one module definition, which the core 
 | Item | Example for Inventory |
 |---|---|
 | Key, name and colour | `inventory`, "Inventory" |
-| Permissions | `inventory.reader.view`, `inventory.delivery.register`, `inventory.withdrawal.create`, `inventory.withdrawal.handover` |
-| Menu section and + New entries | Readers, Deliveries, Withdrawals, Warranty; "Request readers", "Register delivery" |
+| Permissions | `inventory.item.view`, `inventory.delivery.register`, `inventory.withdrawal.create`, `inventory.withdrawal.handover` |
+| Menu section and + New entries | Project inventory, All items, Deliveries, Withdrawals, Warranty; "Request items", "Register delivery" (both start by choosing the project) |
 | Document types and approval routes | `inventory.withdrawal`: project PM, then operations manager |
 | Home page providers | Tiles and "needs your action" items |
 | Search providers | Serial number lookup |
-| Project page tab, Reports tab, Administration tab | Readers on the project; stock report; reader models and suppliers |
+| Project page tab, Reports tab, Administration tab | The project's inventory page; stock report by project and category; categories with their fields, models and suppliers |
 | API router | `/api/v1/inventory/...` |
 | Tables and migrations | Tables prefixed `inv_`, migrations in the single chain |
 | Email templates and scheduled jobs | Ready for collection; warranty reminders |
@@ -108,13 +109,14 @@ The approval engine is the most important shared part. Today the resource reques
 - An **approval route** belongs to a document type and is a list of steps.
 - Each **step** has an approver rule: a role (any director, any operations manager), the team leader of the request's team, the PM of the request's project, or a named person. A step can also have a skip rule, such as "skip when the requester is the approver", which is recorded in the history.
 - The engine creates the tasks, sends the emails with Approve and Reject buttons, reminds, escalates, moves approvers when a team's approvers change, prevents self-approval and records every decision. These behaviours exist today for resource requests and become available to every module.
-- A module keeps its own business rules around a decision, such as the team leader assigning engineers or the reservation of readers, through hooks that the engine calls on approval and rejection.
+- A module keeps its own business rules around a decision, such as the team leader assigning engineers or the reservation of items, through hooks that the engine calls on approval and rejection.
 
 | Document type | Route |
 |---|---|
 | Resource request | Team leader of the team, then any director (unchanged) |
 | Resource change | Team leader of the team (unchanged) |
-| Reader withdrawal | PM of the project (skipped if the requester is the PM), then any operations manager |
+| Item withdrawal | PM of the project (skipped if the requester is the PM), then any operations manager |
+| Transfer between projects | PM of the receiving project, then any operations manager |
 
 ### 4.5 Code structure
 
@@ -149,14 +151,14 @@ frontend/src/
 | Locations | Core | Stores and sites |
 | Approval tasks and history | Core | One structure for every document type |
 | Resource requests, allocations, changes | Resources | Existing tables, renamed with the `res_` prefix by migration |
-| Readers, deliveries, withdrawals, reader history, models, suppliers | Inventory | New tables, `inv_` prefix |
+| Categories with their fields, models, suppliers, items (any category, each under one project), deliveries, withdrawals, transfers, item history | Inventory | New tables, `inv_` prefix. FR readers are the first category. |
 
 ## 6. Roles
 
 | Role | Resources | Inventory |
 |---|---|---|
 | Requester / Project manager | Raise resource requests | Approve withdrawals for their projects (first level) |
-| Engineer | Assignments and calendar invites | Request readers, handover, deploy, return, report faults |
+| Engineer | Assignments and calendar invites | Request items, handover, deploy, return, report faults |
 | Team leader | Review requests and assign engineers | As an engineer |
 | Director | Final approval of resource requests | View inventory and reports |
 | Operations manager (new) | View resource load and reports | Final approval of withdrawals; all inventory |
