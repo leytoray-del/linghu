@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { requestApi } from '@/api'
 import { ApiError } from '@/api/http'
 import NoticePanel from '@/components/NoticePanel.vue'
+import SensitiveNote from '@/components/SensitiveNote.vue'
 import { useLookupStore } from '@/stores/lookups'
 import type { NoticePreview, RequestDetail, RequestInput, RequestType } from '@/types/api'
 import { errorMessage, fieldErrors, showError, showSuccess } from '@/utils/feedback'
@@ -239,6 +240,9 @@ async function save(submit: boolean): Promise<void> {
       <div class="main-col">
         <section class="panel">
           <h2>Project / opportunity</h2>
+          <SensitiveNote
+            text="Use the project name and WBS code only. Do not enter contract values, pricing, tender details or personal data such as NRIC numbers, phone numbers or home addresses."
+          />
           <div class="grid">
             <el-form-item label="Request type" required :error="errors.request_type" class="full">
               <el-radio-group :model-value="form.request_type ?? undefined" @update:model-value="(v) => (form.request_type = v as RequestType)">
@@ -302,6 +306,9 @@ async function save(submit: boolean): Promise<void> {
 
         <section class="panel">
           <h2>Scope and schedule</h2>
+          <SensitiveNote
+            text="Describe the work in general terms. Do not enter passwords, IP addresses, server names, system access details, personal data or the client's confidential documents. Keep those in the project folder."
+          />
           <el-form-item label="Scope description" required :error="errors.scope_description" for="f-scope">
             <el-input
               id="f-scope"
@@ -336,6 +343,10 @@ async function save(submit: boolean): Promise<void> {
             </div>
           </el-form-item>
           <el-form-item v-if="showJustification" label="Justification for urgent request" required :error="errors.urgent_justification" for="f-justification">
+            <SensitiveNote
+              class="full-width"
+              text="Give the business reason briefly. Do not include personal or medical details about anyone, or confidential client information."
+            />
             <el-input
               id="f-justification"
               v-model="form.urgent_justification"
