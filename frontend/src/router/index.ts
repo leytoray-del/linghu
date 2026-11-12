@@ -11,6 +11,8 @@ declare module 'vue-router' {
   interface RouteMeta {
     title?: string
     public?: boolean
+    /** A task screen that uses the whole phone screen, with a close button instead of the tab bar. */
+    focus?: boolean
     roles?: Role[]
     /** Custom access check evaluated against the auth store. */
     allow?: (auth: ReturnType<typeof useAuthStore>) => boolean

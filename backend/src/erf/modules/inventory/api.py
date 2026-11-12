@@ -136,8 +136,10 @@ def update_category(category_id: int, body: CategoryIn, user: InvAdmin, ctx: Ctx
     return category_out(InventoryService(ctx).save_category(body, category_id))
 
 
+# Inventory clerks may add a model while registering a delivery, so a new device type does not wait for an
+# administrator. Changing an existing model, and categories, stay with administrators.
 @router.post("/models", response_model=ModelOut, status_code=status.HTTP_201_CREATED)
-def create_model(body: ModelIn, user: InvAdmin, ctx: Ctx) -> ModelOut:
+def create_model(body: ModelIn, user: Clerk, ctx: Ctx) -> ModelOut:
     return ModelOut.model_validate(InventoryService(ctx).save_model(body))
 
 

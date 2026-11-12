@@ -37,6 +37,12 @@ export const inventoryRoutes: RouteRecordRaw[] = [
     path: 'inventory/deliveries/new',
     name: 'inventory-delivery-new',
     component: () => import('./views/RegisterDeliveryView.vue'),
-    meta: { title: 'Register delivery', allow: (a) => a.can('inventory.register') },
+    meta: { title: 'Register delivery', focus: true, allow: (a) => a.can('inventory.register') },
+  },
+  {
+    path: 'inventory/scan',
+    name: 'inventory-scan',
+    component: () => import('./views/ScanView.vue'),
+    meta: { title: 'Scan', focus: true, allow: (a) => a.can('inventory.view') },
   },
 ]

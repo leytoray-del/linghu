@@ -52,6 +52,22 @@ def test_permissions_by_role(login) -> None:  # type: ignore[no-untyped-def]
     r = engineer.post("/inventory/deliveries", json=delivery(lk, reader("FRX26A0001", lk)))
     assert r.status_code == 403
     assert clerk.post("/inventory/categories", json={"code": "X", "name": "X"}).status_code == 403
+    cat_id = lk["categories"]["FR_READER"]["id"]
+    new_model = clerk.post(
+        "/inventory/models",
+        json={"category_id": cat_id, "model_no": "FRX-300", "serial_pattern": "FRX3[0-9]{6}"},
+    )
+    assert new_model.status_code == 201, "clerks can add a model while registering"
+    assert (
+        clerk.put(
+            f"/inventory/models/{new_model.json()['id']}", json={"category_id": cat_id, "model_no": "FRX-301"}
+        ).status_code
+        == 403
+    )
+    assert (
+        engineer.post("/inventory/models", json={"category_id": cat_id, "model_no": "FRX-400"}).status_code
+        == 403
+    )
     assert clerk.post("/projects", json={"code": "P1", "name": "P"}).status_code == 403
 
 
