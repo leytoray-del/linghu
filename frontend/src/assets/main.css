@@ -171,3 +171,23 @@ a {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/*
+ * iPhone and iPad zoom the page in when a text box with text smaller than 16px gets focus, and do not
+ * zoom back out, so the page ends up wider than the screen. On touch screens, every input uses 16px
+ * text. Pinch-to-zoom stays available.
+ */
+@media (pointer: coarse), (max-width: 860px) {
+  input,
+  textarea,
+  select,
+  .el-input__inner,
+  .el-textarea__inner,
+  .el-select__input,
+  .el-select__selected-item,
+  .el-select__placeholder,
+  .el-range-input,
+  .el-input-number .el-input__inner {
+    font-size: 16px !important;
+  }
+}
