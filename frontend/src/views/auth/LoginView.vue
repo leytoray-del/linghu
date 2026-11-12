@@ -60,9 +60,9 @@ async function submit(): Promise<void> {
   <div class="login">
     <section class="card">
       <div class="brand">
-        <span>Engineering</span>
-        <h1>Resource Requests</h1>
-        <p class="sub">Plan, request and approve project and SR resources.</p>
+        <span>PSBU Engineering Operations</span>
+        <h1>OpsHub</h1>
+        <p class="sub">Engineering resources and project equipment, in one place.</p>
       </div>
       <el-form label-position="top" @submit.prevent="submit">
         <el-form-item label="Work email" for="login-email">

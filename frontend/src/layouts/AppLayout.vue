@@ -17,20 +17,76 @@ interface NavItem {
   show: boolean
 }
 
-const nav = computed<NavItem[]>(() => [
-  { to: '/', label: 'Dashboard', show: true },
-  { to: '/requests/new', label: 'New request', show: true },
-  { to: '/requests', label: 'Requests', show: true },
-  { to: '/approvals', label: 'Approvals', badge: auth.me?.pending_task_count, show: auth.isApprover },
-  { to: '/resources', label: 'Resource load', show: auth.canSeeLoad },
-  { to: '/reports', label: 'Reports', show: auth.canSeeReports },
-  { to: '/admin', label: 'Settings', show: auth.hasRole('ADMIN') },
-])
+interface NavGroup {
+  /** Section heading; the first group has none. */
+  title?: string
+  /** Module colour shown beside the heading. */
+  tone?: 'res' | 'inv'
+  items: NavItem[]
+}
+
+/**
+ * The menu is organised by the person's work first (Home, Approvals), then by module.
+ * A module adds its own group; a group with nothing the user may open is hidden.
+ */
+const groups = computed<NavGroup[]>(() =>
+  [
+    {
+      items: [
+        { to: '/', label: 'Home', show: true },
+        { to: '/approvals', label: 'Approvals', badge: auth.me?.pending_task_count, show: auth.isApprover },
+      ],
+    },
+    {
+      title: 'Resources',
+      tone: 'res' as const,
+      items: [
+        { to: '/requests', label: 'Resource requests', show: true },
+        { to: '/resources', label: 'Resource load', show: auth.canSeeLoad },
+      ],
+    },
+    {
+      title: 'Inventory',
+      tone: 'inv' as const,
+      items: [
+        { to: '/inventory', label: 'Project inventory', show: auth.can('inventory.view') },
+        { to: '/inventory/items', label: 'All items', show: auth.can('inventory.view') },
+        { to: '/inventory/warranty', label: 'Warranty', show: auth.can('inventory.view') },
+      ],
+    },
+    {
+      title: 'Insights',
+      items: [{ to: '/reports', label: 'Reports', show: auth.canSeeReports }],
+    },
+    {
+      title: 'System',
+      items: [{ to: '/admin', label: 'Administration', show: auth.hasRole('ADMIN') }],
+    },
+  ]
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.show) }))
+    .filter((g) => g.items.length),
+)
+
+/** Everything the user may start, from any module. */
+const newItems = computed(() =>
+  [
+    { to: '/requests/new', label: 'Resource request', hint: 'Ask for engineers for a project', show: true },
+    {
+      to: '/inventory/deliveries/new',
+      label: 'Register delivery',
+      hint: 'Record equipment delivered for a project',
+      show: auth.can('inventory.register'),
+    },
+  ].filter((i) => i.show),
+)
 
 function isActive(item: NavItem): boolean {
-  if (item.to === '/') return route.path === '/'
-  if (item.to === '/requests') return route.path.startsWith('/requests') && route.path !== '/requests/new'
-  return route.path.startsWith(item.to)
+  const path = route.path
+  if (item.to === '/') return path === '/'
+  if (item.to === '/requests') return path.startsWith('/requests')
+  if (item.to === '/inventory') return path === '/inventory' || path.startsWith('/inventory/projects')
+  if (item.to === '/inventory/items') return path.startsWith('/inventory/items')
+  return path.startsWith(item.to)
 }
 
 const roleLabel = computed(() => {
@@ -40,6 +96,8 @@ const roleLabel = computed(() => {
     TEAM_LEADER: 'Team leader',
     ENGINEER: 'Engineer',
     VIEWER: 'Viewer',
+    INVENTORY_CLERK: 'Inventory clerk',
+    OPS_MANAGER: 'Operations manager',
   }
   const shown = (auth.me?.roles ?? []).filter((r) => r in names).map((r) => names[r])
   return shown.length ? shown.join(', ') : 'Requester'
@@ -68,17 +126,28 @@ async function onCommand(command: string): Promise<void> {
   <div class="shell">
     <aside class="rail" :class="{ open: navOpen }">
       <div class="brand">
-        <b>Resource Requests</b>
-        <span>Engineering</span>
+        <b>OpsHub</b>
+        <span>PSBU Engineering Operations</span>
       </div>
       <button class="menu-toggle" type="button" :aria-expanded="navOpen" @click="navOpen = !navOpen">Menu</button>
       <nav class="nav" aria-label="Main">
-        <template v-for="item in nav" :key="item.to">
-          <RouterLink v-if="item.show" :to="item.to" :aria-current="isActive(item) ? 'page' : undefined">
+        <el-dropdown trigger="click" class="new" @command="(to: string) => router.push(to)">
+          <button type="button" class="new-btn">+ New</button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-for="n in newItems" :key="n.to" :command="n.to">
+                <span class="new-item"><b>{{ n.label }}</b><small>{{ n.hint }}</small></span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <div v-for="(g, gi) in groups" :key="gi" class="group">
+          <span v-if="g.title" class="group-title"><i v-if="g.tone" :class="`tone-${g.tone}`" />{{ g.title }}</span>
+          <RouterLink v-for="item in g.items" :key="item.to" :to="item.to" :aria-current="isActive(item) ? 'page' : undefined">
             <span>{{ item.label }}</span>
             <span v-if="item.badge" class="badge">{{ item.badge }}</span>
           </RouterLink>
-        </template>
+        </div>
       </nav>
     </aside>
     <div class="main">
@@ -150,7 +219,61 @@ async function onCommand(command: string): Promise<void> {
 .nav {
   display: flex;
   flex-direction: column;
+  gap: 14px;
+}
+.group {
+  display: flex;
+  flex-direction: column;
   gap: 2px;
+}
+.group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--erf-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  padding: 0 10px 4px;
+}
+.group-title i {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+.tone-res {
+  background: #5b8def;
+}
+.tone-inv {
+  background: #2fbf9a;
+}
+.new {
+  display: block;
+}
+.new-btn {
+  width: 100%;
+  border: 0;
+  border-radius: var(--erf-radius);
+  background: var(--erf-accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.new-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.new-item {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  padding: 2px 0;
+}
+.new-item small {
+  color: var(--erf-muted);
 }
 .nav a {
   display: flex;

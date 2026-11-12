@@ -14,6 +14,11 @@ export const useAuthStore = defineStore('auth', () => {
     return !!me.value && roles.some((r) => me.value!.roles.includes(r))
   }
 
+  /** Whether the user's roles grant a permission, such as inventory.register. */
+  function can(permission: string): boolean {
+    return !!me.value && me.value.permissions.includes(permission)
+  }
+
   function hasScope(scope: ListScope): boolean {
     return !!me.value && me.value.scopes.includes(scope)
   }
@@ -66,6 +71,7 @@ export const useAuthStore = defineStore('auth', () => {
     canSeeReports,
     canSeeLoad,
     hasRole,
+    can,
     hasScope,
     ensureLoaded,
     refresh,

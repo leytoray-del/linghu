@@ -1,6 +1,14 @@
 // Types mirroring the backend response schemas (backend/src/erf/schemas).
 
-export type Role = 'REQUESTER' | 'TEAM_LEADER' | 'DIRECTOR' | 'ENGINEER' | 'ADMIN' | 'VIEWER'
+export type Role =
+  | 'REQUESTER'
+  | 'TEAM_LEADER'
+  | 'DIRECTOR'
+  | 'ENGINEER'
+  | 'ADMIN'
+  | 'VIEWER'
+  | 'INVENTORY_CLERK'
+  | 'OPS_MANAGER'
 export type RequestType = 'PROJECT' | 'PRESALES' | 'OTHER'
 export type Priority = 'NORMAL' | 'URGENT'
 export type RequestStatus =
@@ -38,6 +46,8 @@ export interface Me {
   roles: Role[]
   led_team_ids: number[]
   scopes: ListScope[]
+  /** Permissions granted by the user's roles, such as inventory.view. Pages check these, not role names. */
+  permissions: string[]
   must_change_password: boolean
   pending_task_count: number
 }
@@ -387,4 +397,33 @@ export interface UserImportResult {
   unchanged: number
   errors: number
   rows: UserImportRow[]
+}
+
+// Shared organisation records
+export type LocationKind = 'STORE' | 'SITE' | 'REPAIR' | 'OTHER'
+
+export interface Project {
+  id: number
+  code: string
+  name: string
+  client_name: string | null
+  pm: UserRef | null
+  remarks: string | null
+  is_active: boolean
+}
+
+export interface ProjectInput {
+  code: string
+  name: string
+  client_name: string | null
+  pm_user_id: number | null
+  remarks: string | null
+  is_active: boolean
+}
+
+export interface Location {
+  id: number
+  name: string
+  kind: LocationKind
+  is_active: boolean
 }

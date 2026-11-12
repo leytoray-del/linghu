@@ -142,7 +142,7 @@ async function confirm(): Promise<void> {
   <div class="act">
     <header class="top">
       <div class="inner">
-        <span class="brand">Engineering Resource Requests</span>
+        <span class="brand">PSBU OpsHub</span>
       </div>
     </header>
 

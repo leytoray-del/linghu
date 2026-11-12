@@ -12,12 +12,15 @@ import type {
   EmailActionResult,
   EmailActionView,
   ListScope,
+  Location,
   LoadOut,
   Lookups,
   Me,
   NoticePreview,
   OutboxSummary,
   Page,
+  Project,
+  ProjectInput,
   ReportSummary,
   RequestDetail,
   RequestInput,
@@ -175,4 +178,14 @@ export const adminApi = {
         { to },
       )
       .then((r) => r.data),
+}
+
+/** Projects and locations, shared by every module. */
+export const orgApi = {
+  projects: () => http.get<Project[]>('/projects').then((r) => r.data),
+  saveProject: (body: ProjectInput, id?: number) =>
+    (id ? http.put<Project>(`/projects/${id}`, body) : http.post<Project>('/projects', body)).then((r) => r.data),
+  locations: () => http.get<Location[]>('/locations').then((r) => r.data),
+  saveLocation: (body: Omit<Location, 'id'>, id?: number) =>
+    (id ? http.put<Location>(`/locations/${id}`, body) : http.post<Location>('/locations', body)).then((r) => r.data),
 }

@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 import { setUnauthorizedHandler } from '@/api/http'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { inventoryRoutes } from '@/modules/inventory/routes'
 import { useAuthStore } from '@/stores/auth'
 import type { Role } from '@/types/api'
 import { isStaleBuildError, reloadForNewVersion } from '@/utils/staleBuild'
@@ -33,9 +34,9 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     component: AppLayout,
     children: [
-      { path: '', name: 'dashboard', component: () => import('@/views/dashboard/DashboardView.vue'), meta: { title: 'Dashboard' } },
-      { path: 'requests', name: 'requests', component: () => import('@/views/requests/RequestListView.vue'), meta: { title: 'Requests' } },
-      { path: 'requests/new', name: 'request-new', component: () => import('@/views/requests/RequestFormView.vue'), meta: { title: 'New request' } },
+      { path: '', name: 'dashboard', component: () => import('@/views/dashboard/DashboardView.vue'), meta: { title: 'Home' } },
+      { path: 'requests', name: 'requests', component: () => import('@/views/requests/RequestListView.vue'), meta: { title: 'Resource requests' } },
+      { path: 'requests/new', name: 'request-new', component: () => import('@/views/requests/RequestFormView.vue'), meta: { title: 'New resource request' } },
       { path: 'requests/:id(\\d+)', name: 'request-detail', component: () => import('@/views/requests/RequestDetailView.vue'), meta: { title: 'Request' } },
       { path: 'requests/:id(\\d+)/edit', name: 'request-edit', component: () => import('@/views/requests/RequestFormView.vue'), meta: { title: 'Edit request' } },
       {
@@ -60,8 +61,9 @@ const routes: RouteRecordRaw[] = [
         path: 'admin',
         name: 'admin',
         component: () => import('@/views/admin/AdminView.vue'),
-        meta: { title: 'Settings', roles: ['ADMIN'] },
+        meta: { title: 'Administration', roles: ['ADMIN'] },
       },
+      ...inventoryRoutes,
       {
         path: 'account/password',
         name: 'change-password',
@@ -97,7 +99,7 @@ router.beforeEach(async (to) => {
 })
 
 router.afterEach((to) => {
-  document.title = to.meta.title ? `${to.meta.title} · Resource Requests` : 'Resource Requests'
+  document.title = to.meta.title ? `${to.meta.title} · OpsHub` : 'PSBU OpsHub'
 })
 
 router.onError((error, to) => {
