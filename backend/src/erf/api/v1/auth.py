@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request, Response
 from erf.api.deps import Ctx, CurrentUser
 from erf.core.errors import Unauthorized
 from erf.db.models import User
+from erf.domain.permissions import permissions_for
 from erf.schemas.auth import ChangePasswordIn, LoginIn, Me, TeamBrief
 from erf.schemas.common import Message
 from erf.services.access import AccessPolicy
@@ -26,6 +27,7 @@ def build_me(ctx: ServiceContext, user: User) -> Me:
         roles=sorted(user.roles),
         led_team_ids=access.led_team_ids(user),
         scopes=[s.value for s in access.allowed_scopes(user)],
+        permissions=sorted(p.value for p in permissions_for(user.roles)),
         must_change_password=user.must_change_password,
         pending_task_count=RequestService(ctx).pending_task_count(user),
     )

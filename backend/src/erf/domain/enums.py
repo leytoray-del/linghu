@@ -12,6 +12,8 @@ class Role(StrEnum):
     ENGINEER = "ENGINEER"
     ADMIN = "ADMIN"
     VIEWER = "VIEWER"
+    INVENTORY_CLERK = "INVENTORY_CLERK"
+    OPS_MANAGER = "OPS_MANAGER"
 
 
 class RequestType(StrEnum):
@@ -91,3 +93,10 @@ class OutboxStatus(StrEnum):
 OPEN_STATUSES = frozenset(
     {RequestStatus.PENDING_TL_REVIEW, RequestStatus.PENDING_DIRECTOR_APPROVAL, RequestStatus.RETURNED}
 )
+
+
+class LocationKind(StrEnum):
+    STORE = "STORE"
+    SITE = "SITE"
+    REPAIR = "REPAIR"
+    OTHER = "OTHER"

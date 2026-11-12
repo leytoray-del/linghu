@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="ERF_", env_file=".env", extra="ignore")
 
     env: Literal["development", "test", "production"] = "development"
-    app_name: str = "Engineering Resource Requests"
+    app_name: str = "PSBU OpsHub"
     base_url: str = "http://localhost:5173"
     """Public URL of the web UI, used for links in emails."""
 

@@ -31,5 +31,6 @@ class Me(Schema):
     roles: list[Role]
     led_team_ids: list[int]
     scopes: list[str]
+    permissions: list[str]
     must_change_password: bool
     pending_task_count: int

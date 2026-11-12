@@ -20,6 +20,7 @@ from erf.core.config import Settings
 from erf.core.security import hash_password
 from erf.db.models import Holiday, NotificationOutbox, ResourceRequest, SupportType, Team, TeamApprover, User
 from erf.domain.enums import Action, OutboxStatus, Priority, RequestType, Role
+from erf.modules.inventory.seed import seed_inventory_demo, seed_inventory_reference
 from erf.schemas.requests import RequestIn
 from erf.services.context import ServiceContext
 from erf.services.request_service import RequestService
@@ -87,6 +88,8 @@ DEMO_USERS = [
     DemoUser("e_ravi", "ravi.kumar@example.com", "Ravi Kumar", "Senior Developer", (Role.ENGINEER,), "DEV", "Java, integration"),
     DemoUser("e_jason", "jason.teo@example.com", "Jason Teo", "Developer", (Role.ENGINEER,), "DEV", ".NET, web portal"),
     DemoUser("e_siti", "siti.aminah@example.com", "Siti Aminah", "Solution Architect", (Role.ENGINEER,), "DEV", "Solution design"),
+    DemoUser("clerk", "muthu.selvam@example.com", "Muthu Selvam", "Support Engineer, Inventory", (Role.ENGINEER, Role.INVENTORY_CLERK), "SUPPORT", "Hardware, logistics"),
+    DemoUser("ops", "wong.meifen@example.com", "Wong Mei Fen", "Operations Manager", (Role.OPS_MANAGER,)),
     DemoUser("e_marcus", "marcus.lee@example.com", "Marcus Lee", "Developer", (Role.ENGINEER,), "DEV", "Python, ETL"),
 ]  # fmt: skip
 
@@ -345,9 +348,14 @@ def seed_demo_requests(session: Session, settings: Settings, users: dict[str, Us
 
 def seed_all(session: Session, settings: Settings, *, demo: bool, clock: Clock | None = None) -> str:
     seed_reference(session)
+    seed_inventory_reference(session)
     if not demo:
         return "Reference data is in place."
     users = seed_demo_users(session)
     today = (clock or Clock(settings.timezone)).today()
     n = seed_demo_requests(session, settings, users, today)
-    return f"Reference data, {len(users)} demo accounts and {n} demo requests are in place."
+    items = seed_inventory_demo(session, settings, users, today, clock)
+    return (
+        f"Reference data, {len(users)} demo accounts, {n} demo requests"
+        f"{' and demo inventory' if items else ''} are in place."
+    )

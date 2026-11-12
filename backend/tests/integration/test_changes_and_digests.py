@@ -304,7 +304,9 @@ def test_upgrade_from_0001_keeps_data_without_rebuilding_tables(tmp_path: Path, 
         assert before_counts["resource_requests"] == 11
         command.upgrade(cfg, "head")
         after_counts, after_pages = snapshot()
-        assert after_counts.pop("request_changes") == 0
+        # Tables added by later migrations start empty; every existing table keeps all its rows.
+        for table in set(after_counts) - set(before_counts):
+            assert after_counts.pop(table) == 0, f"{table} should start empty"
         assert after_counts == before_counts, "no rows lost or added"
         for table in ("approval_tasks", "notification_outbox", "resource_requests"):
             assert after_pages[table] == before_pages[table], f"{table} was rebuilt"

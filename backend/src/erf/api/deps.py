@@ -13,6 +13,7 @@ from erf.core.errors import Forbidden, Unauthorized
 from erf.db.models import User
 from erf.db.session import session_scope
 from erf.domain.enums import Role
+from erf.domain.permissions import Permission, permissions_for
 from erf.services.auth_service import AuthService
 from erf.services.context import ServiceContext
 
@@ -57,6 +58,15 @@ CurrentUser = Annotated[User, Depends(current_user)]
 def require_roles(*roles: Role) -> Callable[[User], User]:
     def checker(user: CurrentUser) -> User:
         if not user.has_role(*roles):
+            raise Forbidden("You do not have permission for this page.")
+        return user
+
+    return checker
+
+
+def require_permission(permission: Permission) -> Callable[[User], User]:
+    def checker(user: CurrentUser) -> User:
+        if permission not in permissions_for(user.roles):
             raise Forbidden("You do not have permission for this page.")
         return user
 
