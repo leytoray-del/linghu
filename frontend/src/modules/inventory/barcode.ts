@@ -9,7 +9,7 @@
 
 export type Verdict =
   | { kind: 'serial'; serial: string }
-  | { kind: 'skip'; reason: string }
+  | { kind: 'skip'; reason: string; wrongFormat?: boolean }
 
 /** Part number, customer part number, date and quantity identifiers: never a serial number. */
 const NOT_A_SERIAL: { re: RegExp; what: string }[] = [
@@ -55,7 +55,9 @@ export function pickSerial(raw: string, pattern: string | null | undefined, mode
   if (pattern) {
     // Try the value as read first, then without an identifier.
     const hit = [code, ...options.filter((c) => c !== code)].find((c) => matches(pattern, c))
-    return hit ? { kind: 'serial', serial: hit } : { kind: 'skip', reason: `${code} is not a ${modelNo} serial number.` }
+    return hit
+      ? { kind: 'serial', serial: hit }
+      : { kind: 'skip', wrongFormat: true, reason: `${code} does not match the serial number format of ${modelNo}.` }
   }
   const other = NOT_A_SERIAL.find((n) => n.re.test(code))
   if (other) return { kind: 'skip', reason: `${code} looks like ${other.what}, not a serial number.` }

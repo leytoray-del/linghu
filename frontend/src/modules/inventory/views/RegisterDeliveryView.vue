@@ -46,7 +46,13 @@ const common = ref<Record<number, Record<string, AttributeValue>>>({})
 const rows = ref<Row[]>([])
 const typed = ref('')
 const scanning = ref(false)
-const notice = ref<{ type: 'success' | 'warning' | 'error'; text: string } | null>(null)
+interface Notice {
+  type: 'success' | 'warning' | 'error'
+  text: string
+  /** Offered when a skipped code matches another model's serial number format. */
+  switchTo?: { modelId: number; modelNo: string; code: string }
+}
+const notice = ref<Notice | null>(null)
 const saving = ref(false)
 const errors = ref<Record<string, string>>({})
 const formError = ref<string | null>(null)
@@ -92,9 +98,39 @@ function normalise(value: string): string {
 /** The latest outcome, also shown on the camera view so it is seen while scanning. */
 const scanFeedback = computed(() =>
   notice.value
-    ? { tone: notice.value.type === 'success' ? ('ok' as const) : notice.value.type === 'warning' ? ('warn' as const) : ('bad' as const), text: notice.value.text }
+    ? {
+        tone: notice.value.type === 'success' ? ('ok' as const) : notice.value.type === 'warning' ? ('warn' as const) : ('bad' as const),
+        text: notice.value.text,
+        action: notice.value.switchTo ? `Switch to ${notice.value.switchTo.modelNo} and add it` : undefined,
+      }
     : null,
 )
+const scanCaption = computed(() => (model.value ? `Scanning for ${modelLabel(model.value.id)}` : 'Choose the model first'))
+
+/** Explain a code that does not fit the chosen model, and offer a model whose format it does fit. */
+function wrongModel(raw: string, reason: string, fromCamera: boolean): Notice {
+  const other = models.value.find(
+    (m) => m.id !== modelId.value && m.serial_pattern && pickSerial(raw, m.serial_pattern, m.model_no).kind === 'serial',
+  )
+  if (other) {
+    return {
+      type: 'warning',
+      text: `${reason} It matches model ${other.model_no}.`,
+      switchTo: { modelId: other.id, modelNo: other.model_no, code: raw },
+    }
+  }
+  return {
+    type: fromCamera ? 'warning' : 'error',
+    text: `${reason} Check that you chose the right model. If the format is wrong, an administrator can change it under Administration, Models and suppliers.`,
+  }
+}
+
+async function switchModelAndAdd(): Promise<void> {
+  const target = notice.value?.switchTo
+  if (!target) return
+  modelId.value = target.modelId
+  await add(target.code, true)
+}
 
 /**
  * Add one serial number. Codes from the camera go through pickSerial, which removes label identifiers
@@ -111,7 +147,9 @@ async function add(raw: string, fromCamera: boolean): Promise<boolean> {
   if (fromCamera || model.value.serial_pattern) {
     const verdict = pickSerial(raw, model.value.serial_pattern, model.value.model_no)
     if (verdict.kind === 'skip') {
-      notice.value = { type: fromCamera ? 'warning' : 'error', text: fromCamera ? `Skipped: ${verdict.reason}` : verdict.reason }
+      notice.value = verdict.wrongFormat
+        ? wrongModel(raw, verdict.reason, fromCamera)
+        : { type: fromCamera ? 'warning' : 'error', text: fromCamera ? `Skipped: ${verdict.reason}` : verdict.reason }
       return false
     }
     serial = verdict.serial
@@ -383,6 +421,8 @@ onMounted(async () => {
           <BarcodeScanner
             v-if="scanning"
             :feedback="scanFeedback"
+            :caption="scanCaption"
+            @action="switchModelAndAdd"
             @code="(c) => add(c, true)"
             @codes="addFromPhoto"
             @close="scanning = false"
@@ -405,7 +445,11 @@ onMounted(async () => {
           </p>
         </template>
 
-        <el-alert v-if="notice" :type="notice.type" :title="notice.text" :closable="false" show-icon class="notice" />
+        <el-alert v-if="notice" :type="notice.type" :title="notice.text" :closable="false" show-icon class="notice">
+          <template v-if="notice.switchTo" #default>
+            <el-button size="small" type="primary" plain @click="switchModelAndAdd">Switch to {{ notice.switchTo.modelNo }} and add it</el-button>
+          </template>
+        </el-alert>
 
         <div class="list-head">
           <b>{{ rows.length }} item{{ rows.length === 1 ? '' : 's' }}</b>

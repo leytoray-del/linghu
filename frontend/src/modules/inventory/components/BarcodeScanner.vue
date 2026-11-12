@@ -11,8 +11,12 @@
 import { BarcodeFormat, DecodeHintType } from '@zxing/library'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
-defineProps<{ feedback?: { tone: 'ok' | 'warn' | 'bad'; text: string } | null }>()
-const emit = defineEmits<{ code: [value: string]; codes: [values: string[]]; close: [] }>()
+defineProps<{
+  feedback?: { tone: 'ok' | 'warn' | 'bad'; text: string; action?: string } | null
+  /** Shown at the top of the camera view, for example the model being scanned. */
+  caption?: string
+}>()
+const emit = defineEmits<{ code: [value: string]; codes: [values: string[]]; action: []; close: [] }>()
 
 const video = ref<HTMLVideoElement | null>(null)
 const photoInput = ref<HTMLInputElement | null>(null)
@@ -297,9 +301,13 @@ onBeforeUnmount(stop)
     <div class="viewport">
       <video ref="video" muted playsinline aria-label="Camera view for scanning barcodes" />
       <div class="reticle" aria-hidden="true" />
+      <p v-if="caption" class="caption">{{ caption }}</p>
       <p v-if="starting" class="state">Opening the camera…</p>
       <p v-else-if="reading" class="state">Reading the photo…</p>
-      <p v-else-if="feedback" class="state" :class="feedback.tone" role="status">{{ feedback.text }}</p>
+      <div v-else-if="feedback" class="state" :class="feedback.tone" role="status">
+        <p>{{ feedback.text }}</p>
+        <button v-if="feedback.action" type="button" class="state-action" @click="emit('action')">{{ feedback.action }}</button>
+      </div>
       <p v-else-if="error" class="state bad">{{ error }}</p>
       <p v-else class="state">Point at the barcode. Codes are read automatically.</p>
     </div>
@@ -351,6 +359,29 @@ video {
   background: rgba(0, 0, 0, 0.6);
   padding: 7px 10px;
   border-radius: 6px;
+}
+.state p {
+  margin: 0;
+}
+.state-action {
+  margin-top: 6px;
+  font: inherit;
+  font-weight: 600;
+  color: #1b2533;
+  background: #fff;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.caption {
+  position: absolute;
+  inset: 10px 10px auto;
+  margin: 0;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 .state.ok {
   background: rgba(23, 120, 74, 0.92);
