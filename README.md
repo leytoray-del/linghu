@@ -41,7 +41,7 @@ backend/        FastAPI service (Python 3.12+), SQLite through SQLAlchemy 2 and 
   tests/        Unit tests (domain) and integration tests (API, jobs, migrations)
 frontend/       Vue 3, TypeScript, Element Plus, Pinia, Vue Router
 deploy/         systemd units, Caddy site, environment template and release scripts
-docs/           Design document (Chinese), UI prototype and deployment guide
+docs/           Design documents (system design in Chinese; inventory module design in docs/design/inventory-module-design.md), UI prototype and deployment guide
 ```
 
 ## Local development
