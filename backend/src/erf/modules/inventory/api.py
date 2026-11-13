@@ -35,6 +35,7 @@ from erf.schemas.common import Page
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 Viewer = Annotated[User, Depends(require_permission(Permission.INVENTORY_VIEW))]
 Clerk = Annotated[User, Depends(require_permission(Permission.INVENTORY_REGISTER))]
+Editor = Annotated[User, Depends(require_permission(Permission.INVENTORY_EDIT))]
 InvAdmin = Annotated[User, Depends(require_permission(Permission.INVENTORY_ADMIN))]
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -104,12 +105,14 @@ def item(item_id: int, user: Viewer, ctx: Ctx) -> ItemDetailOut:
 
 
 @router.put("/items/{item_id}", response_model=ItemDetailOut)
-def update_item(item_id: int, body: ItemUpdateIn, user: Clerk, ctx: Ctx) -> ItemDetailOut:
+def update_item(item_id: int, body: ItemUpdateIn, user: Editor, ctx: Ctx) -> ItemDetailOut:
     return InventoryService(ctx).update_item(user, item_id, body)
 
 
 @router.post("/items/{item_id}/actions/{action}", response_model=ItemDetailOut)
-def item_action(item_id: int, action: ItemAction, body: ItemActionIn, user: Clerk, ctx: Ctx) -> ItemDetailOut:
+def item_action(
+    item_id: int, action: ItemAction, body: ItemActionIn, user: Editor, ctx: Ctx
+) -> ItemDetailOut:
     return InventoryService(ctx).act(user, item_id, action, body)
 
 

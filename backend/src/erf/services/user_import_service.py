@@ -39,7 +39,7 @@ ROLE_NAMES: dict[Role, str] = {
     Role.DIRECTOR: "Director",
     Role.VIEWER: "Viewer",
     Role.ADMIN: "Administrator",
-    Role.INVENTORY_CLERK: "Inventory clerk",
+    Role.INVENTORY_CLERK: "Inventory editor",
     Role.OPS_MANAGER: "Operations manager",
 }
 _ROLE_WORDS = {name.lower(): role for role, name in ROLE_NAMES.items()} | {
@@ -49,6 +49,8 @@ _ROLE_WORDS = {name.lower(): role for role, name in ROLE_NAMES.items()} | {
     "team_leader": Role.TEAM_LEADER,
     "om": Role.OPS_MANAGER,
     "clerk": Role.INVENTORY_CLERK,
+    "inventory clerk": Role.INVENTORY_CLERK,
+    "editor": Role.INVENTORY_CLERK,
 }
 _HEADER_KEYS = {
     "email": "email",

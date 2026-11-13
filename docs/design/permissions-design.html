@@ -137,11 +137,11 @@ th { font-weight: 500; color: var(--muted); font-size: 12.5px; position: sticky;
     <div class="cols">
       <div class="card">
         <h3>1. Roles <span class="verdict good">works</span></h3>
-        <p class="small">Eight roles: Requester, Engineer, Team leader, Director, Operations manager, Inventory clerk, Viewer and Administrator. A person can hold several. The administrator assigns them on the Users page or by Excel import.</p>
+        <p class="small">Eight roles: Requester, Engineer, Team leader, Director, Operations manager, Inventory editor, Viewer and Administrator. A person can hold several. The administrator assigns them on the Users page or by Excel import.</p>
       </div>
       <div class="card">
         <h3>2. Permissions <span class="verdict gap">partly</span></h3>
-        <p class="small">Inventory pages check permissions such as <code>inventory.view</code> and <code>inventory.register</code>. Which role gets which permission is written in the code, so changing it needs a release. The resource request pages still check role names directly.</p>
+        <p class="small">Inventory pages check permissions: <code>inventory.view</code>, <code>inventory.register</code> (engineers, when devices arrive) and, separately, <code>inventory.edit</code> to change saved items. Which role gets which permission is written in the code, so changing it needs a release. The resource request pages still check role names directly.</p>
       </div>
       <div class="card">
         <h3>3. Assignments <span class="verdict good">works</span></h3>
@@ -178,7 +178,7 @@ th { font-weight: 500; color: var(--muted); font-size: 12.5px; position: sticky;
       </div>
       <div class="card">
         <h3>Scopes limit which records</h3>
-        <p class="small"><b>Own</b> (what I raised or hold), <b>My teams</b>, <b>My projects</b> (projects I manage or am assigned to), <b>All</b>. With several roles, the widest scope applies.</p>
+        <p class="small"><b>Own</b> (what I raised, registered or hold), <b>My teams</b>, <b>My projects</b> (projects I manage or am assigned to), <b>All</b>. With several roles, the widest scope applies. For example, engineers could be allowed to change only the items they registered themselves.</p>
       </div>
       <div class="card">
         <h3>Menus follow permissions</h3>
@@ -208,17 +208,17 @@ th { font-weight: 500; color: var(--muted); font-size: 12.5px; position: sticky;
     </div>
     <div class="mock" aria-label="Mock-up of the Roles and permissions screen">
       <div class="roles">
-        <div>Requester <small>system</small></div><div>Engineer <small>system</small></div><div class="on">Inventory clerk <small>system</small></div>
+        <div>Requester <small>system</small></div><div class="on">Engineer <small>system</small></div><div>Inventory editor <small>system</small></div>
         <div>Team leader <small>system</small></div><div>Director <small>system</small></div><div>Operations manager <small>system</small></div>
         <div>Viewer <small>system</small></div><div>Store keeper <small>custom</small></div><div>Administrator <small>locked</small></div>
         <div style="color:var(--accent)">+ Add role</div>
       </div>
       <div class="body">
-        <div class="bar"><h3>Inventory clerk · 6 people</h3><span><span class="btn">Preview as this role</span> <span class="btn primary">Save</span></span></div>
+        <div class="bar"><h3>Engineer · 14 people</h3><span><span class="btn">Preview as this role</span> <span class="btn primary">Save</span></span></div>
         <span class="tag inv" style="justify-self:start">Inventory</span>
         <div class="perm"><span class="box on"></span><span>See items<small>Project inventory, All items, Warranty</small></span><span class="sel">All projects ▾</span></div>
-        <div class="perm"><span class="box on"></span><span>Register devices<small>+ New › Register device</small></span><span class="sel">All projects ▾</span></div>
-        <div class="perm"><span class="box on"></span><span>Edit item details and record changes<small>Move, fault, repair</small></span><span class="sel">All projects ▾</span></div>
+        <div class="perm"><span class="box on"></span><span>Register devices<small>+ New › Register device, when equipment arrives</small></span><span class="sel">All projects ▾</span></div>
+        <div class="perm"><span class="box"></span><span>Change saved items<small>Details, location, faults, repairs. Choose: registered by me, my projects, or all</small></span><span class="sel">Registered by me ▾</span></div>
         <div class="perm"><span class="box on"></span><span>Add a model while registering</span><span></span></div>
         <div class="perm"><span class="box"></span><span>Write off items<small>Final; kept in the history</small></span><span></span></div>
         <div class="perm"><span class="box"></span><span>Manage kinds of equipment, models and suppliers</span><span></span></div>
@@ -250,7 +250,7 @@ th { font-weight: 500; color: var(--muted); font-size: 12.5px; position: sticky;
         <tbody>
           <tr><td>P1</td><td>Should administrators be able to add their own roles, such as "Store keeper"?</td><td>Yes. The system roles cover most people; custom roles cover exceptions.</td></tr>
           <tr><td>P2</td><td>Who may see inventory: everyone, or only people on the project?</td><td>Everyone sees all projects by default (scope All); limit a role to "My projects" if needed.</td></tr>
-          <tr><td>P3</td><td>May engineers register devices, or only inventory clerks?</td><td>Clerks only by default. Grant "Register devices" to Engineer later if needed.</td></tr>
+          <tr><td>P3</td><td>Who may change items after they are saved, and which items?</td><td><b>Decided (live now):</b> engineers register devices; changing saved items is a separate permission. Recommended default: Administrator and the Inventory editor role change any item; engineers change none, or only the items they registered if you prefer.</td></tr>
           <tr><td>P4</td><td>Should writing off an item need a separate permission?</td><td>Yes. It is final, so it is kept for Operations manager and Administrator.</td></tr>
         </tbody>
       </table>
@@ -263,7 +263,7 @@ th { font-weight: 500; color: var(--muted); font-size: 12.5px; position: sticky;
 <script>
 (() => {
   const ROLES = [
-    ['req', 'Requester'], ['eng', 'Engineer'], ['clerk', 'Inventory clerk'], ['tl', 'Team leader'],
+    ['req', 'Requester'], ['eng', 'Engineer'], ['editor', 'Inventory editor'], ['tl', 'Team leader'],
     ['dir', 'Director'], ['om', 'Operations manager'], ['viewer', 'Viewer'], ['admin', 'Administrator'],
   ];
   // permission, module, description, { role: scope } (scope '' means no scope applies)
@@ -272,19 +272,19 @@ th { font-weight: 500; color: var(--muted); font-size: 12.5px; position: sticky;
     ['core.roles.manage', 'core', 'Edit roles and permissions', { admin: '' }],
     ['core.org.manage', 'core', 'Manage projects, locations and teams', { admin: '' }],
     ['core.settings.manage', 'core', 'Workflow rules, holidays, email', { admin: '' }],
-    ['resources.request.create', 'res', 'Raise resource requests', { req: 'Own', eng: 'Own', clerk: 'Own', tl: 'Own', dir: 'Own', om: 'Own', admin: 'Own' }],
-    ['resources.request.view', 'res', 'See resource requests', { req: 'Own', eng: 'Own', clerk: 'Own', tl: 'My teams', dir: 'All', om: 'All', viewer: 'All', admin: 'All' }],
+    ['resources.request.create', 'res', 'Raise resource requests', { req: 'Own', eng: 'Own', editor: 'Own', tl: 'Own', dir: 'Own', om: 'Own', admin: 'Own' }],
+    ['resources.request.view', 'res', 'See resource requests', { req: 'Own', eng: 'Own', editor: 'Own', tl: 'My teams', dir: 'All', om: 'All', viewer: 'All', admin: 'All' }],
     ['resources.request.review', 'res', 'Review and assign engineers (as team approver)', { tl: 'My teams' }],
     ['resources.request.approve', 'res', 'Give final approval', { dir: 'All' }],
     ['resources.load.view', 'res', 'See resource load', { tl: 'My teams', dir: 'All', om: 'All', viewer: 'All', admin: 'All' }],
     ['resources.reports.view', 'res', 'See resource reports', { tl: 'My teams', dir: 'All', om: 'All', viewer: 'All', admin: 'All' }],
-    ['inventory.item.view', 'inv', 'See project inventory and items', { req: 'All', eng: 'All', clerk: 'All', tl: 'All', dir: 'All', om: 'All', viewer: 'All', admin: 'All' }],
-    ['inventory.device.register', 'inv', 'Register devices', { clerk: 'All', admin: 'All' }],
-    ['inventory.item.edit', 'inv', 'Edit details, move, report faults, repairs', { clerk: 'All', admin: 'All' }],
+    ['inventory.item.view', 'inv', 'See project inventory and items', { req: 'All', eng: 'All', editor: 'All', tl: 'All', dir: 'All', om: 'All', viewer: 'All', admin: 'All' }],
+    ['inventory.device.register', 'inv', 'Register devices when they arrive', { eng: 'All', editor: 'All', admin: 'All' }],
+    ['inventory.item.edit', 'inv', 'Change saved items: details, location, faults, repairs', { editor: 'All', admin: 'All' }],
     ['inventory.item.dispose', 'inv', 'Write off items', { om: 'All', admin: 'All' }],
-    ['inventory.model.create', 'inv', 'Add a model while registering', { clerk: '', admin: '' }],
+    ['inventory.model.create', 'inv', 'Add a model while registering', { eng: '', editor: '', admin: '' }],
     ['inventory.catalog.manage', 'inv', 'Kinds of equipment, models, suppliers', { admin: '' }],
-    ['inventory.withdrawal.create', 'inv', 'Request items (next phase)', { eng: 'All', clerk: 'All', tl: 'All' }],
+    ['inventory.withdrawal.create', 'inv', 'Request items (next phase)', { eng: 'All', editor: 'All', tl: 'All' }],
     ['inventory.withdrawal.approve', 'inv', 'Approve withdrawals (as project PM, or OM)', { req: 'My projects', om: 'All' }],
   ];
   const has = (sel, p) => ROLES.some(([r]) => sel.has(r) && r in PERMS.find((x) => x[0] === p)[3]);
@@ -298,7 +298,7 @@ th { font-weight: 500; color: var(--muted); font-size: 12.5px; position: sticky;
   const NEW = [['Resource request', 'resources.request.create'], ['Register device', 'inventory.device.register'], ['Request items', 'inventory.withdrawal.create']];
 
   const el = (t, a = {}, ...k) => { const n = document.createElement(t); for (const [x, v] of Object.entries(a)) { if (x === 'class') n.className = v; else if (x === 'text') n.textContent = v; else n.setAttribute(x, v); } k.forEach((c) => c != null && n.append(c)); return n; };
-  let sel = new Set(['clerk']);
+  let sel = new Set(['eng']);
   try { const s = JSON.parse(localStorage.getItem('opshub-perm-roles') || 'null'); if (Array.isArray(s) && s.length) sel = new Set(s); } catch (e) { /* optional */ }
 
   const box = document.getElementById('roles');

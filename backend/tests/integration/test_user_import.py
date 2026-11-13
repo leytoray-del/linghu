@@ -59,7 +59,7 @@ def test_preview_then_import_creates_and_updates_by_email(login) -> None:  # typ
         6: '"not-an-email" is not a valid email address.',
         7: "This email address appears more than once in the file.",
         8: 'There is no team called "Nowhere".',
-        9: '"boss" is not a role. Use: Requester, Engineer, Team leader, Director, Viewer, Administrator, Inventory clerk, Operations manager.',
+        9: '"boss" is not a role. Use: Requester, Engineer, Team leader, Director, Viewer, Administrator, Inventory editor, Operations manager.',
         10: "A name is needed to add a new person.",
     }
     assert len(admin.get("/admin/users").json()) == len(before), "a preview saves nothing"

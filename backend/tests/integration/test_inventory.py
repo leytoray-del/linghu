@@ -45,12 +45,35 @@ def reader(serial: str, lk: dict[str, Any], **extra: Any) -> dict[str, Any]:
 def test_permissions_by_role(login) -> None:  # type: ignore[no-untyped-def]
     clerk, engineer, admin = login(CLERK), login(ENGINEER), login(ADMIN)
     assert "inventory.register" in clerk.me["permissions"]
-    assert engineer.me["permissions"] == ["inventory.view"]
+    assert engineer.me["permissions"] == ["inventory.register", "inventory.view"]
+    assert "inventory.edit" in clerk.me["permissions"] and "inventory.edit" not in engineer.me["permissions"]
     assert {"core.admin", "inventory.admin"} <= set(admin.me["permissions"])
     lk = lookups(engineer)
     assert engineer.get("/inventory/projects").status_code == 200
     r = engineer.post("/inventory/deliveries", json=delivery(lk, reader("FRX26A0001", lk)))
-    assert r.status_code == 403
+    assert r.status_code == 201, "engineers register devices when they arrive"
+    item = engineer.get(
+        f"/inventory/items/{r.json()['id'] and engineer.get('/inventory/items/check-serial', params={'serial': 'FRX26A0001'}).json()['item_id']}"
+    ).json()
+    edit = engineer.put(
+        f"/inventory/items/{item['id']}",
+        json={
+            "version": item["version"],
+            "attributes": {},
+            "warranty_start": item["warranty_start"],
+            "warranty_end": item["warranty_end"],
+        },
+    )
+    assert edit.status_code == 403, "changing a saved item is a separate permission"
+    move = engineer.post(
+        f"/inventory/items/{item['id']}/actions/report_fault",
+        json={"version": item["version"], "reason": "x"},
+    )
+    assert move.status_code == 403
+    viewer = login("pmo@example.com")
+    assert (
+        viewer.post("/inventory/deliveries", json=delivery(lk, reader("FRX26A0002", lk))).status_code == 403
+    )
     assert clerk.post("/inventory/categories", json={"code": "X", "name": "X"}).status_code == 403
     cat_id = lk["categories"]["FR_READER"]["id"]
     new_model = clerk.post(
@@ -65,7 +88,9 @@ def test_permissions_by_role(login) -> None:  # type: ignore[no-untyped-def]
         == 403
     )
     assert (
-        engineer.post("/inventory/models", json={"category_id": cat_id, "model_no": "FRX-400"}).status_code
+        login("pmo@example.com")
+        .post("/inventory/models", json={"category_id": cat_id, "model_no": "FRX-400"})
+        .status_code
         == 403
     )
     assert clerk.post("/projects", json={"code": "P1", "name": "P"}).status_code == 403

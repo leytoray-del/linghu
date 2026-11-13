@@ -138,7 +138,7 @@ const roleLabel = computed(() => {
     TEAM_LEADER: 'Team leader',
     ENGINEER: 'Engineer',
     VIEWER: 'Viewer',
-    INVENTORY_CLERK: 'Inventory clerk',
+    INVENTORY_CLERK: 'Inventory editor',
     OPS_MANAGER: 'Operations manager',
   }
   const shown = (auth.me?.roles ?? []).filter((r) => r in names).map((r) => names[r])

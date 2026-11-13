@@ -17,7 +17,8 @@ const route = useRoute()
 const auth = useAuthStore()
 const lk = useInventoryLookups()
 const item = ref<ItemDetail | null>(null)
-const canEdit = computed(() => auth.can('inventory.register'))
+// Changing a saved item is a separate permission from registering it.
+const canEdit = computed(() => auth.can('inventory.edit'))
 const fields = computed(() => lk.category(item.value?.category_id)?.fields ?? [])
 const shownFields = computed(() => fields.value.filter((f) => !f.retired || item.value?.attributes[f.key] != null))
 

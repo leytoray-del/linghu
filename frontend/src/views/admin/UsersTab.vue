@@ -15,7 +15,7 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: 'TEAM_LEADER', label: 'Team leader' },
   { value: 'DIRECTOR', label: 'Director' },
   { value: 'ENGINEER', label: 'Engineer' },
-  { value: 'INVENTORY_CLERK', label: 'Inventory clerk' },
+  { value: 'INVENTORY_CLERK', label: 'Inventory editor (can change saved items)' },
   { value: 'OPS_MANAGER', label: 'Operations manager' },
   { value: 'VIEWER', label: 'Viewer (reports)' },
   { value: 'ADMIN', label: 'Administrator' },
