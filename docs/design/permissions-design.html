@@ -1,0 +1,352 @@
+<title>OpsHub Permissions Design</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one reading column; the role preview and the matrix use the full width. Colours follow the OpsHub app. */
+:root {
+  --bg: #f3f5f8; --surface: #ffffff; --sunk: #eaeef4; --fg: #17202c; --muted: #5a6577; --line: #d9dfe8;
+  --accent: #2254c5; --accent-soft: #e4ebfa; --ok: #17784a; --ok-soft: #e3f2ea; --warn: #a35c00; --warn-soft: #f8ecd9;
+  --core: #5b4bb7; --core-soft: #ebe8f8; --res: #2f6fd6; --res-soft: #e2ecfb; --inv: #0f8a72; --inv-soft: #dff3ee;
+  --rail: #1b2533; --rail-fg: #c9d2df; --rail-dim: #8693a6; --rail-active: #2b3a50;
+  --font: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+  --mono: 'IBM Plex Mono', 'Cascadia Mono', ui-monospace, Consolas, monospace;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10151d; --surface: #171f2a; --sunk: #1d2633; --fg: #e5eaf1; --muted: #9aa5b5; --line: #2b3646;
+    --accent: #7ba2ff; --accent-soft: #1f2d4a; --ok: #56c491; --ok-soft: #173326; --warn: #e3a957; --warn-soft: #3a2b14;
+    --core: #a99bff; --core-soft: #29244a; --res: #7ba2ff; --res-soft: #1c2a45; --inv: #4fd1b2; --inv-soft: #14322b;
+    --rail: #0b1017; --rail-fg: #c3cddb; --rail-dim: #7d899b; --rail-active: #1d2938; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10151d; --surface: #171f2a; --sunk: #1d2633; --fg: #e5eaf1; --muted: #9aa5b5; --line: #2b3646;
+  --accent: #7ba2ff; --accent-soft: #1f2d4a; --ok: #56c491; --ok-soft: #173326; --warn: #e3a957; --warn-soft: #3a2b14;
+  --core: #a99bff; --core-soft: #29244a; --res: #7ba2ff; --res-soft: #1c2a45; --inv: #4fd1b2; --inv-soft: #14322b;
+  --rail: #0b1017; --rail-fg: #c3cddb; --rail-dim: #7d899b; --rail-active: #1d2938; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 15px; line-height: 1.6; }
+.wrap {
+  max-width: 1120px; margin: 0 auto; display: grid; gap: 52px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 40px 72px;
+}
+h1, h2, h3 { margin: 0; line-height: 1.25; text-wrap: balance; }
+h1 { font-size: clamp(28px, 4vw, 36px); font-weight: 700; }
+h2 { font-size: 23px; font-weight: 600; }
+h3 { font-size: 16px; font-weight: 600; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13.5px; }
+code, .mono { font-family: var(--mono); font-size: 0.9em; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+section { display: grid; gap: 18px; min-width: 0; }
+.head { display: grid; gap: 6px; max-width: 74ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--muted); }
+.pill { font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.card ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+.verdict { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 999px; }
+.verdict.good { background: var(--ok-soft); color: var(--ok); }
+.verdict.gap { background: var(--warn-soft); color: var(--warn); }
+
+/* model diagram */
+.model { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: stretch; }
+.node { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: grid; gap: 4px; position: relative; }
+.node b { font-size: 15px; }
+.node span { font-size: 13px; color: var(--muted); }
+.node:not(:last-child)::after { content: '→'; position: absolute; right: -10px; top: 50%; transform: translate(50%, -50%); color: var(--muted); font-size: 18px; }
+.node.rel { border-style: dashed; }
+.rule { background: var(--accent-soft); border-radius: var(--radius); padding: 12px 16px; font-size: 14.5px; }
+.rule b { color: var(--accent); }
+@media (max-width: 760px) { .model { grid-template-columns: minmax(0, 1fr); } .node:not(:last-child)::after { content: '↓'; right: 50%; top: auto; bottom: -14px; transform: translateX(50%); } }
+
+/* preview */
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.toolbar label { font-size: 13px; color: var(--muted); margin-right: 4px; }
+.chip { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.preview { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 760px) { .preview { grid-template-columns: minmax(0, 1fr); } }
+.rail { background: var(--rail); color: var(--rail-fg); border-radius: 12px; padding: 14px 10px; display: grid; gap: 12px; font-size: 14px; }
+.rail .brand { color: #fff; font-weight: 700; padding: 0 8px; }
+.rail .new { background: var(--accent); color: #fff; border-radius: 6px; padding: 7px; text-align: center; font-weight: 600; }
+.rail .grp { display: grid; gap: 1px; }
+.rail .grp > span { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--rail-dim); padding: 0 8px 3px; }
+.rail .item { padding: 5px 8px; border-radius: 6px; display: flex; justify-content: space-between; gap: 6px; }
+.rail .item small { font-family: var(--mono); font-size: 10px; color: var(--rail-dim); align-self: center; }
+.rail .sheet { border-top: 1px solid var(--rail-active); padding-top: 10px; display: grid; gap: 4px; }
+.rail .sheet > span { font-size: 12px; color: var(--rail-dim); padding: 0 8px; }
+.rail .sheet div { background: var(--rail-active); border-radius: 6px; padding: 6px 8px; color: #fff; }
+.matrix-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+.matrix { min-width: 760px; }
+th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { font-weight: 500; color: var(--muted); font-size: 12.5px; position: sticky; top: 0; background: var(--surface); }
+.matrix td.c, .matrix th.c { text-align: center; white-space: nowrap; }
+.matrix tr.mod td { background: var(--sunk); font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.matrix td.key code { white-space: nowrap; }
+.yes { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); font-weight: 600; font-size: 12px; }
+.scope { font-size: 11.5px; color: var(--muted); display: block; }
+.matrix th.c.sel, .matrix td.c.sel { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.no { color: var(--line); }
+.tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 7px; border-radius: 999px; }
+.tag.core { background: var(--core-soft); color: var(--core); }
+.tag.res { background: var(--res-soft); color: var(--res); }
+.tag.inv { background: var(--inv-soft); color: var(--inv); }
+
+/* admin mock */
+.mock { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; display: grid; grid-template-columns: 210px minmax(0, 1fr); min-width: 0; overflow: hidden; }
+@media (max-width: 760px) { .mock { grid-template-columns: minmax(0, 1fr); } }
+.mock .roles { border-right: 1px solid var(--line); padding: 12px 8px; display: grid; gap: 2px; align-content: start; background: var(--bg); }
+.mock .roles div { padding: 7px 10px; border-radius: 6px; font-size: 14px; display: flex; justify-content: space-between; }
+.mock .roles div.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.mock .roles small { color: var(--muted); font-size: 11.5px; }
+.mock .body { padding: 14px 16px; display: grid; gap: 12px; min-width: 0; }
+.mock .bar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: center; }
+.btn { font-size: 13px; font-weight: 600; border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; background: var(--surface); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.perm { display: grid; grid-template-columns: 22px minmax(0, 1fr) 150px; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.box { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--line); }
+.box.on { background: var(--accent); border-color: var(--accent); }
+.sel { font-size: 12.5px; border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; color: var(--muted); }
+.perm small { display: block; color: var(--muted); font-size: 12px; }
+.decisions td:first-child { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+.foot { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+
+<div class="wrap">
+  <header class="head" style="max-width:none">
+    <span class="eyebrow">PSBU OpsHub · design proposal</span>
+    <h1>Permissions: who can see and do what</h1>
+    <div class="meta"><span class="pill">For review</span><span>13 Nov 2026</span><span>Applies to every module and the menus</span></div>
+    <p style="max-width:72ch">This page shows how access works in OpsHub today, where it falls short, and a finer-grained design that stays easy to manage. The interactive preview shows which menu items and which <b>+ New</b> options each role gets.</p>
+  </header>
+
+  <section aria-labelledby="h-today">
+    <div class="head">
+      <span class="eyebrow">Today</span>
+      <h2 id="h-today">How access works now</h2>
+      <p class="muted">Access is already decided in three ways. The foundation is sound, but administrators cannot change what a role allows, and the two modules check access differently.</p>
+    </div>
+    <div class="cols">
+      <div class="card">
+        <h3>1. Roles <span class="verdict good">works</span></h3>
+        <p class="small">Eight roles: Requester, Engineer, Team leader, Director, Operations manager, Inventory clerk, Viewer and Administrator. A person can hold several. The administrator assigns them on the Users page or by Excel import.</p>
+      </div>
+      <div class="card">
+        <h3>2. Permissions <span class="verdict gap">partly</span></h3>
+        <p class="small">Inventory pages check permissions such as <code>inventory.view</code> and <code>inventory.register</code>. Which role gets which permission is written in the code, so changing it needs a release. The resource request pages still check role names directly.</p>
+      </div>
+      <div class="card">
+        <h3>3. Assignments <span class="verdict good">works</span></h3>
+        <p class="small">Some rights come from a relationship, not a role: the approvers of a team review that team's requests, and the PM named on a project will approve its withdrawals. This is correct and stays.</p>
+      </div>
+    </div>
+    <div class="card">
+      <h3>What is missing</h3>
+      <ul>
+        <li>An administrator cannot adjust a role, for example let clerks export but not edit, or create a read-only "Store keeper" role.</li>
+        <li>There is no data scope for inventory: everyone who can see inventory sees every project.</li>
+        <li>Menus are wired to roles in two different ways, so a new module or role needs code changes in several places.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-model">
+    <div class="head">
+      <span class="eyebrow">Proposal</span>
+      <h2 id="h-model">One model for every module</h2>
+      <p class="muted">The standard role-based access model (RBAC), with a data scope on each permission and assignments for approvals. Administrators work with roles; the system works with permissions.</p>
+    </div>
+    <div class="model" role="img" aria-label="A user holds roles; each role grants permissions, each with a scope; assignments such as team approver or project PM add approval rights.">
+      <div class="node"><b>User</b><span>Holds one or more roles</span></div>
+      <div class="node"><b>Role</b><span>A named set of permissions, edited by the administrator</span></div>
+      <div class="node"><b>Permission + scope</b><span><code>inventory.item.view</code> for <i>my projects</i> or <i>all</i></span></div>
+      <div class="node rel"><b>Assignment</b><span>Team approver, project PM: who decides a specific request</span></div>
+    </div>
+    <p class="rule"><b>The rule:</b> an action is allowed when one of the person's roles grants the permission, the record is inside that permission's scope, and, for approvals, the person is the assigned approver of that record.</p>
+    <div class="cols">
+      <div class="card">
+        <h3>Permissions are named by module, object and action</h3>
+        <p class="small"><code>resources.request.approve</code>, <code>inventory.device.register</code>. Each module declares its own permissions, with a description and the roles that get them by default. A new module's permissions appear on the roles screen automatically.</p>
+      </div>
+      <div class="card">
+        <h3>Scopes limit which records</h3>
+        <p class="small"><b>Own</b> (what I raised or hold), <b>My teams</b>, <b>My projects</b> (projects I manage or am assigned to), <b>All</b>. With several roles, the widest scope applies.</p>
+      </div>
+      <div class="card">
+        <h3>Menus follow permissions</h3>
+        <p class="small">Every menu item, every <b>+ New</b> option and every button names the permission it needs. There is no separate menu setting to keep in step, so a person never sees a page they cannot use.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-preview">
+    <div class="head">
+      <span class="eyebrow">Preview</span>
+      <h2 id="h-preview">What each role sees</h2>
+      <p class="muted">Choose one or more roles, as a person can hold several. The menu, the <b>+ New</b> options and the highlighted column of the table update. These are the proposed defaults; the administrator can change them.</p>
+    </div>
+    <div class="toolbar"><label id="role-l">Roles</label><div id="roles" role="group" aria-labelledby="role-l" class="toolbar"></div></div>
+    <div class="preview">
+      <div class="rail" id="menu" aria-live="polite"></div>
+      <div class="matrix-wrap"><table class="matrix" id="matrix"></table></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-admin">
+    <div class="head">
+      <span class="eyebrow">Administration</span>
+      <h2 id="h-admin">The new Roles and permissions screen</h2>
+      <p class="muted">Under Administration, People and organisation. Roles on the left; on the right, the permissions of the chosen role, grouped by module, each with its scope. "Preview as this role" opens the menu exactly as that role sees it.</p>
+    </div>
+    <div class="mock" aria-label="Mock-up of the Roles and permissions screen">
+      <div class="roles">
+        <div>Requester <small>system</small></div><div>Engineer <small>system</small></div><div class="on">Inventory clerk <small>system</small></div>
+        <div>Team leader <small>system</small></div><div>Director <small>system</small></div><div>Operations manager <small>system</small></div>
+        <div>Viewer <small>system</small></div><div>Store keeper <small>custom</small></div><div>Administrator <small>locked</small></div>
+        <div style="color:var(--accent)">+ Add role</div>
+      </div>
+      <div class="body">
+        <div class="bar"><h3>Inventory clerk · 6 people</h3><span><span class="btn">Preview as this role</span> <span class="btn primary">Save</span></span></div>
+        <span class="tag inv" style="justify-self:start">Inventory</span>
+        <div class="perm"><span class="box on"></span><span>See items<small>Project inventory, All items, Warranty</small></span><span class="sel">All projects ▾</span></div>
+        <div class="perm"><span class="box on"></span><span>Register devices<small>+ New › Register device</small></span><span class="sel">All projects ▾</span></div>
+        <div class="perm"><span class="box on"></span><span>Edit item details and record changes<small>Move, fault, repair</small></span><span class="sel">All projects ▾</span></div>
+        <div class="perm"><span class="box on"></span><span>Add a model while registering</span><span></span></div>
+        <div class="perm"><span class="box"></span><span>Write off items<small>Final; kept in the history</small></span><span></span></div>
+        <div class="perm"><span class="box"></span><span>Manage kinds of equipment, models and suppliers</span><span></span></div>
+        <span class="tag res" style="justify-self:start">Resources</span>
+        <div class="perm"><span class="box on"></span><span>Raise resource requests</span><span class="sel">Own ▾</span></div>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="card"><h3>Safeguards</h3><ul><li>The Administrator role always has every permission and cannot be edited.</li><li>At least one active administrator must remain; nobody can remove their own administrator role.</li><li>System roles can be adjusted but not deleted; custom roles can be added and removed.</li></ul></div>
+      <div class="card"><h3>Traceable</h3><ul><li>Every change to a role or to a person's roles is recorded: who, when, before and after.</li><li>A change takes effect on the person's next page load, without signing out.</li></ul></div>
+      <div class="card"><h3>No surprise on the switch-over</h3><ul><li>The current roles are created with exactly the access they have today, so nobody gains or loses anything when this is released.</li><li>Existing data and accounts stay as they are.</li></ul></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-plan">
+    <div class="head"><span class="eyebrow">Delivery</span><h2 id="h-plan">How it would be built</h2></div>
+    <div class="cols">
+      <div class="card"><h3>Data</h3><p class="small">Two new tables, <code>roles</code> and <code>role_permissions</code> (with the scope), added by an incremental migration. The existing role assignments stay and point at the new roles.</p></div>
+      <div class="card"><h3>Server</h3><p class="small">One check, <code>require(permission)</code> plus a scope filter on lists, replaces the role checks in the resource module. Each module declares its permissions in its module definition.</p></div>
+      <div class="card"><h3>Screens</h3><p class="small">The Roles and permissions screen, the menu and + New built from permissions, and "Preview as this role". The automated tests for today's behaviour must all keep passing.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-dec">
+    <div class="head"><span class="eyebrow">Next step</span><h2 id="h-dec">Decisions needed</h2></div>
+    <div class="matrix-wrap decisions">
+      <table style="min-width:620px">
+        <thead><tr><th>No.</th><th>Question</th><th>Recommendation</th></tr></thead>
+        <tbody>
+          <tr><td>P1</td><td>Should administrators be able to add their own roles, such as "Store keeper"?</td><td>Yes. The system roles cover most people; custom roles cover exceptions.</td></tr>
+          <tr><td>P2</td><td>Who may see inventory: everyone, or only people on the project?</td><td>Everyone sees all projects by default (scope All); limit a role to "My projects" if needed.</td></tr>
+          <tr><td>P3</td><td>May engineers register devices, or only inventory clerks?</td><td>Clerks only by default. Grant "Register devices" to Engineer later if needed.</td></tr>
+          <tr><td>P4</td><td>Should writing off an item need a separate permission?</td><td>Yes. It is final, so it is kept for Operations manager and Administrator.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="foot">Saved in the repository as <code>docs/design/permissions-design.html</code>. Nothing on this page has been built yet.</p>
+</div>
+
+<script>
+(() => {
+  const ROLES = [
+    ['req', 'Requester'], ['eng', 'Engineer'], ['clerk', 'Inventory clerk'], ['tl', 'Team leader'],
+    ['dir', 'Director'], ['om', 'Operations manager'], ['viewer', 'Viewer'], ['admin', 'Administrator'],
+  ];
+  // permission, module, description, { role: scope } (scope '' means no scope applies)
+  const PERMS = [
+    ['core.users.manage', 'core', 'Manage users and their roles', { admin: '' }],
+    ['core.roles.manage', 'core', 'Edit roles and permissions', { admin: '' }],
+    ['core.org.manage', 'core', 'Manage projects, locations and teams', { admin: '' }],
+    ['core.settings.manage', 'core', 'Workflow rules, holidays, email', { admin: '' }],
+    ['resources.request.create', 'res', 'Raise resource requests', { req: 'Own', eng: 'Own', clerk: 'Own', tl: 'Own', dir: 'Own', om: 'Own', admin: 'Own' }],
+    ['resources.request.view', 'res', 'See resource requests', { req: 'Own', eng: 'Own', clerk: 'Own', tl: 'My teams', dir: 'All', om: 'All', viewer: 'All', admin: 'All' }],
+    ['resources.request.review', 'res', 'Review and assign engineers (as team approver)', { tl: 'My teams' }],
+    ['resources.request.approve', 'res', 'Give final approval', { dir: 'All' }],
+    ['resources.load.view', 'res', 'See resource load', { tl: 'My teams', dir: 'All', om: 'All', viewer: 'All', admin: 'All' }],
+    ['resources.reports.view', 'res', 'See resource reports', { tl: 'My teams', dir: 'All', om: 'All', viewer: 'All', admin: 'All' }],
+    ['inventory.item.view', 'inv', 'See project inventory and items', { req: 'All', eng: 'All', clerk: 'All', tl: 'All', dir: 'All', om: 'All', viewer: 'All', admin: 'All' }],
+    ['inventory.device.register', 'inv', 'Register devices', { clerk: 'All', admin: 'All' }],
+    ['inventory.item.edit', 'inv', 'Edit details, move, report faults, repairs', { clerk: 'All', admin: 'All' }],
+    ['inventory.item.dispose', 'inv', 'Write off items', { om: 'All', admin: 'All' }],
+    ['inventory.model.create', 'inv', 'Add a model while registering', { clerk: '', admin: '' }],
+    ['inventory.catalog.manage', 'inv', 'Kinds of equipment, models, suppliers', { admin: '' }],
+    ['inventory.withdrawal.create', 'inv', 'Request items (next phase)', { eng: 'All', clerk: 'All', tl: 'All' }],
+    ['inventory.withdrawal.approve', 'inv', 'Approve withdrawals (as project PM, or OM)', { req: 'My projects', om: 'All' }],
+  ];
+  const has = (sel, p) => ROLES.some(([r]) => sel.has(r) && r in PERMS.find((x) => x[0] === p)[3]);
+  const MENU = [
+    { items: [['Home', null], ['Approvals', ['resources.request.review', 'resources.request.approve', 'inventory.withdrawal.approve']]] },
+    { title: 'Resources', items: [['Resource requests', ['resources.request.view']], ['Resource load', ['resources.load.view']]] },
+    { title: 'Inventory', items: [['Project inventory', ['inventory.item.view']], ['All items', ['inventory.item.view']], ['Warranty', ['inventory.item.view']]] },
+    { title: 'Insights', items: [['Reports', ['resources.reports.view']]] },
+    { title: 'System', items: [['Administration', ['core.users.manage', 'core.org.manage', 'core.settings.manage', 'inventory.catalog.manage']]] },
+  ];
+  const NEW = [['Resource request', 'resources.request.create'], ['Register device', 'inventory.device.register'], ['Request items', 'inventory.withdrawal.create']];
+
+  const el = (t, a = {}, ...k) => { const n = document.createElement(t); for (const [x, v] of Object.entries(a)) { if (x === 'class') n.className = v; else if (x === 'text') n.textContent = v; else n.setAttribute(x, v); } k.forEach((c) => c != null && n.append(c)); return n; };
+  let sel = new Set(['clerk']);
+  try { const s = JSON.parse(localStorage.getItem('opshub-perm-roles') || 'null'); if (Array.isArray(s) && s.length) sel = new Set(s); } catch (e) { /* optional */ }
+
+  const box = document.getElementById('roles');
+  ROLES.forEach(([k, label]) => {
+    const b = el('button', { type: 'button', class: 'chip', 'aria-pressed': String(sel.has(k)), text: label });
+    b.addEventListener('click', () => {
+      if (sel.has(k) && sel.size > 1) sel.delete(k); else sel.add(k);
+      try { localStorage.setItem('opshub-perm-roles', JSON.stringify([...sel])); } catch (e) { /* optional */ }
+      render();
+    });
+    box.append(b);
+  });
+
+  function render() {
+    [...box.children].forEach((b, i) => b.setAttribute('aria-pressed', String(sel.has(ROLES[i][0]))));
+    const menu = document.getElementById('menu');
+    menu.replaceChildren(el('div', { class: 'brand', text: 'OpsHub' }));
+    const news = NEW.filter(([, p]) => has(sel, p));
+    if (news.length) menu.append(el('div', { class: 'new', text: '+ New' }));
+    MENU.forEach((g) => {
+      const items = g.items.filter(([, ps]) => !ps || ps.some((p) => has(sel, p)));
+      if (!items.length) return;
+      const grp = el('div', { class: 'grp' }, g.title ? el('span', { text: g.title }) : null);
+      items.forEach(([label, ps]) => grp.append(el('div', { class: 'item' }, el('span', { text: label }), ps ? el('small', { text: ps[0].split('.').slice(1).join('.') }) : null)));
+      menu.append(grp);
+    });
+    const sheet = el('div', { class: 'sheet' }, el('span', { text: '+ New offers' }));
+    (news.length ? news : [['Nothing to start', '']]).forEach(([l]) => sheet.append(el('div', { text: l })));
+    menu.append(sheet);
+
+    const t = document.getElementById('matrix');
+    const head = el('tr', {}, el('th', { text: 'Permission' }), ...ROLES.map(([k, l]) => el('th', { class: `c${sel.has(k) ? ' sel' : ''}`, text: l })));
+    const body = [];
+    let last = null;
+    const NAMES = { core: 'Platform core', res: 'Resources', inv: 'Inventory' };
+    PERMS.forEach(([p, mod, desc, grants]) => {
+      if (mod !== last) { body.push(el('tr', { class: 'mod' }, el('td', { colspan: String(ROLES.length + 1), text: NAMES[mod] }))); last = mod; }
+      body.push(el('tr', {},
+        el('td', { class: 'key' }, el('code', { text: p }), el('span', { class: 'scope', text: desc })),
+        ...ROLES.map(([k]) => {
+          const td = el('td', { class: `c${sel.has(k) ? ' sel' : ''}` });
+          if (k in grants) { td.append(el('span', { class: 'yes', text: '✓' })); if (grants[k]) td.append(el('span', { class: 'scope', text: grants[k] })); }
+          else td.append(el('span', { class: 'no', text: '·' }));
+          return td;
+        })));
+    });
+    t.replaceChildren(el('thead', {}, head), el('tbody', {}, ...body));
+  }
+  render();
+})();
+</script>
