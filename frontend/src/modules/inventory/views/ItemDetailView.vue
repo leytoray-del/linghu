@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 import { errorMessage, fieldErrors, showError, showSuccess } from '@/utils/feedback'
@@ -9,19 +9,23 @@ import { fmtDate, fmtDateTime } from '@/utils/format'
 import { inventoryApi } from '../api'
 import AttributeFields from '../components/AttributeFields.vue'
 import ItemStatusTag from '../components/ItemStatusTag.vue'
-import { ACTION_LABEL, MOVEMENT_LABEL, showValue } from '../format'
+import { MOVEMENT_LABEL, WITHDRAWAL_STATUS_LABEL, showValue } from '../format'
 import { useInventoryLookups } from '../lookups'
-import type { AttributeValue, ItemAction, ItemDetail } from '../types'
+import type { AttributeValue, ItemDetail } from '../types'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const lk = useInventoryLookups()
 const item = ref<ItemDetail | null>(null)
-// Changing a saved item is a separate permission from registering it.
-const canEdit = computed(() => auth.can('inventory.edit'))
+
+const live = computed(() => !!item.value && !item.value.deleted_at)
+const can = (p: string) => live.value && auth.can(p)
 const fields = computed(() => lk.category(item.value?.category_id)?.fields ?? [])
 const shownFields = computed(() => fields.value.filter((f) => !f.retired || item.value?.attributes[f.key] != null))
+const stores = computed(() => (lk.data.value?.locations ?? []).filter((l) => l.kind === 'STORE' && l.is_active))
 
+// ---- edit ----
 const editOpen = ref(false)
 const edit = ref<{ warranty_start: string | null; warranty_end: string | null; attributes: Record<string, AttributeValue>; remarks: string }>({
   warranty_start: null,
@@ -29,23 +33,16 @@ const edit = ref<{ warranty_start: string | null; warranty_end: string | null; a
   attributes: {},
   remarks: '',
 })
-const editErrors = ref<Record<string, string>>({})
-const editError = ref<string | null>(null)
+const errors = ref<Record<string, string>>({})
+const formError = ref<string | null>(null)
 const saving = ref(false)
 
-const action = ref<ItemAction | null>(null)
-const actionLocation = ref<number | null>(null)
-const actionReason = ref('')
-const actionErrors = ref<Record<string, string>>({})
-const actionError = ref<string | null>(null)
-
-const needsLocation = computed(() => action.value === 'move' || action.value === 'repaired')
-const needsReason = computed(() => action.value === 'report_fault' || action.value === 'dispose')
-const locationChoices = computed(() =>
-  (lk.data.value?.locations ?? []).filter(
-    (l) => l.is_active && (action.value === 'repaired' ? l.kind === 'STORE' : l.id !== item.value?.location.id),
-  ),
-)
+// ---- delete and return ----
+const deleteOpen = ref(false)
+const deleteReason = ref('')
+const returnOpen = ref(false)
+const returnStore = ref<number | null>(null)
+const returnReason = ref('')
 
 async function load(): Promise<void> {
   try {
@@ -57,6 +54,11 @@ async function load(): Promise<void> {
 }
 watch(() => route.params.id, load, { immediate: true })
 
+function reset(): void {
+  errors.value = {}
+  formError.value = null
+}
+
 function openEdit(): void {
   if (!item.value) return
   edit.value = {
@@ -65,57 +67,69 @@ function openEdit(): void {
     attributes: { ...item.value.attributes },
     remarks: item.value.remarks ?? '',
   }
-  editErrors.value = {}
-  editError.value = null
+  reset()
   editOpen.value = true
 }
 
-async function saveEdit(): Promise<void> {
+async function run(task: () => Promise<ItemDetail>, done: string, close: () => void): Promise<void> {
+  saving.value = true
+  reset()
+  try {
+    item.value = await task()
+    close()
+    showSuccess(done)
+  } catch (e) {
+    errors.value = fieldErrors(e)
+    formError.value = errorMessage(e)
+  } finally {
+    saving.value = false
+  }
+}
+
+const saveEdit = () =>
+  run(
+    () =>
+      inventoryApi.updateItem(item.value!.id, {
+        version: item.value!.version,
+        warranty_start: edit.value.warranty_start,
+        warranty_end: edit.value.warranty_end,
+        attributes: edit.value.attributes,
+        remarks: edit.value.remarks.trim() || null,
+      }),
+    'Details saved.',
+    () => (editOpen.value = false),
+  )
+
+const confirmDelete = () =>
+  run(
+    () => inventoryApi.deleteItem(item.value!.id, item.value!.version, deleteReason.value.trim()),
+    'Item deleted. It no longer appears in the inventory.',
+    () => (deleteOpen.value = false),
+  )
+
+const confirmReturn = () =>
+  run(
+    () => inventoryApi.returnItem(item.value!.id, item.value!.version, returnStore.value!, returnReason.value.trim() || null),
+    'Returned to stock.',
+    () => (returnOpen.value = false),
+  )
+
+function openDelete(): void {
+  deleteReason.value = ''
+  reset()
+  deleteOpen.value = true
+}
+
+function openReturn(): void {
+  returnStore.value = stores.value.length === 1 ? stores.value[0]!.id : null
+  returnReason.value = ''
+  reset()
+  returnOpen.value = true
+}
+
+function requestWithdrawal(): void {
   if (!item.value) return
-  saving.value = true
-  try {
-    item.value = await inventoryApi.updateItem(item.value.id, {
-      version: item.value.version,
-      warranty_start: edit.value.warranty_start,
-      warranty_end: edit.value.warranty_end,
-      attributes: edit.value.attributes,
-      remarks: edit.value.remarks.trim() || null,
-    })
-    editOpen.value = false
-    showSuccess('Details saved.')
-  } catch (e) {
-    editErrors.value = fieldErrors(e)
-    editError.value = errorMessage(e)
-  } finally {
-    saving.value = false
-  }
-}
-
-function openAction(a: ItemAction): void {
-  action.value = a
-  actionLocation.value = null
-  actionReason.value = ''
-  actionErrors.value = {}
-  actionError.value = null
-}
-
-async function runAction(): Promise<void> {
-  if (!item.value || !action.value) return
-  saving.value = true
-  try {
-    item.value = await inventoryApi.act(item.value.id, action.value, {
-      version: item.value.version,
-      location_id: actionLocation.value,
-      reason: actionReason.value.trim() || null,
-    })
-    showSuccess(`${ACTION_LABEL[action.value]}: done.`)
-    action.value = null
-  } catch (e) {
-    actionErrors.value = fieldErrors(e)
-    actionError.value = errorMessage(e)
-  } finally {
-    saving.value = false
-  }
+  router.push({ path: '/inventory/withdrawals/new', query: { project: String(item.value.project.id), items: String(item.value.id) } })
 }
 
 function changeText(c: { from: AttributeValue; to: AttributeValue }): string {
@@ -128,32 +142,36 @@ function changeText(c: { from: AttributeValue; to: AttributeValue }): string {
   <div v-if="item" class="page">
     <div class="page-head">
       <div>
-        <RouterLink :to="`/inventory/projects/${item.project.id}`" class="back">{{ item.project.name }}</RouterLink>
+        <RouterLink :to="{ path: '/inventory', query: { project: String(item.project.id) } }" class="back">{{ item.project.name }}</RouterLink>
         <h1 class="mono serial">{{ item.serial_no }}</h1>
         <p class="sub">{{ item.category_name }} · {{ item.model_no }} · <ItemStatusTag :status="item.status" /></p>
       </div>
-      <div v-if="canEdit" class="actions">
-        <el-button @click="openEdit">Edit details</el-button>
-        <el-dropdown v-if="item.actions.length" trigger="click" @command="openAction">
-          <el-button type="primary">Record a change</el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item v-for="a in item.actions" :key="a" :command="a">{{ ACTION_LABEL[a] }}</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+      <div class="actions">
+        <el-button v-if="can('inventory.withdraw') && item.status === 'IN_STOCK'" type="primary" @click="requestWithdrawal">Request withdrawal</el-button>
+        <el-button v-if="can('inventory.return') && item.status === 'DEPLOYED'" type="primary" @click="openReturn">Return to stock</el-button>
+        <el-button v-if="can('inventory.edit')" @click="openEdit">Edit</el-button>
+        <el-button v-if="can('inventory.delete') && item.status !== 'REQUESTED'" type="danger" plain @click="openDelete">Delete</el-button>
       </div>
     </div>
+
+    <el-alert v-if="item.deleted_at" type="error" :closable="false" show-icon :title="`Deleted on ${fmtDateTime(item.deleted_at)} by ${item.deleted_by?.display_name ?? 'someone'}`">
+      <template #default>{{ item.delete_reason }}. The item no longer appears in the inventory; its record and history are kept.</template>
+    </el-alert>
+    <el-alert v-else-if="item.open_withdrawal" type="info" :closable="false" show-icon>
+      <template #title>
+        In withdrawal request
+        <RouterLink :to="`/inventory/withdrawals/${item.open_withdrawal.id}`">{{ item.open_withdrawal.request_no }}</RouterLink>
+        · {{ WITHDRAWAL_STATUS_LABEL[item.open_withdrawal.status] }}
+      </template>
+    </el-alert>
 
     <div class="cols">
       <section class="panel">
         <h2>Details</h2>
         <dl class="facts">
-          <div><dt>Project</dt><dd><RouterLink :to="`/inventory/projects/${item.project.id}`">{{ item.project.name }}</RouterLink> <span class="muted mono">{{ item.project.code }}</span></dd></div>
+          <div><dt>Project</dt><dd>{{ item.project.name }} <span class="muted mono">{{ item.project.code }}</span></dd></div>
           <div><dt>Location</dt><dd>{{ item.location.name }}</dd></div>
-          <div v-if="item.holder"><dt>Held by</dt><dd>{{ item.holder.display_name }}</dd></div>
           <div><dt>Warranty</dt><dd>{{ fmtDate(item.warranty_start) }} – {{ fmtDate(item.warranty_end) }}</dd></div>
-          <div><dt>Delivery</dt><dd class="mono">{{ item.delivery_no ?? '—' }}</dd></div>
           <div v-for="f in shownFields" :key="f.key">
             <dt>{{ f.label }}<span v-if="f.retired" class="muted"> (retired)</span></dt>
             <dd>{{ showValue(f, item.attributes[f.key]) }}</dd>
@@ -170,8 +188,12 @@ function changeText(c: { from: AttributeValue; to: AttributeValue }): string {
               <b>{{ MOVEMENT_LABEL[m.kind] ?? m.kind }}</b>
               <span class="muted small">{{ fmtDateTime(m.occurred_at) }} · {{ m.actor.display_name }}</span>
             </div>
-            <div v-if="m.delivery_no" class="small">Delivery <span class="mono">{{ m.delivery_no }}</span><template v-if="m.to_location"> to {{ m.to_location }}</template></div>
-            <div v-else-if="m.to_location && m.to_location !== m.from_location" class="small">{{ m.from_location }} → {{ m.to_location }}</div>
+            <div v-if="m.to_location && m.to_location !== m.from_location" class="small">
+              {{ m.from_location ? `${m.from_location} → ${m.to_location}` : m.to_location }}
+            </div>
+            <div v-if="m.withdrawal_no" class="small">
+              Request <RouterLink :to="`/inventory/withdrawals/${m.withdrawal_id}`">{{ m.withdrawal_no }}</RouterLink>
+            </div>
             <ul v-if="m.changes" class="changes small">
               <li v-for="(c, label) in m.changes" :key="label"><b>{{ label }}</b>: {{ changeText(c) }}</li>
             </ul>
@@ -184,18 +206,18 @@ function changeText(c: { from: AttributeValue; to: AttributeValue }): string {
     <el-dialog v-model="editOpen" :title="`Edit ${item.serial_no}`" width="min(680px, 96vw)">
       <el-form label-position="top">
         <div class="grid">
-          <el-form-item label="Warranty start" :error="editErrors.warranty_start">
+          <el-form-item label="Warranty start" :error="errors.warranty_start">
             <el-date-picker v-model="edit.warranty_start" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" />
           </el-form-item>
-          <el-form-item label="Warranty end" :error="editErrors.warranty_end">
+          <el-form-item label="Warranty end" :error="errors.warranty_end">
             <el-date-picker v-model="edit.warranty_end" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" />
           </el-form-item>
         </div>
-        <AttributeFields v-model="edit.attributes" :fields="fields" :errors="editErrors" id-prefix="edit" />
+        <AttributeFields v-model="edit.attributes" :fields="fields" :errors="errors" id-prefix="edit" />
         <el-form-item label="Remarks" for="edit-remarks">
           <el-input id="edit-remarks" v-model="edit.remarks" type="textarea" :autosize="{ minRows: 2 }" maxlength="2000" />
         </el-form-item>
-        <el-alert v-if="editError" :title="editError" type="error" :closable="false" show-icon />
+        <el-alert v-if="formError" :title="formError" type="error" :closable="false" show-icon />
       </el-form>
       <template #footer>
         <el-button @click="editOpen = false">Cancel</el-button>
@@ -203,22 +225,35 @@ function changeText(c: { from: AttributeValue; to: AttributeValue }): string {
       </template>
     </el-dialog>
 
-    <el-dialog :model-value="action !== null" :title="action ? ACTION_LABEL[action] : ''" width="min(520px, 96vw)" @close="action = null">
+    <el-dialog v-model="returnOpen" :title="`Return ${item.serial_no} to stock`" width="min(480px, 96vw)">
       <el-form label-position="top">
-        <el-form-item v-if="needsLocation" :label="action === 'repaired' ? 'Back to which store?' : 'New location'" required :error="actionErrors.location_id" for="act-location">
-          <el-select id="act-location" v-model="actionLocation" placeholder="Choose" style="width: 100%">
-            <el-option v-for="l in locationChoices" :key="l.id" :label="l.name" :value="l.id" />
+        <el-form-item label="Store" required :error="errors.location_id">
+          <el-select v-model="returnStore" placeholder="Choose the store" style="width: 100%">
+            <el-option v-for="l in stores" :key="l.id" :label="l.name" :value="l.id" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="needsReason ? 'Reason' : 'Comment (optional)'" :required="needsReason" :error="actionErrors.reason" for="act-reason">
-          <el-input id="act-reason" v-model="actionReason" type="textarea" :autosize="{ minRows: 2 }" maxlength="2000" />
+        <el-form-item label="Comment (optional)" for="ret-reason">
+          <el-input id="ret-reason" v-model="returnReason" type="textarea" :autosize="{ minRows: 2 }" maxlength="2000" />
         </el-form-item>
-        <p v-if="action === 'dispose'" class="muted small">Writing off is final. The item stays in the records with its history.</p>
-        <el-alert v-if="actionError" :title="actionError" type="error" :closable="false" show-icon />
+        <el-alert v-if="formError" :title="formError" type="error" :closable="false" show-icon />
       </el-form>
       <template #footer>
-        <el-button @click="action = null">Cancel</el-button>
-        <el-button :type="action === 'dispose' ? 'danger' : 'primary'" :loading="saving" @click="runAction">Confirm</el-button>
+        <el-button @click="returnOpen = false">Cancel</el-button>
+        <el-button type="primary" :loading="saving" :disabled="!returnStore" @click="confirmReturn">Return to stock</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="deleteOpen" :title="`Delete ${item.serial_no}?`" width="min(480px, 96vw)">
+      <p class="muted">The item disappears from the inventory. Its record and history are kept, so the deletion can be traced.</p>
+      <el-form label-position="top">
+        <el-form-item label="Reason" required :error="errors.reason" for="del-reason">
+          <el-input id="del-reason" v-model="deleteReason" type="textarea" :autosize="{ minRows: 2 }" maxlength="2000" placeholder="For example: registered twice by mistake" />
+        </el-form-item>
+        <el-alert v-if="formError" :title="formError" type="error" :closable="false" show-icon />
+      </el-form>
+      <template #footer>
+        <el-button @click="deleteOpen = false">Cancel</el-button>
+        <el-button type="danger" :loading="saving" :disabled="!deleteReason.trim()" @click="confirmDelete">Delete</el-button>
       </template>
     </el-dialog>
   </div>
@@ -239,6 +274,9 @@ function changeText(c: { from: AttributeValue; to: AttributeValue }): string {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+.actions .el-button + .el-button {
+  margin-left: 0;
 }
 .cols {
   display: grid;

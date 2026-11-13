@@ -1,7 +1,7 @@
 import type { Location, Page, Project, UserRef } from '@/types/api'
 
-export type ItemStatus = 'IN_STOCK' | 'RESERVED' | 'ISSUED' | 'DEPLOYED' | 'RETURNED' | 'FAULTY' | 'IN_REPAIR' | 'DISPOSED'
-export type ItemAction = 'move' | 'report_fault' | 'send_for_repair' | 'repaired' | 'dispose'
+export type ItemStatus = 'IN_STOCK' | 'REQUESTED' | 'DEPLOYED'
+export type WithdrawalStatus = 'PENDING_PM' | 'PENDING_OM' | 'APPROVED' | 'RETURNED' | 'WITHDRAWN'
 export type FieldType = 'text' | 'number' | 'date' | 'choice' | 'boolean'
 export type AttributeValue = string | number | boolean | null
 
@@ -50,26 +50,13 @@ export interface InventoryLookups {
 
 export interface StatusCounts {
   in_stock: number
-  reserved: number
-  issued: number
+  requested: number
   deployed: number
-  returned: number
-  faulty: number
-  in_repair: number
-  disposed: number
   total: number
 }
 
-export interface ProjectInventoryRow {
-  project: Project
+export interface InventorySummary {
   counts: StatusCounts
-  warranty_ending: number
-}
-
-export interface ProjectInventory {
-  project: Project
-  by_category: { category_id: number; category_name: string; counts: StatusCounts }[]
-  totals: StatusCounts
   warranty_ending: number
 }
 
@@ -95,22 +82,24 @@ export interface Item {
 export interface Movement {
   id: number
   kind: string
-  from_status: ItemStatus | null
-  to_status: ItemStatus | null
+  from_status: string | null
+  to_status: string | null
   from_location: string | null
   to_location: string | null
-  delivery_no: string | null
+  withdrawal_id: number | null
+  withdrawal_no: string | null
   changes: Record<string, { from: AttributeValue; to: AttributeValue }> | null
   reason: string | null
   actor: UserRef
   occurred_at: string
-  serial_no: string | null
-  item_id: number | null
 }
 
 export interface ItemDetail extends Item {
-  actions: ItemAction[]
   history: Movement[]
+  open_withdrawal: { id: number; request_no: string; status: WithdrawalStatus } | null
+  deleted_at: string | null
+  deleted_by: UserRef | null
+  delete_reason: string | null
 }
 
 export interface DeliveryItemInput {
@@ -157,6 +146,7 @@ export interface ItemFilter {
   project_id?: number
   category_id?: number
   model_id?: number
+  location_id?: number
   status?: ItemStatus[]
   q?: string
   warranty_within_days?: number
@@ -165,3 +155,44 @@ export interface ItemFilter {
 }
 
 export type ItemPage = Page<Item>
+
+export interface WithdrawalTask {
+  round: number
+  step: 'PM' | 'OM'
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SKIPPED' | 'CLOSED'
+  approvers: UserRef[]
+  decided_by: UserRef | null
+  comment: string | null
+  decided_at: string | null
+}
+
+export interface Withdrawal {
+  id: number
+  request_no: string
+  project: Project
+  requester: UserRef
+  to_location: Location
+  reason: string
+  status: WithdrawalStatus
+  item_count: number
+  submitted_at: string
+  completed_at: string | null
+  waiting_for: UserRef[]
+  version: number
+}
+
+export interface WithdrawalDetail extends Withdrawal {
+  items: Item[]
+  tasks: WithdrawalTask[]
+  events: { action: string; actor: UserRef; comment: string | null; occurred_at: string }[]
+  can_decide: boolean
+  can_revise: boolean
+  can_withdraw: boolean
+}
+
+export interface WithdrawalInput {
+  project_id: number
+  item_ids: number[]
+  to_location_id: number
+  reason: string
+}

@@ -373,6 +373,9 @@ def test_withdrawal_needs_pm_then_om_and_moves_the_items(login, container) -> No
         f"/inventory/withdrawals/{w['id']}/decision", json={"version": w["version"], "approve": True}
     ).json()
     assert w["status"] == "APPROVED"
+    assert {i["location"]["name"] for i in w["items"]} == {"HSA Novena, Lobby"}, (
+        "the response shows the new location"
+    )
     item = eng.get(f"/inventory/items/{ids[0]}").json()
     assert item["status"] == "DEPLOYED" and item["location"]["name"] == "HSA Novena, Lobby"
     assert item["attributes"]["deployment_date"] == "2026-11-05", (

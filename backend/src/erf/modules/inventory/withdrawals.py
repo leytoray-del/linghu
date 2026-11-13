@@ -406,6 +406,9 @@ class WithdrawalService:
         w.status = WithdrawalStatus.APPROVED.value
         w.completed_at = now
         self.s.flush()
+        # Reload the items so their new location is shown, not the one loaded before the change.
+        for line in w.lines:
+            self.s.refresh(line.item)
         self.mail.approved(w, user)
         return self.detail(user, w.id)
 

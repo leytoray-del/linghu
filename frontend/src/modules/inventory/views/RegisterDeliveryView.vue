@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Register devices from a delivery, one step at a time: Project, Delivery, Model, Scan, Review.
+ * Register devices that arrived, one step at a time: Project, Details, Model, Scan, Review.
  * Built for phones first: each step fills the screen and the main action is always in the bar at the bottom.
  */
 import dayjs from 'dayjs'
@@ -25,7 +25,7 @@ import type { AttributeValue, DeliveryInput, ItemModel } from '../types'
 type Step = 'project' | 'delivery' | 'model' | 'scan' | 'review'
 const STEPS: { key: Step; label: string }[] = [
   { key: 'project', label: 'Project' },
-  { key: 'delivery', label: 'Delivery' },
+  { key: 'delivery', label: 'Details' },
   { key: 'model', label: 'Model' },
   { key: 'scan', label: 'Scan' },
   { key: 'review', label: 'Review' },
@@ -131,7 +131,6 @@ const projects = computed(() => {
 const project = computed(() => lk.data.value?.projects.find((p) => p.id === header.project_id))
 const stores = computed(() => (lk.data.value?.locations ?? []).filter((l) => l.kind === 'STORE' && l.is_active))
 const store = computed(() => stores.value.find((l) => l.id === header.location_id))
-const suppliers = computed(() => (lk.data.value?.suppliers ?? []).filter((s) => s.is_active))
 const models = computed(() => (lk.data.value?.models ?? []).filter((m) => m.is_active))
 const model = computed(() => models.value.find((m) => m.id === modelId.value))
 const category = computed(() => lk.categoryOfModel(modelId.value))
@@ -186,7 +185,7 @@ function chooseProject(id: number): void {
 function deliveryNext(): void {
   const problems: Record<string, string> = {}
   if (!header.location_id) problems.location_id = 'Choose the store where the items are kept.'
-  if (!header.received_on) problems.received_on = 'Enter the date the delivery arrived.'
+  if (!header.received_on) problems.received_on = 'Enter the date the devices arrived.'
   if (header.warranty_start && header.warranty_end && header.warranty_end < header.warranty_start)
     problems.warranty_end = 'The warranty must end on or after its start date.'
   errors.value = problems
@@ -261,7 +260,7 @@ async function add(raw: string, fromCamera: boolean): Promise<boolean> {
   if (fromCamera && removed.has(serial)) {
     notice.value = {
       type: 'warning',
-      text: `${serial} was removed from this delivery.`,
+      text: `${serial} was removed from this list.`,
       action: { label: 'Add it again', kind: 're-add', code: serial },
     }
     return false
@@ -269,7 +268,7 @@ async function add(raw: string, fromCamera: boolean): Promise<boolean> {
   removed.delete(serial)
   if (rows.value.some((r) => r.serial_no === serial)) {
     if (fromCamera && rows.value[0]?.serial_no === serial) return false
-    notice.value = { type: 'warning', text: `${serial} is already in this delivery.` }
+    notice.value = { type: 'warning', text: `${serial} is already in this list.` }
     return false
   }
   checking.add(serial)
@@ -292,7 +291,7 @@ async function add(raw: string, fromCamera: boolean): Promise<boolean> {
     warranty_end: null,
     attributes: { ...commonValues.value },
   })
-  notice.value = { type: 'success', text: `Added ${serial} (${rows.value.length} in this delivery).` }
+  notice.value = { type: 'success', text: `Added ${serial} (${rows.value.length} to register).` }
   typed.value = ''
   return true
 }
@@ -325,7 +324,7 @@ async function onAction(): Promise<void> {
     removed.delete(action.code)
     if (row && !rows.value.some((r) => r.serial_no === row.serial_no)) {
       rows.value.unshift(row)
-      notice.value = { type: 'success', text: `Added ${row.serial_no} back (${rows.value.length} in this delivery).` }
+      notice.value = { type: 'success', text: `Added ${row.serial_no} back (${rows.value.length} to register).` }
     } else if (!row) {
       await add(action.code, false)
     }
@@ -359,7 +358,7 @@ function remove(serial: string): void {
   if (row) removed.set(serial, row)
   notice.value = {
     type: 'warning',
-    text: `Removed ${serial}. ${rows.value.length} in this delivery.`,
+    text: `Removed ${serial}. ${rows.value.length} to register.`,
     action: { label: 'Undo', kind: 're-add', code: serial },
   }
 }
@@ -398,7 +397,7 @@ async function save(): Promise<void> {
       warranty_start: header.warranty_start ? '' : 'Enter the warranty start date.',
       warranty_end: header.warranty_end ? '' : 'Enter the warranty end date.',
     }
-    formError.value = 'Enter the warranty dates on the Delivery step. They are required for this equipment.'
+    formError.value = 'Enter the warranty dates on the Details step. They are required for this equipment.'
     return
   }
   saving.value = true
@@ -413,10 +412,10 @@ async function save(): Promise<void> {
     items: ordered.map((r) => ({ ...r })),
   }
   try {
-    const result = await inventoryApi.registerDelivery(body)
+    const result = await inventoryApi.registerDevices(body)
     clearDraft()
-    showSuccess(`${result.delivery_no} saved with ${result.item_count} item${result.item_count === 1 ? '' : 's'}.`)
-    await router.replace(`/inventory/projects/${result.project.id}`)
+    showSuccess(`${result.item_count} item${result.item_count === 1 ? '' : 's'} registered and in stock at ${result.location.name}.`)
+    await router.replace({ path: '/inventory', query: { project: String(result.project.id) } })
   } catch (e) {
     const raw = fieldErrors(e)
     const n = rows.value.length
@@ -453,7 +452,7 @@ function clearDraft(): void {
 
 async function startAgain(): Promise<void> {
   try {
-    await ElMessageBox.confirm('The items scanned so far will be removed.', 'Start a new delivery?', {
+    await ElMessageBox.confirm('The items scanned so far will be removed.', 'Start a new registration?', {
       confirmButtonText: 'Start again',
       cancelButtonText: 'Keep',
       type: 'warning',
@@ -522,13 +521,13 @@ onMounted(async () => {
       </ol>
     </div>
 
-    <el-alert v-if="restored && step !== 'review'" type="info" :closable="false" show-icon :title="`Continuing the delivery you started: ${rows.length} items so far.`">
-      <template #default><el-button link type="primary" @click="startAgain">Start a new delivery instead</el-button></template>
+    <el-alert v-if="restored && step !== 'review'" type="info" :closable="false" show-icon :title="`Continuing the registration you started: ${rows.length} items so far.`">
+      <template #default><el-button link type="primary" @click="startAgain">Start a new registration instead</el-button></template>
     </el-alert>
 
     <!-- 1. Project -->
     <section v-if="step === 'project'" class="step">
-      <h2>Which project is this delivery for?</h2>
+      <h2>Which project are the devices for?</h2>
       <el-input v-model="projectQuery" size="large" placeholder="Search name, WBS code or client" clearable />
       <div class="choices">
         <button v-for="p in projects" :key="p.id" type="button" class="choice" :aria-pressed="p.id === header.project_id" @click="chooseProject(p.id)">
@@ -541,7 +540,7 @@ onMounted(async () => {
 
     <!-- 2. Delivery -->
     <el-form v-else-if="step === 'delivery'" label-position="top" class="step" @submit.prevent="deliveryNext">
-      <h2>About the delivery</h2>
+      <h2>Where and when</h2>
       <p class="muted">For {{ project?.name }}</p>
       <el-form-item label="Store" required :error="errors.location_id">
         <div class="choices compact">
@@ -564,20 +563,12 @@ onMounted(async () => {
       <p class="muted small">
         The warranty is one year from the received date unless you change it. It applies to every item; you can change it for one item on the Review step.
       </p>
-      <el-form-item label="Supplier">
-        <el-select v-model="header.supplier_id" clearable placeholder="Optional" size="large">
-          <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="Delivery order number" for="d-do">
-        <el-input id="d-do" v-model="header.delivery_order_no" maxlength="64" placeholder="Optional" size="large" />
-      </el-form-item>
     </el-form>
 
     <!-- 3. Model -->
     <section v-else-if="step === 'model'" class="step">
       <h2>Which model are you scanning?</h2>
-      <p class="muted">If the delivery has several models, scan one model at a time and switch between them.</p>
+      <p class="muted">If there are several models, scan one model at a time and switch between them.</p>
       <el-input v-model="modelQuery" size="large" placeholder="Search model number or kind of equipment" clearable />
       <div v-for="[cat, list] in modelGroups" :key="cat" class="model-group">
         <span class="group-title">{{ cat }}</span>
@@ -626,11 +617,10 @@ onMounted(async () => {
       <div class="summary">
         <div><span>Project</span><b>{{ project?.name }}</b><button type="button" class="edit" @click="go('project')">Change</button></div>
         <div>
-          <span>Delivery</span>
+          <span>Details</span>
           <b>{{ store?.name }} · {{ fmtDate(header.received_on) }}</b>
           <small class="muted">
             Warranty {{ header.warranty_start ? `${fmtDate(header.warranty_start)} – ${fmtDate(header.warranty_end)}` : 'not entered' }}
-            <template v-if="header.delivery_order_no"> · DO {{ header.delivery_order_no }}</template>
           </small>
           <button type="button" class="edit" @click="go('delivery')">Change</button>
         </div>
@@ -663,7 +653,7 @@ onMounted(async () => {
       <el-button size="large" @click="back">{{ stepIndex === 0 ? 'Cancel' : 'Back' }}</el-button>
       <el-button v-if="step === 'delivery'" size="large" type="primary" @click="deliveryNext">Next</el-button>
       <el-button v-else-if="step === 'scan'" size="large" type="primary" :disabled="!rows.length" @click="go('review')">Review ({{ rows.length }})</el-button>
-      <el-button v-else-if="step === 'review'" size="large" type="primary" :loading="saving" :disabled="!rows.length" @click="save">Save delivery</el-button>
+      <el-button v-else-if="step === 'review'" size="large" type="primary" :loading="saving" :disabled="!rows.length" @click="save">Save</el-button>
       <el-button v-else-if="step === 'model' && modelId" size="large" type="primary" @click="go('scan')">Continue scanning</el-button>
       <span v-else />
     </div>
@@ -691,10 +681,10 @@ onMounted(async () => {
       <el-form v-if="editBuffer" label-position="top">
         <div class="two">
           <el-form-item label="Warranty start">
-            <el-date-picker v-model="editBuffer.warranty_start" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" :placeholder="`As the delivery: ${fmtDate(header.warranty_start)}`" />
+            <el-date-picker v-model="editBuffer.warranty_start" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" :placeholder="`As on Details: ${fmtDate(header.warranty_start)}`" />
           </el-form-item>
           <el-form-item label="Warranty end">
-            <el-date-picker v-model="editBuffer.warranty_end" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" :placeholder="`As the delivery: ${fmtDate(header.warranty_end)}`" />
+            <el-date-picker v-model="editBuffer.warranty_end" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" :placeholder="`As on Details: ${fmtDate(header.warranty_end)}`" />
           </el-form-item>
         </div>
         <AttributeFields v-model="editBuffer.attributes" :fields="lk.categoryOfModel(editBuffer.model_id)?.fields ?? []" id-prefix="row" />

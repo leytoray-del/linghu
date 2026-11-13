@@ -35,8 +35,8 @@ function openFromSheet(to: string): void {
 const tabs = computed(() =>
   [
     { key: 'home', to: '/', label: 'Home', show: true },
-    auth.isApprover
-      ? { key: 'approvals', to: '/approvals', label: 'Approvals', badge: auth.me?.pending_task_count, show: true }
+    showApprovals.value
+      ? { key: 'approvals', to: '/approvals', label: 'Approvals', badge: approvalCount.value, show: true }
       : { key: 'requests', to: '/requests', label: 'Requests', show: true },
     { key: 'new', to: '', label: 'New', show: true },
     auth.can('inventory.view')
@@ -71,12 +71,16 @@ interface NavGroup {
  * The menu is organised by the person's work first (Home, Approvals), then by module.
  * A module adds its own group; a group with nothing the user may open is hidden.
  */
+/** Approvals cover resource requests and withdrawals. */
+const approvalCount = computed(() => (auth.me?.pending_task_count ?? 0) + (auth.me?.withdrawal_task_count ?? 0))
+const showApprovals = computed(() => auth.isApprover || auth.hasRole('OPS_MANAGER') || approvalCount.value > 0)
+
 const groups = computed<NavGroup[]>(() =>
   [
     {
       items: [
         { to: '/', label: 'Home', show: true },
-        { to: '/approvals', label: 'Approvals', badge: auth.me?.pending_task_count, show: auth.isApprover },
+        { to: '/approvals', label: 'Approvals', badge: approvalCount.value, show: showApprovals.value },
       ],
     },
     {
@@ -91,9 +95,8 @@ const groups = computed<NavGroup[]>(() =>
       title: 'Inventory',
       tone: 'inv' as const,
       items: [
-        { to: '/inventory', label: 'Project inventory', show: auth.can('inventory.view') },
-        { to: '/inventory/items', label: 'All items', show: auth.can('inventory.view') },
-        { to: '/inventory/warranty', label: 'Warranty', show: auth.can('inventory.view') },
+        { to: '/inventory', label: 'Inventory', show: auth.can('inventory.view') },
+        { to: '/inventory/withdrawals', label: 'Withdrawals', show: auth.can('inventory.view') },
       ],
     },
     {
@@ -114,10 +117,16 @@ const newItems = computed(() =>
   [
     { to: '/requests/new', label: 'Resource request', hint: 'Ask for engineers for a project', show: true },
     {
-      to: '/inventory/deliveries/new',
+      to: '/inventory/register',
       label: 'Register device',
-      hint: 'Record devices delivered for a project',
+      hint: 'Record devices that arrived for a project',
       show: auth.can('inventory.register'),
+    },
+    {
+      to: '/inventory/withdrawals/new',
+      label: 'Request withdrawal',
+      hint: 'Move items of a project to a new location',
+      show: auth.can('inventory.withdraw'),
     },
   ].filter((i) => i.show),
 )
@@ -126,8 +135,7 @@ function isActive(item: NavItem): boolean {
   const path = route.path
   if (item.to === '/') return path === '/'
   if (item.to === '/requests') return path.startsWith('/requests')
-  if (item.to === '/inventory') return path === '/inventory' || path.startsWith('/inventory/projects')
-  if (item.to === '/inventory/items') return path.startsWith('/inventory/items')
+  if (item.to === '/inventory') return path === '/inventory' || path.startsWith('/inventory/items')
   return path.startsWith(item.to)
 }
 

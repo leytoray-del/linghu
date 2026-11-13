@@ -7,7 +7,7 @@ import { inventoryApi } from '../api'
 import SerialFormatPicker from '../components/SerialFormatPicker.vue'
 import { useInventoryLookups } from '../lookups'
 import { describeFormat } from '../serialFormat'
-import type { ItemModel, Supplier } from '../types'
+import type { ItemModel } from '../types'
 
 const lk = useInventoryLookups()
 const loading = ref(true)
@@ -19,13 +19,9 @@ const modelDialog = ref(false)
 const editingModel = ref<ItemModel | null>(null)
 const model = reactive({ category_id: 0, model_no: '', name: '', manufacturer: '', serial_pattern: null as string | null, is_active: true })
 
-const supplierDialog = ref(false)
-const editingSupplier = ref<Supplier | null>(null)
-const supplier = reactive({ name: '', is_active: true })
 
 const categoryName = (id: number) => lk.category(id)?.name ?? '—'
 const models = computed(() => lk.data.value?.models ?? [])
-const suppliers = computed(() => lk.data.value?.suppliers ?? [])
 
 async function load(): Promise<void> {
   loading.value = true
@@ -53,13 +49,6 @@ function openModel(row: ItemModel | null): void {
   modelDialog.value = true
 }
 
-function openSupplier(row: Supplier | null): void {
-  editingSupplier.value = row
-  Object.assign(supplier, { name: row?.name ?? '', is_active: row?.is_active ?? true })
-  errors.value = {}
-  formError.value = null
-  supplierDialog.value = true
-}
 
 async function run(task: () => Promise<unknown>, done: string, close: () => void): Promise<void> {
   saving.value = true
@@ -93,8 +82,7 @@ const saveModel = () =>
     'Model saved.',
     () => (modelDialog.value = false),
   )
-const saveSupplier = () =>
-  run(() => inventoryApi.saveSupplier({ ...supplier }, editingSupplier.value?.id), 'Supplier saved.', () => (supplierDialog.value = false))
+
 
 onMounted(load)
 </script>
@@ -114,18 +102,6 @@ onMounted(load)
         <template #default="{ row }"><el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? 'Active' : 'Inactive' }}</el-tag></template>
       </el-table-column>
       <el-table-column width="90" align="right"><template #default="{ row }"><el-button size="small" @click="openModel(row as ItemModel)">Edit</el-button></template></el-table-column>
-    </el-table>
-
-    <div class="bar">
-      <h3>Suppliers</h3>
-      <el-button @click="openSupplier(null)">Add supplier</el-button>
-    </div>
-    <el-table v-loading="loading" :data="suppliers">
-      <el-table-column prop="name" label="Supplier" min-width="220" />
-      <el-table-column label="Status" width="110">
-        <template #default="{ row }"><el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? 'Active' : 'Inactive' }}</el-tag></template>
-      </el-table-column>
-      <el-table-column width="90" align="right"><template #default="{ row }"><el-button size="small" @click="openSupplier(row as Supplier)">Edit</el-button></template></el-table-column>
     </el-table>
 
     <el-dialog v-model="modelDialog" :title="editingModel ? `Edit ${editingModel.model_no}` : 'Add model'" width="min(520px, 94vw)">
@@ -149,18 +125,6 @@ onMounted(load)
       <template #footer>
         <el-button @click="modelDialog = false">Cancel</el-button>
         <el-button type="primary" :loading="saving" @click="saveModel">Save</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="supplierDialog" :title="editingSupplier ? `Edit ${editingSupplier.name}` : 'Add supplier'" width="min(440px, 94vw)">
-      <el-form label-position="top" @submit.prevent="saveSupplier">
-        <el-form-item label="Name" required :error="errors.name" for="s-name"><el-input id="s-name" v-model="supplier.name" maxlength="120" /></el-form-item>
-        <el-form-item label="Status"><el-switch v-model="supplier.is_active" active-text="Active" inactive-text="Inactive" /></el-form-item>
-        <el-alert v-if="formError" :title="formError" type="error" :closable="false" />
-      </el-form>
-      <template #footer>
-        <el-button @click="supplierDialog = false">Cancel</el-button>
-        <el-button type="primary" :loading="saving" @click="saveSupplier">Save</el-button>
       </template>
     </el-dialog>
   </div>

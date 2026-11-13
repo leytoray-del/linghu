@@ -45,7 +45,7 @@ const routes: RouteRecordRaw[] = [
         path: 'approvals',
         name: 'approvals',
         component: () => import('@/views/approvals/ApprovalInboxView.vue'),
-        meta: { title: 'Approvals', allow: (a) => a.isApprover },
+        meta: { title: 'Approvals', allow: (a) => a.isApprover || a.hasRole('OPS_MANAGER') || (a.me?.withdrawal_task_count ?? 0) > 0 },
       },
       {
         path: 'resources',

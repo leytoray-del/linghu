@@ -44,7 +44,7 @@ const GROUPS: { title: string; sections: Section[] }[] = [
     title: 'Inventory',
     sections: [
       { key: 'inv-categories', label: 'Kinds of equipment', hint: 'Categories and the fields each one records.', component: CategoriesTab },
-      { key: 'inv-models', label: 'Models and suppliers', hint: 'Device models, their serial number formats, and suppliers.', component: ModelsTab },
+      { key: 'inv-models', label: 'Models', hint: 'Device models and their serial number formats.', component: ModelsTab },
     ],
   },
   {

@@ -50,6 +50,8 @@ export interface Me {
   permissions: string[]
   must_change_password: boolean
   pending_task_count: number
+  /** Withdrawal requests waiting for this person's approval. */
+  withdrawal_task_count: number
 }
 
 export interface SupportTypeBrief {

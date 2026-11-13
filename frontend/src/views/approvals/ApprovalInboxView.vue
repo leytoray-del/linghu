@@ -3,6 +3,10 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { requestApi } from '@/api'
+import { inventoryApi } from '@/modules/inventory/api'
+import WithdrawalStatusTag from '@/modules/inventory/components/WithdrawalStatusTag.vue'
+import type { Withdrawal } from '@/modules/inventory/types'
+import { useAuthStore } from '@/stores/auth'
 import StatusTag from '@/components/StatusTag.vue'
 import UrgentBadge from '@/components/UrgentBadge.vue'
 import type { TaskInboxItem } from '@/types/api'
@@ -10,12 +14,16 @@ import { showError } from '@/utils/feedback'
 import { fmtDate, fmtDateTime, STEP_LABEL } from '@/utils/format'
 
 const router = useRouter()
+const auth = useAuthStore()
 const items = ref<TaskInboxItem[]>([])
+const withdrawals = ref<Withdrawal[]>([])
 const loading = ref(true)
 
 onMounted(async () => {
   try {
-    items.value = await requestApi.myTasks()
+    const jobs: Promise<unknown>[] = [requestApi.myTasks().then((t) => (items.value = t))]
+    if (auth.can('inventory.view')) jobs.push(inventoryApi.withdrawals('waiting').then((w) => (withdrawals.value = w)))
+    await Promise.all(jobs)
   } catch (e) {
     showError(e)
   } finally {
@@ -33,10 +41,19 @@ function open(item: TaskInboxItem): void {
     <div class="page-head">
       <div>
         <h1>Approvals</h1>
-        <p class="sub">Requests waiting for your decision, urgent requests first.</p>
+        <p class="sub">Everything waiting for your decision: resource requests and equipment withdrawals.</p>
       </div>
     </div>
+    <section v-if="withdrawals.length" class="panel">
+      <div class="panel-head"><h2>Equipment withdrawals ({{ withdrawals.length }})</h2></div>
+      <RouterLink v-for="w in withdrawals" :key="w.id" :to="`/inventory/withdrawals/${w.id}`" class="wrow">
+        <span class="mono">{{ w.request_no }}</span>
+        <span class="grow">{{ w.item_count }} item{{ w.item_count === 1 ? '' : 's' }} of <b>{{ w.project.name }}</b> to <b>{{ w.to_location.name }}</b> · {{ w.requester.display_name }}</span>
+        <WithdrawalStatusTag :status="w.status" />
+      </RouterLink>
+    </section>
     <section class="panel">
+      <div v-if="withdrawals.length" class="panel-head"><h2>Resource requests ({{ items.length }})</h2></div>
       <el-table v-loading="loading" :data="items" row-class-name="clickable-row" empty-text="Nothing is waiting for your decision." @row-click="open">
         <el-table-column label="Request no." width="140">
           <template #default="{ row }"><span class="mono">{{ row.request.display_no }}</span></template>
@@ -74,6 +91,24 @@ function open(item: TaskInboxItem): void {
 </template>
 
 <style scoped>
+.wrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--erf-line);
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+.wrow:hover {
+  border-color: var(--erf-accent);
+}
+.grow {
+  flex: 1;
+  min-width: 200px;
+}
 .meta {
   font-size: 12px;
   display: flex;

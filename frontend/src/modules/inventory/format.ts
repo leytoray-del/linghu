@@ -1,50 +1,51 @@
-import type { AttributeValue, FieldDef, ItemAction, ItemStatus } from './types'
+import type { AttributeValue, FieldDef, ItemStatus, WithdrawalStatus } from './types'
 
 export const ITEM_STATUS_LABEL: Record<ItemStatus, string> = {
   IN_STOCK: 'In stock',
-  RESERVED: 'Reserved',
-  ISSUED: 'Issued',
+  REQUESTED: 'Requested',
   DEPLOYED: 'Deployed',
-  RETURNED: 'Returned',
-  FAULTY: 'Faulty',
-  IN_REPAIR: 'In repair',
-  DISPOSED: 'Written off',
 }
 
 export const ITEM_STATUS_TONE: Record<ItemStatus, string> = {
   IN_STOCK: 'accent',
-  RESERVED: 'warn',
-  ISSUED: 'warn',
+  REQUESTED: 'warn',
   DEPLOYED: 'ok',
-  RETURNED: 'warn',
-  FAULTY: 'bad',
-  IN_REPAIR: 'bad',
-  DISPOSED: 'muted',
-}
-
-export const ACTION_LABEL: Record<ItemAction, string> = {
-  move: 'Move to another location',
-  report_fault: 'Report a fault',
-  send_for_repair: 'Send for repair',
-  repaired: 'Back from repair',
-  dispose: 'Write off',
 }
 
 export const MOVEMENT_LABEL: Record<string, string> = {
-  RECEIVE: 'Received',
+  RECEIVE: 'Registered',
   UPDATE: 'Details changed',
-  MOVE: 'Moved',
-  REPORT_FAULT: 'Reported faulty',
-  SEND_FOR_REPAIR: 'Sent for repair',
-  REPAIRED: 'Back from repair',
-  DISPOSE: 'Written off',
-  RESERVE: 'Reserved',
-  RELEASE: 'Released',
-  ISSUE: 'Issued',
+  REQUEST: 'Requested for withdrawal',
+  RELEASE: 'Back in stock (request not approved)',
   DEPLOY: 'Deployed',
-  RETURN: 'Returned',
-  CHECK_IN: 'Checked and back in stock',
-  TRANSFER_PROJECT: 'Transferred to another project',
+  RETURN: 'Returned to stock',
+  DELETE: 'Deleted',
+}
+
+export const WITHDRAWAL_STATUS_LABEL: Record<WithdrawalStatus, string> = {
+  PENDING_PM: 'Waiting for PM',
+  PENDING_OM: 'Waiting for OM',
+  APPROVED: 'Approved',
+  RETURNED: 'Rejected · can resubmit',
+  WITHDRAWN: 'Withdrawn',
+}
+
+export const WITHDRAWAL_STATUS_TONE: Record<WithdrawalStatus, string> = {
+  PENDING_PM: 'accent',
+  PENDING_OM: 'accent',
+  APPROVED: 'ok',
+  RETURNED: 'warn',
+  WITHDRAWN: 'muted',
+}
+
+export const WITHDRAWAL_EVENT_LABEL: Record<string, string> = {
+  SUBMIT: 'Submitted',
+  RESUBMIT: 'Revised and resubmitted',
+  APPROVE_PM: 'Approved by the PM',
+  REJECT_PM: 'Rejected by the PM',
+  APPROVE_OM: 'Approved by the operations manager',
+  REJECT_OM: 'Rejected by the operations manager',
+  WITHDRAW: 'Withdrawn by the requester',
 }
 
 export const LOCATION_KIND_LABEL: Record<string, string> = {
