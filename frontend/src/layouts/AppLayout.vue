@@ -115,8 +115,8 @@ const newItems = computed(() =>
     { to: '/requests/new', label: 'Resource request', hint: 'Ask for engineers for a project', show: true },
     {
       to: '/inventory/deliveries/new',
-      label: 'Register delivery',
-      hint: 'Record equipment delivered for a project',
+      label: 'Register device',
+      hint: 'Record devices delivered for a project',
       show: auth.can('inventory.register'),
     },
   ].filter((i) => i.show),

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Register a delivery, one step at a time: Project, Delivery, Model, Scan, Review.
+ * Register devices from a delivery, one step at a time: Project, Delivery, Model, Scan, Review.
  * Built for phones first: each step fills the screen and the main action is always in the bar at the bottom.
  */
 import dayjs from 'dayjs'
@@ -64,10 +64,34 @@ const header = reactive({
   received_on: dayjs().format('YYYY-MM-DD'),
   supplier_id: null as number | null,
   delivery_order_no: '',
-  warranty_start: null as string | null,
-  warranty_end: null as string | null,
+  warranty_start: dayjs().format('YYYY-MM-DD') as string | null,
+  warranty_end: dayjs().add(1, 'year').format('YYYY-MM-DD') as string | null,
   remarks: '',
 })
+
+// ---- warranty: one year from the received date unless changed by hand ----
+const WARRANTY_YEARS = 1
+/** True while the warranty dates still follow the received date; false once someone changes them. */
+const warrantyFollows = ref(true)
+const plusYears = (d: string) => dayjs(d).add(WARRANTY_YEARS, 'year').format('YYYY-MM-DD')
+watch(
+  () => header.received_on,
+  (d) => {
+    if (!warrantyFollows.value || !d) return
+    header.warranty_start = d
+    header.warranty_end = plusYears(d)
+  },
+)
+function onWarrantyStart(d: string | null): void {
+  warrantyFollows.value = false
+  // The end moves with the start, keeping the one-year period, unless it was set by hand.
+  if (d && (!header.warranty_end || endFollowsStart.value)) header.warranty_end = plusYears(d)
+}
+const endFollowsStart = ref(true)
+function onWarrantyEnd(): void {
+  warrantyFollows.value = false
+  endFollowsStart.value = false
+}
 const modelId = ref<number | null>(null)
 const common = ref<Record<number, Record<string, AttributeValue>>>({})
 const rows = ref<Row[]>([])
@@ -264,8 +288,8 @@ async function add(raw: string, fromCamera: boolean): Promise<boolean> {
   rows.value.unshift({
     serial_no: serial,
     model_id: modelId.value,
-    warranty_start: header.warranty_start,
-    warranty_end: header.warranty_end,
+    warranty_start: null,
+    warranty_end: null,
     attributes: { ...commonValues.value },
   })
   notice.value = { type: 'success', text: `Added ${serial} (${rows.value.length} in this delivery).` }
@@ -439,7 +463,18 @@ async function startAgain(): Promise<void> {
   }
   clearDraft()
   rows.value = []
-  Object.assign(header, { project_id: null, supplier_id: null, delivery_order_no: '', warranty_start: null, warranty_end: null, remarks: '' })
+  const today = dayjs().format('YYYY-MM-DD')
+  Object.assign(header, {
+    project_id: null,
+    supplier_id: null,
+    delivery_order_no: '',
+    received_on: today,
+    warranty_start: today,
+    warranty_end: plusYears(today),
+    remarks: '',
+  })
+  warrantyFollows.value = true
+  endFollowsStart.value = true
   modelId.value = null
   restored.value = false
   go('project')
@@ -520,13 +555,15 @@ onMounted(async () => {
       </el-form-item>
       <div class="two">
         <el-form-item label="Warranty start" :required="warrantyRequired" :error="errors.warranty_start">
-          <el-date-picker v-model="header.warranty_start" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" size="large" />
+          <el-date-picker v-model="header.warranty_start" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" size="large" @change="onWarrantyStart" />
         </el-form-item>
         <el-form-item label="Warranty end" :required="warrantyRequired" :error="errors.warranty_end">
-          <el-date-picker v-model="header.warranty_end" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" size="large" />
+          <el-date-picker v-model="header.warranty_end" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" size="large" @change="onWarrantyEnd" />
         </el-form-item>
       </div>
-      <p class="muted small">The warranty dates apply to every item. You can change them for one item on the Review step.</p>
+      <p class="muted small">
+        The warranty is one year from the received date unless you change it. It applies to every item; you can change it for one item on the Review step.
+      </p>
       <el-form-item label="Supplier">
         <el-select v-model="header.supplier_id" clearable placeholder="Optional" size="large">
           <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
@@ -654,10 +691,10 @@ onMounted(async () => {
       <el-form v-if="editBuffer" label-position="top">
         <div class="two">
           <el-form-item label="Warranty start">
-            <el-date-picker v-model="editBuffer.warranty_start" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" />
+            <el-date-picker v-model="editBuffer.warranty_start" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" :placeholder="`As the delivery: ${fmtDate(header.warranty_start)}`" />
           </el-form-item>
           <el-form-item label="Warranty end">
-            <el-date-picker v-model="editBuffer.warranty_end" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" />
+            <el-date-picker v-model="editBuffer.warranty_end" type="date" value-format="YYYY-MM-DD" format="D MMM YYYY" :placeholder="`As the delivery: ${fmtDate(header.warranty_end)}`" />
           </el-form-item>
         </div>
         <AttributeFields v-model="editBuffer.attributes" :fields="lk.categoryOfModel(editBuffer.model_id)?.fields ?? []" id-prefix="row" />

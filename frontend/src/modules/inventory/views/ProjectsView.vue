@@ -55,7 +55,7 @@ onMounted(async () => {
       <div class="actions">
         <el-button tag="a" :href="inventoryApi.exportUrl()">Export all to Excel</el-button>
         <el-button v-if="auth.can('inventory.register')" type="primary" @click="$router.push('/inventory/deliveries/new')">
-          Register delivery
+          Register device
         </el-button>
       </div>
     </div>

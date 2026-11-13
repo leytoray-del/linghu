@@ -138,7 +138,7 @@ function describe(m: Movement): string {
           type="primary"
           @click="$router.push({ path: '/inventory/deliveries/new', query: { project: projectId } })"
         >
-          Register delivery
+          Register device
         </el-button>
       </div>
     </div>
