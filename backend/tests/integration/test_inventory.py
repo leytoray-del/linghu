@@ -45,11 +45,16 @@ def reader(serial: str, lk: dict[str, Any], **extra: Any) -> dict[str, Any]:
 def test_permissions_by_role(login) -> None:  # type: ignore[no-untyped-def]
     clerk, engineer, admin = login(CLERK), login(ENGINEER), login(ADMIN)
     assert "inventory.register" in clerk.me["permissions"]
-    assert engineer.me["permissions"] == ["inventory.register", "inventory.view"]
+    assert engineer.me["permissions"] == [
+        "inventory.register",
+        "inventory.return",
+        "inventory.view",
+        "inventory.withdraw",
+    ]
     assert "inventory.edit" in clerk.me["permissions"] and "inventory.edit" not in engineer.me["permissions"]
     assert {"core.admin", "inventory.admin"} <= set(admin.me["permissions"])
     lk = lookups(engineer)
-    assert engineer.get("/inventory/projects").status_code == 200
+    assert engineer.get("/inventory/items").status_code == 200
     r = engineer.post("/inventory/deliveries", json=delivery(lk, reader("FRX26A0001", lk)))
     assert r.status_code == 201, "engineers register devices when they arrive"
     item = engineer.get(
@@ -65,11 +70,10 @@ def test_permissions_by_role(login) -> None:  # type: ignore[no-untyped-def]
         },
     )
     assert edit.status_code == 403, "changing a saved item is a separate permission"
-    move = engineer.post(
-        f"/inventory/items/{item['id']}/actions/report_fault",
-        json={"version": item["version"], "reason": "x"},
+    gone = engineer.post(
+        f"/inventory/items/{item['id']}/delete", json={"version": item["version"], "reason": "x"}
     )
-    assert move.status_code == 403
+    assert gone.status_code == 403, "deleting is a separate permission"
     viewer = login("pmo@example.com")
     assert (
         viewer.post("/inventory/deliveries", json=delivery(lk, reader("FRX26A0002", lk))).status_code == 403
@@ -99,7 +103,9 @@ def test_permissions_by_role(login) -> None:  # type: ignore[no-untyped-def]
 def test_clerk_registers_a_delivery_under_a_project(login) -> None:  # type: ignore[no-untyped-def]
     clerk = login(CLERK)
     lk = lookups(clerk)
-    before = clerk.get(f"/inventory/projects/{lk['projects']['HSA Permit Portal']}").json()
+    before = clerk.get(
+        "/inventory/summary", params={"project_id": lk["projects"]["HSA Permit Portal"]}
+    ).json()
     r = clerk.post(
         "/inventory/deliveries",
         json=delivery(
@@ -116,9 +122,11 @@ def test_clerk_registers_a_delivery_under_a_project(login) -> None:  # type: ign
     item = clerk.get(f"/inventory/items/{check['item_id']}").json()
     assert item["serial_no"] == "FRX26A0001" and item["status"] == "IN_STOCK"
     assert item["attributes"] == {"fr_id": "FR-9001", "mounting_type": "Wall"}
-    assert item["history"][0]["kind"] == "RECEIVE" and item["history"][0]["delivery_no"] == d["delivery_no"]
-    after = clerk.get(f"/inventory/projects/{lk['projects']['HSA Permit Portal']}").json()
-    assert after["totals"]["in_stock"] == before["totals"]["in_stock"] + 2
+    assert (
+        item["history"][0]["kind"] == "RECEIVE" and item["history"][0]["to_location"] == "NEC Store, Level 3"
+    )
+    after = clerk.get("/inventory/summary", params={"project_id": lk["projects"]["HSA Permit Portal"]}).json()
+    assert after["counts"]["in_stock"] == before["counts"]["in_stock"] + 2
 
 
 def test_delivery_problems_are_reported_per_item(login) -> None:  # type: ignore[no-untyped-def]
@@ -175,38 +183,54 @@ def test_editing_an_item_is_recorded_and_checks_the_version(login) -> None:  # t
     assert stale.status_code == 409
 
 
-def test_item_actions_follow_the_lifecycle(login) -> None:  # type: ignore[no-untyped-def]
-    clerk = login(CLERK)
-    lk = lookups(clerk)
-    item_id = clerk.get("/inventory/items/check-serial", params={"serial": "FRX24A0196"}).json()["item_id"]
-    item = clerk.get(f"/inventory/items/{item_id}").json()
-    assert item["actions"] == ["move", "report_fault"]
-    r = clerk.post(f"/inventory/items/{item_id}/actions/send_for_repair", json={"version": item["version"]})
+def test_delete_and_return_need_their_own_permissions(login) -> None:  # type: ignore[no-untyped-def]
+    admin, engineer, editor = login(ADMIN), login(ENGINEER), login(CLERK)
+    lk = lookups(admin)
+    item_id = admin.get("/inventory/items/check-serial", params={"serial": "FRX24A0196"}).json()["item_id"]
+    item = admin.get(f"/inventory/items/{item_id}").json()
     assert (
-        r.status_code == 422
-        and r.json()["message"] == "You cannot send for repair this item because it is in stock."
+        editor.post(
+            f"/inventory/items/{item_id}/delete", json={"version": item["version"], "reason": "x"}
+        ).status_code
+        == 403
     )
-    r = clerk.post(f"/inventory/items/{item_id}/actions/report_fault", json={"version": item["version"]})
-    assert r.status_code == 422 and r.json()["details"]["fields"]["reason"] == "Explain the reason."
-    item = clerk.post(
-        f"/inventory/items/{item_id}/actions/report_fault",
-        json={"version": item["version"], "reason": "Cracked screen."},
-    ).json()
-    assert item["status"] == "FAULTY" and item["actions"] == ["move", "send_for_repair", "dispose"]
-    item = clerk.post(
-        f"/inventory/items/{item_id}/actions/send_for_repair", json={"version": item["version"]}
-    ).json()
-    r = clerk.post(
-        f"/inventory/items/{item_id}/actions/repaired",
+    r = admin.post(
+        f"/inventory/items/{item_id}/delete",
+        json={"version": item["version"], "reason": "Registered twice by mistake."},
+    )
+    assert r.status_code == 200 and r.json()["deleted_at"] and r.json()["history"][0]["kind"] == "DELETE"
+    listed = admin.get("/inventory/items", params={"q": "FRX24A0196"}).json()
+    assert listed["total"] == 0, "deleted items leave the lists"
+    assert (
+        "deleted"
+        in admin.get("/inventory/items/check-serial", params={"serial": "FRX24A0196"}).json()["message"]
+    )
+
+    # Return to stock: only deployed items, only to a store, by people allowed to return.
+    deployed = admin.get("/inventory/items/check-serial", params={"serial": "FRX24A0194"}).json()["item_id"]
+    item = engineer.get(f"/inventory/items/{deployed}").json()
+    assert item["status"] == "DEPLOYED" and item["location"]["name"] == "HSA Outram, Gate 2"
+    bad = engineer.post(
+        f"/inventory/items/{deployed}/return",
         json={"version": item["version"], "location_id": lk["locations"]["HSA Outram, Gate 2"]},
     )
-    assert r.status_code == 422 and r.json()["message"] == "A repaired item goes back to a store."
-    item = clerk.post(
-        f"/inventory/items/{item_id}/actions/repaired",
-        json={"version": item["version"], "location_id": lk["locations"]["NEC Store, Changi"]},
-    ).json()
-    assert item["status"] == "IN_STOCK" and item["location"]["name"] == "NEC Store, Changi"
-    assert [h["kind"] for h in item["history"]][:3] == ["REPAIRED", "SEND_FOR_REPAIR", "REPORT_FAULT"]
+    assert bad.status_code == 422
+    assert (
+        login("pmo@example.com")
+        .post(f"/inventory/items/{deployed}/return", json={"version": item["version"], "location_id": 1})
+        .status_code
+        == 403
+    )
+    back = engineer.post(
+        f"/inventory/items/{deployed}/return",
+        json={
+            "version": item["version"],
+            "location_id": lk["locations"]["NEC Store, Level 3"],
+            "reason": "Pilot ended.",
+        },
+    )
+    assert back.status_code == 200, back.text
+    assert back.json()["status"] == "IN_STOCK" and back.json()["history"][0]["kind"] == "RETURN"
 
 
 def test_categories_are_configurable_without_losing_fields(login) -> None:  # type: ignore[no-untyped-def]
@@ -252,29 +276,151 @@ def test_categories_are_configurable_without_losing_fields(login) -> None:  # ty
     assert admin.get(f"/inventory/items/{item_id}").json()["attributes"] == {"arm_length": 4.5}
 
 
-def test_project_views_and_export(login) -> None:  # type: ignore[no-untyped-def]
+def test_inventory_list_summary_and_export(login) -> None:  # type: ignore[no-untyped-def]
     eng = login(ENGINEER)
-    rows = {r["project"]["name"]: r for r in eng.get("/inventory/projects").json()}
-    hsa = rows["HSA Permit Portal"]
-    assert hsa["counts"]["total"] == 21 and hsa["counts"]["in_stock"] == 21
-    assert rows["MOM Kiosk Refresh"]["warranty_ending"] == 6
-    detail = eng.get(f"/inventory/projects/{hsa['project']['id']}").json()
-    assert {c["category_name"]: c["counts"]["total"] for c in detail["by_category"]} == {
-        "Camera": 4, "FR reader": 12, "Gateway": 2, "Tablet": 3,
-    }  # fmt: skip
-    page = eng.get("/inventory/items", params={"project_id": hsa["project"]["id"], "q": "turnstile"}).json()
+    lk = lookups(eng)
+    hsa = lk["projects"]["HSA Permit Portal"]
+    summary = eng.get("/inventory/summary", params={"project_id": hsa}).json()
+    assert summary["counts"] == {"in_stock": 18, "requested": 1, "deployed": 2, "total": 21}
+    assert eng.get("/inventory/summary").json()["warranty_ending"] == 6
+    page = eng.get("/inventory/items", params={"project_id": hsa, "q": "turnstile"}).json()
     assert page["total"] == 4
+    at_site = eng.get(
+        "/inventory/items", params={"location_id": lk["locations"]["HSA Outram, Gate 2"]}
+    ).json()
+    assert sorted(i["serial_no"] for i in at_site["items"]) == ["FRX24A0194", "FRX24A0195"]
     soon = eng.get("/inventory/items", params={"warranty_within_days": 60}).json()
     assert soon["total"] == 6 and soon["items"][0]["project"]["name"] == "MOM Kiosk Refresh"
-    history = eng.get(f"/inventory/projects/{rows['MOM Kiosk Refresh']['project']['id']}/history").json()
-    assert history[0]["kind"] in ("MOVE", "SEND_FOR_REPAIR") and history[0]["serial_no"].startswith("FRX23B")
-    xlsx = eng.get("/inventory/export.xlsx", params={"project_id": hsa["project"]["id"]})
+    xlsx = eng.get("/inventory/export.xlsx", params={"project_id": hsa})
     assert xlsx.status_code == 200
     wb = load_workbook(io.BytesIO(xlsx.content))
     assert wb.sheetnames == ["Camera", "FR reader", "Gateway", "Tablet"]
-    assert [c.value for c in wb["FR reader"][1]][-7:] == [
-        "FR ID", "Deployment date", "OS version", "Firmware version", "APK version", "Mounting type", "Remarks",
+    assert [c.value for c in wb["FR reader"][1]][:7] == [
+        "Serial no.", "Model", "Project", "Status", "Location", "Warranty start", "Warranty end",
     ]  # fmt: skip
+
+
+def test_withdrawal_needs_pm_then_om_and_moves_the_items(login, container) -> None:  # type: ignore[no-untyped-def]
+    eng, pm, om, admin = (
+        login(ENGINEER),
+        login("alex.tan@example.com"),
+        login("wong.meifen@example.com"),
+        login(ADMIN),
+    )
+    lk = lookups(eng)
+    hsa = lk["projects"]["HSA Permit Portal"]
+    ids = [
+        eng.get("/inventory/items/check-serial", params={"serial": s}).json()["item_id"]
+        for s in ("FRX24A0197", "FRX24A0198")
+    ]
+    site = eng.post("/inventory/sites", json={"name": "HSA  Novena,   Lobby"})
+    assert (
+        site.status_code == 201
+        and site.json()["name"] == "HSA Novena, Lobby"
+        and site.json()["kind"] == "SITE"
+    )
+    assert eng.post("/inventory/sites", json={"name": "hsa novena, lobby"}).json()["id"] == site.json()["id"]
+    body = {
+        "project_id": hsa,
+        "item_ids": ids,
+        "to_location_id": site.json()["id"],
+        "reason": "Lobby readers.",
+    }
+
+    other = lk["projects"]["MOM Kiosk Refresh"]
+    wrong = eng.post("/inventory/withdrawals", json={**body, "project_id": other})
+    assert wrong.status_code == 422 and "belongs to HSA Permit Portal" in wrong.json()["message"]
+    w = eng.post("/inventory/withdrawals", json=body)
+    assert w.status_code == 201, w.text
+    w = w.json()
+    assert w["status"] == "PENDING_PM" and [u["display_name"] for u in w["waiting_for"]] == ["Alex Tan"]
+    assert eng.get(f"/inventory/items/{ids[0]}").json()["status"] == "REQUESTED"
+    again = eng.post("/inventory/withdrawals", json=body)
+    assert again.status_code == 422 and "not in stock" in again.json()["message"]
+    assert pm.get("/auth/me").json()["withdrawal_task_count"] == 2  # this one and the one from the demo data
+    assert (
+        om.post(
+            f"/inventory/withdrawals/{w['id']}/decision", json={"version": w["version"], "approve": True}
+        ).status_code
+        == 403
+    )
+
+    # Reject: back to the requester; the items return to stock.
+    no = pm.post(
+        f"/inventory/withdrawals/{w['id']}/decision", json={"version": w["version"], "approve": False}
+    )
+    assert no.status_code == 422
+    w = pm.post(
+        f"/inventory/withdrawals/{w['id']}/decision",
+        json={"version": w["version"], "approve": False, "comment": "Take three."},
+    ).json()
+    assert w["status"] == "RETURNED" and w["can_decide"] is False
+    assert eng.get(f"/inventory/items/{ids[0]}").json()["status"] == "IN_STOCK"
+    detail = eng.get(f"/inventory/withdrawals/{w['id']}").json()
+    assert detail["can_revise"] and detail["can_withdraw"]
+
+    third = eng.get("/inventory/items/check-serial", params={"serial": "FRX24A0199"}).json()["item_id"]
+    w = eng.put(
+        f"/inventory/withdrawals/{w['id']}",
+        json={**body, "item_ids": [*ids, third], "version": detail["version"]},
+    ).json()
+    assert w["status"] == "PENDING_PM" and w["item_count"] == 3
+    w = pm.post(
+        f"/inventory/withdrawals/{w['id']}/decision", json={"version": w["version"], "approve": True}
+    ).json()
+    assert w["status"] == "PENDING_OM" and [u["display_name"] for u in w["waiting_for"]] == ["Wong Mei Fen"]
+    w = om.post(
+        f"/inventory/withdrawals/{w['id']}/decision", json={"version": w["version"], "approve": True}
+    ).json()
+    assert w["status"] == "APPROVED"
+    item = eng.get(f"/inventory/items/{ids[0]}").json()
+    assert item["status"] == "DEPLOYED" and item["location"]["name"] == "HSA Novena, Lobby"
+    assert item["attributes"]["deployment_date"] == "2026-11-05", (
+        "the deployment date is filled in on approval"
+    )
+    assert item["history"][0]["kind"] == "DEPLOY" and item["history"][0]["withdrawal_no"] == w["request_no"]
+
+    from sqlalchemy import select
+
+    from erf.db.models import NotificationOutbox
+    from erf.db.session import session_scope
+
+    with session_scope(container.factory) as s:
+        events = [
+            r.event_type
+            for r in s.scalars(
+                select(NotificationOutbox)
+                .where(NotificationOutbox.event_type.like("WITHDRAWAL%"))
+                .order_by(NotificationOutbox.id)
+            )
+        ]
+    assert events[-5:] == [
+        "WITHDRAWAL_WAITING",
+        "WITHDRAWAL_REJECTED",
+        "WITHDRAWAL_WAITING",
+        "WITHDRAWAL_WAITING",
+        "WITHDRAWAL_APPROVED",
+    ]
+
+    # When the requester is the project's PM, the PM step is skipped; withdrawing releases the items.
+    users = {u["email"]: u["id"] for u in admin.get("/admin/users").json()}
+    project = next(p for p in admin.get("/projects").json() if p["id"] == hsa)
+    admin.put(
+        f"/projects/{hsa}",
+        json={
+            "code": project["code"],
+            "name": project["name"],
+            "client_name": project["client_name"],
+            "pm_user_id": users[ENGINEER],
+            "is_active": True,
+        },
+    )
+    four = eng.get("/inventory/items/check-serial", params={"serial": "FRX24A0200"}).json()["item_id"]
+    w2 = eng.post("/inventory/withdrawals", json={**body, "item_ids": [four]}).json()
+    assert w2["status"] == "PENDING_OM" and w2["tasks"][0]["status"] == "SKIPPED"
+    w2 = eng.post(f"/inventory/withdrawals/{w2['id']}/withdraw", json={"version": w2["version"]}).json()
+    assert w2["status"] == "WITHDRAWN" and eng.get(f"/inventory/items/{four}").json()["status"] == "IN_STOCK"
+    assert login("pmo@example.com").post("/inventory/withdrawals", json=body).status_code == 403
 
 
 def test_projects_and_locations_are_shared_records(login) -> None:  # type: ignore[no-untyped-def]

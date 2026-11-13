@@ -1,0 +1,18 @@
+{{ heading }}
+
+{{ message }}
+{% if comment %}
+{{ actor }}: {{ comment }}
+{% endif %}
+{{ button }}: {{ link }}
+
+Request:       {{ w.request_no }}
+Project:       {{ w.project.name }} ({{ w.project.code }})
+Requested by:  {{ w.requester.display_name }}
+New location:  {{ w.to_location.name }}
+Reason:        {{ w.reason }}
+Items ({{ items|length }}):
+{% for i in items[:30] %}  {{ i.serial_no }} · {{ i.model.model_no }} · {{ i.location.name }}
+{% endfor %}{% if items|length > 30 %}  and {{ items|length - 30 }} more
+{% endif %}
+This message was sent automatically by {{ app_name }}.

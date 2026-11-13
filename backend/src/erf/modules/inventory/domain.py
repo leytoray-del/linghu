@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
 from typing import Any, Literal
@@ -13,114 +12,48 @@ from pydantic import BaseModel, Field, field_validator
 
 class ItemStatus(StrEnum):
     IN_STOCK = "IN_STOCK"
-    RESERVED = "RESERVED"
-    ISSUED = "ISSUED"
+    """Registered and kept in a store."""
+    REQUESTED = "REQUESTED"
+    """In a withdrawal request waiting for approval; cannot be requested again."""
     DEPLOYED = "DEPLOYED"
-    RETURNED = "RETURNED"
-    FAULTY = "FAULTY"
-    IN_REPAIR = "IN_REPAIR"
-    DISPOSED = "DISPOSED"
+    """Moved to its new location after the withdrawal was approved."""
 
 
 class MovementKind(StrEnum):
+    """Entries in an item's history."""
+
     RECEIVE = "RECEIVE"
     UPDATE = "UPDATE"
-    MOVE = "MOVE"
-    REPORT_FAULT = "REPORT_FAULT"
-    SEND_FOR_REPAIR = "SEND_FOR_REPAIR"
-    REPAIRED = "REPAIRED"
-    DISPOSE = "DISPOSE"
-    # Used by withdrawals and transfers (next phase); listed so the history can already show them.
-    RESERVE = "RESERVE"
+    REQUEST = "REQUEST"
     RELEASE = "RELEASE"
-    ISSUE = "ISSUE"
     DEPLOY = "DEPLOY"
     RETURN = "RETURN"
-    CHECK_IN = "CHECK_IN"
-    TRANSFER_PROJECT = "TRANSFER_PROJECT"
+    DELETE = "DELETE"
 
 
-class ItemAction(StrEnum):
-    """Actions a clerk can take on a single item from its page."""
-
-    MOVE = "move"
-    REPORT_FAULT = "report_fault"
-    SEND_FOR_REPAIR = "send_for_repair"
-    REPAIRED = "repaired"
-    DISPOSE = "dispose"
-
-
-S = ItemStatus
+class WithdrawalStatus(StrEnum):
+    PENDING_PM = "PENDING_PM"
+    PENDING_OM = "PENDING_OM"
+    APPROVED = "APPROVED"
+    RETURNED = "RETURNED"
+    """Rejected and sent back to the requester, who can revise and resubmit it, or withdraw it."""
+    WITHDRAWN = "WITHDRAWN"
 
 
-@dataclass(frozen=True)
-class ActionRule:
-    kind: MovementKind
-    allowed_from: frozenset[ItemStatus]
-    to: ItemStatus | None
-    """None keeps the current status."""
-    needs_location: bool
-    needs_reason: bool
-    verb: str
+class WithdrawalStep(StrEnum):
+    PM = "PM"
+    OM = "OM"
 
 
-ACTIONS: dict[ItemAction, ActionRule] = {
-    ItemAction.MOVE: ActionRule(
-        MovementKind.MOVE,
-        frozenset({S.IN_STOCK, S.RETURNED, S.FAULTY, S.DEPLOYED}),
-        None,
-        needs_location=True,
-        needs_reason=False,
-        verb="move",
-    ),
-    ItemAction.REPORT_FAULT: ActionRule(
-        MovementKind.REPORT_FAULT,
-        frozenset({S.IN_STOCK, S.ISSUED, S.DEPLOYED, S.RETURNED}),
-        S.FAULTY,
-        needs_location=False,
-        needs_reason=True,
-        verb="report as faulty",
-    ),
-    ItemAction.SEND_FOR_REPAIR: ActionRule(
-        MovementKind.SEND_FOR_REPAIR,
-        frozenset({S.FAULTY}),
-        S.IN_REPAIR,
-        needs_location=False,
-        needs_reason=False,
-        verb="send for repair",
-    ),
-    ItemAction.REPAIRED: ActionRule(
-        MovementKind.REPAIRED,
-        frozenset({S.IN_REPAIR}),
-        S.IN_STOCK,
-        needs_location=True,
-        needs_reason=False,
-        verb="mark as repaired",
-    ),
-    ItemAction.DISPOSE: ActionRule(
-        MovementKind.DISPOSE,
-        frozenset({S.FAULTY}),
-        S.DISPOSED,
-        needs_location=False,
-        needs_reason=True,
-        verb="write off",
-    ),
-}
+OPEN_WITHDRAWAL = frozenset(
+    {WithdrawalStatus.PENDING_PM, WithdrawalStatus.PENDING_OM, WithdrawalStatus.RETURNED}
+)
 
 STATUS_TEXT: dict[ItemStatus, str] = {
-    S.IN_STOCK: "in stock",
-    S.RESERVED: "reserved for a request",
-    S.ISSUED: "issued to an engineer",
-    S.DEPLOYED: "deployed at a site",
-    S.RETURNED: "returned and waiting to be checked",
-    S.FAULTY: "reported faulty",
-    S.IN_REPAIR: "in repair",
-    S.DISPOSED: "written off",
+    ItemStatus.IN_STOCK: "in stock",
+    ItemStatus.REQUESTED: "in a withdrawal request",
+    ItemStatus.DEPLOYED: "deployed",
 }
-
-
-def available_actions(status: ItemStatus) -> list[ItemAction]:
-    return [a for a, rule in ACTIONS.items() if status in rule.allowed_from]
 
 
 def normalise_serial(value: str) -> str:

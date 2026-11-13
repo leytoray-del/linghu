@@ -6,6 +6,7 @@ from erf.api.deps import Ctx, CurrentUser
 from erf.core.errors import Unauthorized
 from erf.db.models import User
 from erf.domain.permissions import permissions_for
+from erf.modules.inventory.withdrawals import WithdrawalService
 from erf.schemas.auth import ChangePasswordIn, LoginIn, Me, TeamBrief
 from erf.schemas.common import Message
 from erf.services.access import AccessPolicy
@@ -30,6 +31,7 @@ def build_me(ctx: ServiceContext, user: User) -> Me:
         permissions=sorted(p.value for p in permissions_for(user.roles)),
         must_change_password=user.must_change_password,
         pending_task_count=RequestService(ctx).pending_task_count(user),
+        withdrawal_task_count=WithdrawalService(ctx).pending_count(user),
     )
 
 

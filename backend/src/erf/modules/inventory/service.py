@@ -1,4 +1,4 @@
-"""Inventory use cases: categories, deliveries, items, actions, project views and export."""
+"""Inventory use cases: categories and models, registering devices, the item list, editing, deleting, returning, export."""
 
 from __future__ import annotations
 
@@ -14,16 +14,15 @@ from openpyxl.utils import get_column_letter
 from sqlalchemy import Select, String, cast, func, or_, select
 
 from erf.core.errors import Conflict, NotFound, ValidationFailed
-from erf.db.models import Location, User
+from erf.db.models import User
 from erf.domain.enums import LocationKind
 from erf.modules.inventory.domain import (
-    ACTIONS,
+    OPEN_WITHDRAWAL,
     STATUS_TEXT,
     FieldDef,
-    ItemAction,
     ItemStatus,
     MovementKind,
-    available_actions,
+    WithdrawalStatus,
     check_field_defs,
     clean_attributes,
     normalise_serial,
@@ -36,27 +35,29 @@ from erf.modules.inventory.models import (
     InvModel,
     InvMovement,
     InvSupplier,
+    InvWithdrawal,
+    InvWithdrawalItem,
 )
 from erf.modules.inventory.schemas import (
-    CategoryCounts,
     CategoryIn,
     CategoryOut,
     DeliveryIn,
     DeliveryOut,
     InventoryLookups,
-    ItemActionIn,
+    InventorySummary,
+    ItemDeleteIn,
     ItemDetailOut,
     ItemOut,
+    ItemReturnIn,
     ItemUpdateIn,
     ModelIn,
     ModelOut,
     MovementOut,
-    ProjectInventoryOut,
-    ProjectInventoryRow,
     SerialCheckOut,
     StatusCounts,
     SupplierIn,
     SupplierOut,
+    WithdrawalRef,
 )
 from erf.repositories.settings import SettingsRepository
 from erf.schemas.common import Page
@@ -99,21 +100,20 @@ def item_out(i: InvItem) -> ItemOut:
     )
 
 
-def movement_out(m: InvMovement, item: InvItem | None = None) -> MovementOut:
+def movement_out(m: InvMovement, withdrawal_no: str | None = None) -> MovementOut:
     return MovementOut(
         id=m.id,
         kind=m.kind,
-        from_status=ItemStatus(m.from_status) if m.from_status else None,
-        to_status=ItemStatus(m.to_status) if m.to_status else None,
+        from_status=m.from_status,
+        to_status=m.to_status,
         from_location=m.from_location.name if m.from_location else None,
         to_location=m.to_location.name if m.to_location else None,
-        delivery_no=m.delivery.delivery_no if m.delivery else None,
+        withdrawal_id=m.withdrawal_id,
+        withdrawal_no=withdrawal_no,
         changes=m.changes,
         reason=m.reason,
         actor=user_ref(m.actor),
         occurred_at=m.occurred_at,
-        serial_no=item.serial_no if item else None,
-        item_id=item.id if item else None,
     )
 
 
@@ -251,69 +251,6 @@ class InventoryService:
         self.s.flush()
         return x
 
-    # ---- project views ---------------------------------------------------------------------
-
-    def _warranty_ending(self, project_ids: list[int] | None = None) -> dict[int, int]:
-        today = self.ctx.clock.today()
-        q = (
-            select(InvItem.project_id, func.count())
-            .where(
-                InvItem.warranty_end.is_not(None),
-                InvItem.warranty_end >= today,
-                InvItem.warranty_end <= today + timedelta(days=WARRANTY_SOON_DAYS),
-                InvItem.status != ItemStatus.DISPOSED.value,
-            )
-            .group_by(InvItem.project_id)
-        )
-        if project_ids is not None:
-            q = q.where(InvItem.project_id.in_(project_ids))
-        return {pid: n for pid, n in self.s.execute(q).tuples()}
-
-    def project_list(self) -> list[ProjectInventoryRow]:
-        projects = OrgService(self.ctx).projects()
-        grouped: dict[int, list[tuple[str, int]]] = defaultdict(list)
-        q = select(InvItem.project_id, InvItem.status, func.count()).group_by(
-            InvItem.project_id, InvItem.status
-        )
-        for pid, status, n in self.s.execute(q).tuples():
-            grouped[pid].append((status, n))
-        ending = self._warranty_ending()
-        return [
-            ProjectInventoryRow(
-                project=project_out(p),
-                counts=_counts(grouped.get(p.id, [])),
-                warranty_ending=ending.get(p.id, 0),
-            )
-            for p in projects
-        ]
-
-    def project_inventory(self, project_id: int) -> ProjectInventoryOut:
-        p = OrgService(self.ctx).project(project_id)
-        q = (
-            select(InvItem.category_id, InvItem.status, func.count())
-            .where(InvItem.project_id == project_id)
-            .group_by(InvItem.category_id, InvItem.status)
-        )
-        grouped: dict[int, list[tuple[str, int]]] = defaultdict(list)
-        all_rows: list[tuple[str, int]] = []
-        for cid, status, n in self.s.execute(q).tuples():
-            grouped[cid].append((status, n))
-            all_rows.append((status, n))
-        cats = {c.id: c for c in self.s.scalars(select(InvCategory).where(InvCategory.id.in_(list(grouped))))}
-        by_category = sorted(
-            (
-                CategoryCounts(category_id=cid, category_name=cats[cid].name, counts=_counts(rows))
-                for cid, rows in grouped.items()
-            ),
-            key=lambda x: x.category_name,
-        )
-        return ProjectInventoryOut(
-            project=project_out(p),
-            by_category=by_category,
-            totals=_counts(all_rows),
-            warranty_ending=self._warranty_ending([project_id]).get(project_id, 0),
-        )
-
     # ---- items -----------------------------------------------------------------------------
 
     def _item_query(
@@ -321,27 +258,27 @@ class InventoryService:
         *,
         project_id: int | None,
         category_id: int | None,
-        status: list[ItemStatus],
         model_id: int | None,
+        location_id: int | None,
         q: str | None,
         warranty_within_days: int | None = None,
     ) -> Select[InvItem]:
-        query = select(InvItem)
+        """Items matching the filters, excluding deleted items. The status filter is applied separately."""
+        query = select(InvItem).where(InvItem.deleted_at.is_(None))
         if project_id:
             query = query.where(InvItem.project_id == project_id)
         if category_id:
             query = query.where(InvItem.category_id == category_id)
         if model_id:
             query = query.where(InvItem.model_id == model_id)
-        if status:
-            query = query.where(InvItem.status.in_([s.value for s in status]))
+        if location_id:
+            query = query.where(InvItem.location_id == location_id)
         if warranty_within_days is not None:
             today = self.ctx.clock.today()
             query = query.where(
                 InvItem.warranty_end.is_not(None),
                 InvItem.warranty_end >= today,
                 InvItem.warranty_end <= today + timedelta(days=warranty_within_days),
-                InvItem.status != ItemStatus.DISPOSED.value,
             )
         if q:
             like = f"%{q.strip()}%"
@@ -361,6 +298,7 @@ class InventoryService:
         category_id: int | None = None,
         status: list[ItemStatus] | None = None,
         model_id: int | None = None,
+        location_id: int | None = None,
         q: str | None = None,
         warranty_within_days: int | None = None,
         page: int = 1,
@@ -369,11 +307,13 @@ class InventoryService:
         query = self._item_query(
             project_id=project_id,
             category_id=category_id,
-            status=status or [],
             model_id=model_id,
+            location_id=location_id,
             q=q,
             warranty_within_days=warranty_within_days,
         )
+        if status:
+            query = query.where(InvItem.status.in_([s.value for s in status]))
         total = self.s.scalar(select(func.count()).select_from(query.subquery())) or 0
         order = InvItem.warranty_end if warranty_within_days is not None else InvItem.serial_no
         rows = self.s.scalars(
@@ -381,23 +321,90 @@ class InventoryService:
         )
         return Page(items=[item_out(i) for i in rows], total=total, page=page, page_size=page_size)
 
+    def summary(
+        self,
+        *,
+        project_id: int | None = None,
+        category_id: int | None = None,
+        model_id: int | None = None,
+        location_id: int | None = None,
+        q: str | None = None,
+    ) -> InventorySummary:
+        """Counts by status for the current filters, and how many warranties end soon."""
+        base = self._item_query(
+            project_id=project_id, category_id=category_id, model_id=model_id, location_id=location_id, q=q
+        ).subquery()
+        counts = StatusCounts()
+        for status, n in self.s.execute(select(base.c.status, func.count()).group_by(base.c.status)).tuples():
+            key = status.lower()
+            if hasattr(counts, key):
+                setattr(counts, key, n)
+            counts.total += n
+        ending = self._item_query(
+            project_id=project_id,
+            category_id=category_id,
+            model_id=model_id,
+            location_id=location_id,
+            q=q,
+            warranty_within_days=WARRANTY_SOON_DAYS,
+        )
+        return InventorySummary(
+            counts=counts,
+            warranty_ending=self.s.scalar(select(func.count()).select_from(ending.subquery())) or 0,
+        )
+
     def _item(self, item_id: int) -> InvItem:
         i = self.s.get(InvItem, item_id)
         if i is None:
             raise NotFound("This item does not exist.")
         return i
 
+    def _live_item(self, item_id: int) -> InvItem:
+        i = self._item(item_id)
+        if i.deleted_at is not None:
+            raise ValidationFailed("This item has been deleted, so it cannot be changed.")
+        return i
+
+    def _open_withdrawal(self, item_id: int) -> InvWithdrawal | None:
+        return self.s.scalar(
+            select(InvWithdrawal)
+            .join(InvWithdrawalItem, InvWithdrawalItem.withdrawal_id == InvWithdrawal.id)
+            .where(
+                InvWithdrawalItem.item_id == item_id,
+                InvWithdrawal.status.in_([w.value for w in OPEN_WITHDRAWAL]),
+            )
+            .limit(1)
+        )
+
     def item_detail(self, item_id: int) -> ItemDetailOut:
         i = self._item(item_id)
-        history = self.s.scalars(
-            select(InvMovement)
-            .where(InvMovement.item_id == item_id)
-            .order_by(InvMovement.occurred_at.desc(), InvMovement.id.desc())
+        history = list(
+            self.s.scalars(
+                select(InvMovement)
+                .where(InvMovement.item_id == item_id)
+                .order_by(InvMovement.occurred_at.desc(), InvMovement.id.desc())
+            )
         )
+        ids = {m.withdrawal_id for m in history if m.withdrawal_id}
+        numbers: dict[int, str] = {}
+        if ids:
+            rows = self.s.execute(
+                select(InvWithdrawal.id, InvWithdrawal.request_no).where(InvWithdrawal.id.in_(ids))
+            )
+            numbers = {wid: no for wid, no in rows.tuples()}
+        w = self._open_withdrawal(i.id)
+        deleted_by = self.s.get(User, i.deleted_by_id) if i.deleted_by_id else None
         return ItemDetailOut(
             **item_out(i).model_dump(),
-            actions=available_actions(ItemStatus(i.status)),
-            history=[movement_out(m) for m in history],
+            history=[
+                movement_out(m, numbers.get(m.withdrawal_id) if m.withdrawal_id else None) for m in history
+            ],
+            open_withdrawal=WithdrawalRef(id=w.id, request_no=w.request_no, status=WithdrawalStatus(w.status))
+            if w
+            else None,
+            deleted_at=i.deleted_at,
+            deleted_by=user_ref(deleted_by) if deleted_by else None,
+            delete_reason=i.delete_reason,
         )
 
     def find_by_serial(self, serial: str) -> InvItem | None:
@@ -412,7 +419,11 @@ class InventoryService:
             serial_no=sn,
             exists=True,
             item_id=existing.id,
-            message=f"{sn} is already registered under {existing.project.name} ({existing.category.name} {existing.model.model_no}).",
+            message=(
+                f"{sn} is already registered under {existing.project.name} "
+                f"({existing.category.name} {existing.model.model_no})"
+                + (", and was deleted." if existing.deleted_at else ".")
+            ),
         )
 
     def _record(self, item: InvItem, user: User, kind: MovementKind, **values: Any) -> None:
@@ -436,7 +447,7 @@ class InventoryService:
         return problems
 
     def update_item(self, user: User, item_id: int, data: ItemUpdateIn) -> ItemDetailOut:
-        i = self._item(item_id)
+        i = self._live_item(item_id)
         if i.version != data.version:
             raise Conflict(
                 "Someone else changed this item after you opened it. Refresh the page and try again."
@@ -482,47 +493,57 @@ class InventoryService:
             self.s.flush()
         return self.item_detail(i.id)
 
-    def act(self, user: User, item_id: int, action: ItemAction, data: ItemActionIn) -> ItemDetailOut:
-        i = self._item(item_id)
+    def delete_item(self, user: User, item_id: int, data: ItemDeleteIn) -> ItemDetailOut:
+        """Hide an item from lists and searches. The item and its history are kept."""
+        i = self._live_item(item_id)
         if i.version != data.version:
             raise Conflict(
                 "Someone else changed this item after you opened it. Refresh the page and try again."
             )
-        rule = ACTIONS[action]
-        status = ItemStatus(i.status)
-        if status not in rule.allowed_from:
-            raise ValidationFailed(f"You cannot {rule.verb} this item because it is {STATUS_TEXT[status]}.")
-        problems: dict[str, str] = {}
-        target: Location | None = None
-        if rule.needs_location:
-            if data.location_id is None:
-                problems["location_id"] = "Choose the location."
-            else:
-                target = OrgService(self.ctx).location(data.location_id)
-                if action == ItemAction.REPAIRED and target.kind != LocationKind.STORE.value:
-                    problems["location_id"] = "A repaired item goes back to a store."
-                if action == ItemAction.MOVE and target.id == i.location_id:
-                    problems["location_id"] = "The item is already at this location."
-        reason = (data.reason or "").strip() or None
-        if rule.needs_reason and not reason:
-            problems["reason"] = "Explain the reason."
-        if problems:
-            raise ValidationFailed(next(iter(problems.values())), details={"fields": problems})
-        before_status, before_location = i.status, i.location_id
-        if rule.to is not None:
-            i.status = rule.to.value
-        if target is not None:
-            i.location_id = target.id
+        if i.status == ItemStatus.REQUESTED.value:
+            w = self._open_withdrawal(i.id)
+            raise ValidationFailed(
+                f"This item is in withdrawal request {w.request_no if w else ''}. Remove it from the request first."
+            )
+        reason = data.reason.strip()
+        i.deleted_at = self.ctx.clock.now()
+        i.deleted_by_id = user.id
+        i.delete_reason = reason
+        self.s.flush()
+        self._record(i, user, MovementKind.DELETE, from_status=i.status, to_status=i.status, reason=reason)
+        self.s.flush()
+        return self.item_detail(i.id)
+
+    def return_item(self, user: User, item_id: int, data: ItemReturnIn) -> ItemDetailOut:
+        """Bring a deployed item back to a store."""
+        i = self._live_item(item_id)
+        if i.version != data.version:
+            raise Conflict(
+                "Someone else changed this item after you opened it. Refresh the page and try again."
+            )
+        if i.status != ItemStatus.DEPLOYED.value:
+            raise ValidationFailed(
+                f"Only deployed items can be returned. This item is {STATUS_TEXT[ItemStatus(i.status)]}."
+            )
+        store = OrgService(self.ctx).location(data.location_id)
+        if store.kind != LocationKind.STORE.value or not store.is_active:
+            raise ValidationFailed(
+                "Choose the store the item goes back to.",
+                details={"fields": {"location_id": "Choose a store."}},
+            )
+        before = i.location_id
+        i.status = ItemStatus.IN_STOCK.value
+        i.location_id = store.id
         self.s.flush()
         self._record(
             i,
             user,
-            rule.kind,
-            from_status=before_status,
-            to_status=i.status,
-            from_location_id=before_location,
-            to_location_id=i.location_id,
-            reason=reason,
+            MovementKind.RETURN,
+            from_status=ItemStatus.DEPLOYED.value,
+            to_status=ItemStatus.IN_STOCK.value,
+            from_location_id=before,
+            to_location_id=store.id,
+            reason=(data.reason or "").strip() or None,
         )
         self.s.flush()
         self.s.refresh(i)
@@ -627,26 +648,14 @@ class InventoryService:
         self.s.refresh(delivery)
         return delivery_out(delivery)
 
-    def deliveries(self, project_id: int | None = None) -> list[DeliveryOut]:
-        q = select(InvDelivery).order_by(InvDelivery.received_on.desc(), InvDelivery.id.desc())
-        if project_id:
-            q = q.where(InvDelivery.project_id == project_id)
-        return [delivery_out(d) for d in self.s.scalars(q.limit(200))]
-
-    def project_history(self, project_id: int, limit: int = 100) -> list[MovementOut]:
-        rows = self.s.execute(
-            select(InvMovement, InvItem)
-            .join(InvItem, InvItem.id == InvMovement.item_id)
-            .where(InvItem.project_id == project_id)
-            .order_by(InvMovement.occurred_at.desc(), InvMovement.id.desc())
-            .limit(limit)
-        ).tuples()
-        return [movement_out(m, i) for m, i in rows]
-
     # ---- export ----------------------------------------------------------------------------
 
     def export_xlsx(self, project_id: int | None) -> bytes:
-        query = select(InvItem).order_by(InvItem.project_id, InvItem.category_id, InvItem.serial_no)
+        query = (
+            select(InvItem)
+            .where(InvItem.deleted_at.is_(None))
+            .order_by(InvItem.project_id, InvItem.category_id, InvItem.serial_no)
+        )
         if project_id:
             OrgService(self.ctx).project(project_id)
             query = query.where(InvItem.project_id == project_id)
@@ -671,10 +680,8 @@ class InventoryService:
                 "Project",
                 "Status",
                 "Location",
-                "Holder",
                 "Warranty start",
                 "Warranty end",
-                "Delivery",
             ]
             headers += [f.label for f in defs] + ["Remarks"]
             ws.append(headers)
@@ -689,10 +696,8 @@ class InventoryService:
                         i.project.name,
                         STATUS_TEXT[ItemStatus(i.status)].capitalize(),
                         i.location.name,
-                        i.holder.display_name if i.holder else None,
                         i.warranty_start,
                         i.warranty_end,
-                        i.delivery.delivery_no if i.delivery else None,
                     ]
                     + [_cell(i.attributes.get(f.key)) for f in defs]
                     + [i.remarks]

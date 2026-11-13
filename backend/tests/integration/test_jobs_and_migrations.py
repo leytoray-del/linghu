@@ -99,13 +99,19 @@ def test_migrations_match_models(tmp_path: Path, monkeypatch) -> None:  # type: 
         # Migration 0002 adds approval_tasks.change_id in place with a column-level foreign key, so no
         # table is rebuilt. SQLAlchemy cannot read the name of such a constraint back from SQLite and
         # reports it as removed and re-added; the constraint itself exists.
+        # Migration 0004 adds inv_items.deleted_by_id and inv_movements.withdrawal_id the same way.
+        in_place = {
+            ("approval_tasks", "change_id"),
+            ("inv_items", "deleted_by_id"),
+            ("inv_movements", "withdrawal_id"),
+        }
         diff = [
             d
             for d in diff
             if not (
                 d[0] in ("add_fk", "remove_fk")
-                and d[1].parent.name == "approval_tasks"
-                and [c.name for c in d[1].columns] == ["change_id"]
+                and len(d[1].columns) == 1
+                and (d[1].parent.name, next(iter(d[1].columns)).name) in in_place
             )
         ]
         assert diff == [], diff

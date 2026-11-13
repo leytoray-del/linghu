@@ -18,32 +18,39 @@ class Permission(StrEnum):
 
     # Inventory module
     INVENTORY_VIEW = "inventory.view"
+    """Open the inventory, search, see item details and history, export."""
     INVENTORY_REGISTER = "inventory.register"
     """Register devices when they arrive, and add a model while doing so."""
     INVENTORY_EDIT = "inventory.edit"
-    """Change saved items: their details, location, faults and repairs. Separate from registering."""
+    """Change the details of a saved item. Separate from registering."""
+    INVENTORY_DELETE = "inventory.delete"
+    """Delete an item: it disappears from lists; the item and its history are kept."""
+    INVENTORY_RETURN = "inventory.return"
+    """Return a deployed item to a store."""
+    INVENTORY_WITHDRAW = "inventory.withdraw"
+    """Request a withdrawal of items to a new location, and add a new site while doing so."""
+    INVENTORY_WITHDRAWALS_ALL = "inventory.withdrawals.all"
+    """See every withdrawal request, not only one's own and those of one's projects."""
     INVENTORY_ADMIN = "inventory.admin"
-    """Categories and their fields, models and suppliers."""
+    """Kinds of equipment and their fields, models and suppliers."""
+    # Approving a withdrawal is decided by assignment: the PM named on the project approves first, then
+    # anyone with the Operations manager role.
 
 
 _EVERYONE = {Permission.INVENTORY_VIEW}
+_FIELD = {Permission.INVENTORY_REGISTER, Permission.INVENTORY_RETURN, Permission.INVENTORY_WITHDRAW}
 
 ROLE_PERMISSIONS: dict[Role, set[Permission]] = {
     Role.REQUESTER: set(),
-    # Engineers register devices when they arrive. Changing saved items is granted separately.
-    Role.ENGINEER: {Permission.INVENTORY_REGISTER},
+    # Engineers register devices when they arrive, request withdrawals and return items to a store.
+    Role.ENGINEER: set(_FIELD),
     Role.TEAM_LEADER: set(),
-    Role.DIRECTOR: set(),
-    Role.VIEWER: set(),
-    Role.OPS_MANAGER: set(),
+    Role.DIRECTOR: {Permission.INVENTORY_WITHDRAWALS_ALL},
+    Role.VIEWER: {Permission.INVENTORY_WITHDRAWALS_ALL},
+    Role.OPS_MANAGER: {Permission.INVENTORY_WITHDRAWALS_ALL},
     # Shown as "Inventory editor": people allowed to change items after they are saved.
-    Role.INVENTORY_CLERK: {Permission.INVENTORY_REGISTER, Permission.INVENTORY_EDIT},
-    Role.ADMIN: {
-        Permission.CORE_ADMIN,
-        Permission.INVENTORY_REGISTER,
-        Permission.INVENTORY_EDIT,
-        Permission.INVENTORY_ADMIN,
-    },
+    Role.INVENTORY_CLERK: _FIELD | {Permission.INVENTORY_EDIT},
+    Role.ADMIN: set(Permission),
 }
 
 

@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import Field
 
-from erf.modules.inventory.domain import FieldDef, ItemAction, ItemStatus
+from erf.modules.inventory.domain import FieldDef, ItemStatus, WithdrawalStatus, WithdrawalStep
 from erf.schemas.common import Schema, UserRef
 from erf.schemas.org import LocationOut, ProjectOut
 
@@ -67,32 +67,15 @@ class InventoryLookups(Schema):
 
 class StatusCounts(Schema):
     in_stock: int = 0
-    reserved: int = 0
-    issued: int = 0
+    requested: int = 0
     deployed: int = 0
-    returned: int = 0
-    faulty: int = 0
-    in_repair: int = 0
-    disposed: int = 0
     total: int = 0
 
 
-class CategoryCounts(Schema):
-    category_id: int
-    category_name: str
+class InventorySummary(Schema):
+    """Counts for the items matching the current filters (any status)."""
+
     counts: StatusCounts
-
-
-class ProjectInventoryRow(Schema):
-    project: ProjectOut
-    counts: StatusCounts
-    warranty_ending: int
-
-
-class ProjectInventoryOut(Schema):
-    project: ProjectOut
-    by_category: list[CategoryCounts]
-    totals: StatusCounts
     warranty_ending: int
 
 
@@ -118,22 +101,30 @@ class ItemOut(Schema):
 class MovementOut(Schema):
     id: int
     kind: str
-    from_status: ItemStatus | None
-    to_status: ItemStatus | None
+    from_status: str | None
+    to_status: str | None
     from_location: str | None
     to_location: str | None
-    delivery_no: str | None
+    withdrawal_id: int | None
+    withdrawal_no: str | None
     changes: dict[str, Any] | None
     reason: str | None
     actor: UserRef
     occurred_at: datetime
-    serial_no: str | None = None
-    item_id: int | None = None
+
+
+class WithdrawalRef(Schema):
+    id: int
+    request_no: str
+    status: WithdrawalStatus
 
 
 class ItemDetailOut(ItemOut):
-    actions: list[ItemAction]
     history: list[MovementOut]
+    open_withdrawal: WithdrawalRef | None
+    deleted_at: datetime | None
+    deleted_by: UserRef | None
+    delete_reason: str | None
 
 
 class ItemUpdateIn(Schema):
@@ -144,9 +135,14 @@ class ItemUpdateIn(Schema):
     remarks: str | None = Field(default=None, max_length=2000)
 
 
-class ItemActionIn(Schema):
+class ItemDeleteIn(Schema):
     version: int
-    location_id: int | None = None
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class ItemReturnIn(Schema):
+    version: int
+    location_id: int
     reason: str | None = Field(default=None, max_length=2000)
 
 
@@ -188,3 +184,73 @@ class SerialCheckOut(Schema):
     exists: bool
     message: str | None = None
     item_id: int | None = None
+
+
+# ---- withdrawals ----
+
+
+class SiteIn(Schema):
+    name: str = Field(min_length=2, max_length=120)
+
+
+class WithdrawalIn(Schema):
+    project_id: int
+    item_ids: list[int] = Field(min_length=1, max_length=500)
+    to_location_id: int
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class WithdrawalReviseIn(WithdrawalIn):
+    version: int
+
+
+class WithdrawalDecisionIn(Schema):
+    version: int
+    approve: bool
+    comment: str | None = Field(default=None, max_length=2000)
+
+
+class WithdrawalVersionIn(Schema):
+    version: int
+    comment: str | None = Field(default=None, max_length=2000)
+
+
+class WithdrawalTaskOut(Schema):
+    round: int
+    step: WithdrawalStep
+    status: str
+    approvers: list[UserRef]
+    decided_by: UserRef | None
+    comment: str | None
+    decided_at: datetime | None
+
+
+class WithdrawalEventOut(Schema):
+    action: str
+    actor: UserRef
+    comment: str | None
+    occurred_at: datetime
+
+
+class WithdrawalOut(Schema):
+    id: int
+    request_no: str
+    project: ProjectOut
+    requester: UserRef
+    to_location: LocationOut
+    reason: str
+    status: WithdrawalStatus
+    item_count: int
+    submitted_at: datetime
+    completed_at: datetime | None
+    waiting_for: list[UserRef]
+    version: int
+
+
+class WithdrawalDetailOut(WithdrawalOut):
+    items: list[ItemOut]
+    tasks: list[WithdrawalTaskOut]
+    events: list[WithdrawalEventOut]
+    can_decide: bool
+    can_revise: bool
+    can_withdraw: bool

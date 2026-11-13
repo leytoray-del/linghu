@@ -6,17 +6,17 @@ import logging
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from erf.core.clock import Clock
 from erf.core.config import Settings
-from erf.db.models import Location, Project, User
-from erf.domain.enums import LocationKind
-from erf.modules.inventory.domain import ItemAction
+from erf.db.models import Location, NotificationOutbox, Project, User
+from erf.domain.enums import LocationKind, OutboxStatus
 from erf.modules.inventory.models import InvCategory, InvItem, InvModel, InvSupplier
-from erf.modules.inventory.schemas import DeliveryIn, DeliveryItemIn, ItemActionIn
+from erf.modules.inventory.schemas import DeliveryIn, DeliveryItemIn, WithdrawalDecisionIn, WithdrawalIn
 from erf.modules.inventory.service import InventoryService
+from erf.modules.inventory.withdrawals import WithdrawalService
 from erf.services.context import ServiceContext
 
 log = logging.getLogger(__name__)
@@ -131,7 +131,6 @@ def seed_inventory_demo(
     store = location("NEC Store, Level 3", LocationKind.STORE)
     location("NEC Store, Changi", LocationKind.STORE)
     site = location("HSA Outram, Gate 2", LocationKind.SITE)
-    repair = location("Supplier repair centre", LocationKind.REPAIR)
 
     def model(no: str, cat: str, maker: str, pattern: str | None) -> InvModel:
         m = session.scalar(select(InvModel).where(InvModel.model_no == no))
@@ -221,14 +220,32 @@ def seed_inventory_demo(
         "DO-55230",
     )  # fmt: skip
 
-    # A little history: one reader moved to site, one faulty and sent for repair.
-    def act(serial: str, action: ItemAction, **kw: Any) -> None:
-        item = svc.find_by_serial(serial)
-        assert item is not None
-        svc.act(clerk, item.id, action, ItemActionIn(version=item.version, **kw))
+    # Demo history must not send real emails: only the emails queued from here on are marked as not delivered.
+    last_email = session.scalar(select(func.max(NotificationOutbox.id))) or 0
+    # Two withdrawals: one approved (the readers are now deployed at the site), one waiting for the PM.
+    wsvc = WithdrawalService(ctx)
+    engineer, pm, om = users["e_jason"], users["pm1"], users["ops"]
 
-    act("FRX24A0194", ItemAction.MOVE, location_id=site.id)
-    act("FRX23B0452", ItemAction.REPORT_FAULT, reason="Screen does not turn on after the power cut on site.")
-    act("FRX23B0452", ItemAction.SEND_FOR_REPAIR)
-    act("FRX23B0453", ItemAction.MOVE, location_id=repair.id)
+    def ids(*serials: str) -> list[int]:
+        found = [svc.find_by_serial(sn) for sn in serials]
+        return [i.id for i in found if i is not None]
+
+    done = wsvc.create(
+        engineer,
+        WithdrawalIn(project_id=hsa.id, item_ids=ids("FRX24A0194", "FRX24A0195"), to_location_id=site.id,
+                     reason="Install at Gate 2 for the pilot."),
+    )  # fmt: skip
+    done = wsvc.decide(pm, done.id, WithdrawalDecisionIn(version=done.version, approve=True))
+    wsvc.decide(om, done.id, WithdrawalDecisionIn(version=done.version, approve=True, comment="Go ahead."))
+    wsvc.create(
+        engineer,
+        WithdrawalIn(project_id=hsa.id, item_ids=ids("CAM8K20311"), to_location_id=site.id,
+                     reason="Camera for the Gate 2 lane."),
+    )  # fmt: skip
+    session.flush()
+    session.execute(
+        update(NotificationOutbox)
+        .where(NotificationOutbox.id > last_email, NotificationOutbox.status == OutboxStatus.PENDING.value)
+        .values(status=OutboxStatus.SKIPPED.value, last_error="Demo data: not delivered.")
+    )
     return session.scalar(select(InvItem.id).order_by(InvItem.id.desc()).limit(1)) or 0

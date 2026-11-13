@@ -34,3 +34,5 @@ class Me(Schema):
     permissions: list[str]
     must_change_password: bool
     pending_task_count: int
+    withdrawal_task_count: int
+    """Withdrawal requests waiting for this person's approval (as project PM or operations manager)."""
