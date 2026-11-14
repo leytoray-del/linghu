@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from erf.core.errors import Forbidden
 from erf.db.models import ResourceRequest, User
-from erf.domain.enums import AllocationStatus, RequestStatus, Role, TaskStatus
+from erf.domain.enums import AllocationStatus, RequestStatus, TaskStatus
 from erf.domain.permissions import Permission
 from erf.domain.workflow import STEP_FOR_STATUS, Actor
 from erf.repositories.users import TeamRepository
@@ -33,16 +33,17 @@ class AccessPolicy:
 
     def led_team_ids(self, user: User) -> list[int]:
         if user.id not in self._led:
-            self._led[user.id] = TeamRepository(self.s).teams_led_by(user.id)
+            reviews = can(self.s, user, Permission.RESOURCES_REVIEW)
+            self._led[user.id] = TeamRepository(self.s).teams_led_by(user.id) if reviews else []
         return self._led[user.id]
 
     def allowed_scopes(self, user: User) -> list[ListScope]:
         scopes = [ListScope.MINE]
         if self.led_team_ids(user):
             scopes.append(ListScope.TEAM)
-        if can(self.s, user, Permission.RESOURCES_OVERVIEW):
+        if can(self.s, user, Permission.RESOURCES_VIEW_ALL):
             scopes.append(ListScope.ALL)
-        if user.has_role(Role.ENGINEER):
+        if can(self.s, user, Permission.RESOURCES_ASSIGNABLE):
             scopes.append(ListScope.ASSIGNED)
         return scopes
 
@@ -55,7 +56,7 @@ class AccessPolicy:
             return True
         if request.status == RequestStatus.DRAFT.value:
             return False
-        if can(self.s, user, Permission.RESOURCES_OVERVIEW):
+        if can(self.s, user, Permission.RESOURCES_VIEW_ALL):
             return True
         if request.team_id is not None and request.team_id in self.led_team_ids(user):
             return True
@@ -74,7 +75,7 @@ class AccessPolicy:
         caps: set[Actor] = set()
         if request.requester_id == user.id:
             caps.add(Actor.REQUESTER)
-        if user.has_role(Role.ADMIN):
+        if can(self.s, user, Permission.RESOURCES_MANAGE):
             caps.add(Actor.ADMIN)
         step = STEP_FOR_STATUS.get(request.status_enum)
         if step is not None and any(
@@ -88,6 +89,6 @@ class AccessPolicy:
         return caps
 
     def can_plan_resources(self, user: User, team_id: int | None) -> bool:
-        if user.has_role(Role.DIRECTOR, Role.ADMIN):
+        if can(self.s, user, Permission.RESOURCES_PLAN):
             return True
         return team_id is not None and team_id in self.led_team_ids(user)

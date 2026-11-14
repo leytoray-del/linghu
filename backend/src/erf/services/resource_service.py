@@ -7,7 +7,6 @@ from datetime import date, timedelta
 
 from erf.core.errors import Forbidden, ValidationFailed
 from erf.db.models import ResourceAllocation, User
-from erf.domain.enums import Role
 from erf.domain.permissions import Permission
 from erf.repositories.requests import AllocationRepository
 from erf.repositories.users import TeamRepository, UserRepository
@@ -15,7 +14,7 @@ from erf.schemas.reports import EngineerLoad, LoadAssignment, LoadOut
 from erf.schemas.requests import AllocationCandidate, CandidateAssignment
 from erf.services.access import AccessPolicy
 from erf.services.context import ServiceContext
-from erf.services.permission_service import can
+from erf.services.permission_service import can, users_with
 from erf.services.presenters import user_ref
 from erf.services.request_service import RequestService
 
@@ -42,7 +41,7 @@ class ResourceService:
         last = end or request.planned_end
         if request.team_id is None or first is None or last is None or last < first:
             return []
-        engineers = list(self.users.with_role(Role.ENGINEER, team_id=request.team_id))
+        engineers = list(users_with(self.s, Permission.RESOURCES_ASSIGNABLE, team_id=request.team_id))
         busy = self._group(
             self.allocations.active_in_period(
                 [e.id for e in engineers], first, last, exclude_request_id=request.id
@@ -78,17 +77,21 @@ class ResourceService:
             raise ValidationFailed("The end date must be on or after the start date.")
         if (end - start).days > MAX_LOAD_DAYS:
             raise ValidationFailed("Choose a period of at most one year.")
-        if can(self.s, user, Permission.RESOURCES_OVERVIEW):
+        if not can(self.s, user, Permission.RESOURCES_LOAD):
+            raise Forbidden("You do not have access to resource load.")
+        if can(self.s, user, Permission.RESOURCES_VIEW_ALL):
             team_ids = [team_id] if team_id else None
         else:
             led = self.access.led_team_ids(user)
             if not led:
-                raise Forbidden("Only team leaders and directors can view resource load.")
+                raise Forbidden("Resource load shows the teams you review, and you do not review any team.")
             if team_id and team_id not in led:
-                raise Forbidden("You can only view the load of teams you lead.")
+                raise Forbidden("You can only view the load of teams you review.")
             team_ids = [team_id] if team_id else led
         engineers = [
-            e for e in self.users.with_role(Role.ENGINEER) if team_ids is None or e.team_id in team_ids
+            e
+            for e in users_with(self.s, Permission.RESOURCES_ASSIGNABLE)
+            if team_ids is None or e.team_id in team_ids
         ]
         busy = self._group(self.allocations.active_in_period([e.id for e in engineers], start, end))
         teams = {t.id: t.name for t in TeamRepository(self.s).list_all()}

@@ -37,7 +37,7 @@ const tabs = computed(() =>
     { key: 'home', to: '/', label: 'Home', show: true },
     showApprovals.value
       ? { key: 'approvals', to: '/approvals', label: 'Approvals', badge: approvalCount.value, show: true }
-      : { key: 'requests', to: '/requests', label: 'Requests', show: true },
+      : { key: 'requests', to: '/requests', label: 'Requests', show: auth.canSeeRequests },
     { key: 'new', to: '', label: 'New', show: true },
     auth.can('inventory.view')
       ? { key: 'scan', to: '/inventory/scan', label: 'Scan', show: true }
@@ -73,7 +73,7 @@ interface NavGroup {
  */
 /** Approvals cover resource requests and withdrawals. */
 const approvalCount = computed(() => (auth.me?.pending_task_count ?? 0) + (auth.me?.withdrawal_task_count ?? 0))
-const showApprovals = computed(() => auth.isApprover || auth.hasRole('OPS_MANAGER') || approvalCount.value > 0)
+const showApprovals = computed(() => auth.showApprovals)
 
 const groups = computed<NavGroup[]>(() =>
   [
@@ -87,7 +87,7 @@ const groups = computed<NavGroup[]>(() =>
       title: 'Resources',
       tone: 'res' as const,
       items: [
-        { to: '/requests', label: 'Resource requests', show: true },
+        { to: '/requests', label: 'Resource requests', show: auth.canSeeRequests },
         { to: '/resources', label: 'Resource load', show: auth.canSeeLoad },
       ],
     },
@@ -105,7 +105,7 @@ const groups = computed<NavGroup[]>(() =>
     },
     {
       title: 'System',
-      items: [{ to: '/admin', label: 'Administration', show: auth.can('core.admin') }],
+      items: [{ to: '/admin', label: 'Administration', show: auth.canAdminister }],
     },
   ]
     .map((g) => ({ ...g, items: g.items.filter((i) => i.show) }))
@@ -115,7 +115,7 @@ const groups = computed<NavGroup[]>(() =>
 /** Everything the user may start, from any module. */
 const newItems = computed(() =>
   [
-    { to: '/requests/new', label: 'Resource request', hint: 'Ask for engineers for a project', show: true },
+    { to: '/requests/new', label: 'Resource request', hint: 'Ask for engineers for a project', show: auth.can('resources.request') },
     {
       to: '/inventory/register',
       label: 'Register device',

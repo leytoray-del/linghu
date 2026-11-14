@@ -50,6 +50,8 @@ def test_permissions_by_role(login) -> None:  # type: ignore[no-untyped-def]
         "inventory.return",
         "inventory.view",
         "inventory.withdraw",
+        "resources.assignable",
+        "resources.request",
     ]
     assert "inventory.edit" in clerk.me["permissions"] and "inventory.edit" not in engineer.me["permissions"]
     assert {"core.admin", "inventory.admin"} <= set(admin.me["permissions"])

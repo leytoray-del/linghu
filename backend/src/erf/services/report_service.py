@@ -13,7 +13,7 @@ from openpyxl.utils import get_column_letter
 
 from erf.core.errors import Forbidden
 from erf.db.models import ResourceRequest, User
-from erf.domain.enums import AllocationStatus, ApprovalStep, RequestStatus, Role
+from erf.domain.enums import AllocationStatus, ApprovalStep, RequestStatus
 from erf.domain.permissions import Permission
 from erf.repositories.requests import RequestFilter, RequestRepository, TaskRepository
 from erf.schemas.reports import DashboardOut, MonthCount, NamedCount, ReportSummary
@@ -61,7 +61,7 @@ class ReportService:
                 )
             )
         assigned = 0
-        if user.has_role(Role.ENGINEER):
+        if can(self.s, user, Permission.RESOURCES_ASSIGNABLE):
             assigned = len(
                 self.repo.all_matching(RequestFilter(engineer_id=user.id, statuses=[RequestStatus.APPROVED]))
             )
@@ -79,11 +79,13 @@ class ReportService:
         )
 
     def _report_filter(self, user: User) -> RequestFilter:
-        if can(self.s, user, Permission.RESOURCES_OVERVIEW):
+        if not can(self.s, user, Permission.RESOURCES_REPORTS):
+            raise Forbidden("You do not have access to reports.")
+        if can(self.s, user, Permission.RESOURCES_VIEW_ALL):
             return RequestFilter(exclude_drafts=True)
         led = self.access.led_team_ids(user)
         if not led:
-            raise Forbidden("Reports are available to team leaders, directors and administrators.")
+            raise Forbidden("Reports show the teams you review, and you do not review any team.")
         return RequestFilter(team_ids=led, exclude_drafts=True)
 
     def summary(self, user: User, year: int) -> ReportSummary:

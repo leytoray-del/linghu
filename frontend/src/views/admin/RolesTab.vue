@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
- * Roles and permissions. Each role is a set of permissions; a person's access is the union of their roles.
- * Administrator always has everything. Some roles also carry a duty (approving), which is shown but not edited here.
+ * Roles and permissions. A role is a set of permissions, and a person has every permission of every role they hold.
+ * Everything is granted this way, including responsibilities such as approving. Every user holds Everyone, so its
+ * permissions show as included in every other role. Administrator always has everything except responsibilities.
  */
 import { ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
@@ -25,13 +26,27 @@ const saving = ref(false)
 const role = computed(() => roles.value.find((r) => r.code === selected.value) ?? null)
 const locked = computed(() => !creating.value && !!role.value?.is_locked)
 const modules = computed(() => {
-  const groups = new Map<string, { name: string; items: PermissionInfo[] }>()
+  const groups = new Map<string, { name: string; access: PermissionInfo[]; duties: PermissionInfo[] }>()
   for (const p of catalogue.value) {
-    if (!groups.has(p.module)) groups.set(p.module, { name: p.module_name, items: [] })
-    groups.get(p.module)!.items.push(p)
+    if (!groups.has(p.module)) groups.set(p.module, { name: p.module_name, access: [], duties: [] })
+    groups.get(p.module)![p.duty ? 'duties' : 'access'].push(p)
   }
   return [...groups.values()]
 })
+const base = computed(() => roles.value.find((r) => r.is_base))
+/** Permissions this role gets from Everyone, which every user holds. */
+const inherited = computed(() => (creating.value || !role.value?.is_base ? new Set(base.value?.permissions ?? []) : new Set<string>()))
+
+type BoxState = 'on' | 'off' | 'inherited' | 'admin' | 'not-admin'
+function state(p: PermissionInfo): BoxState {
+  if (locked.value) return p.duty ? 'not-admin' : 'admin'
+  if (form.value.permissions.includes(p.key)) return 'on'
+  return inherited.value.has(p.key) ? 'inherited' : 'off'
+}
+const NOTE: Partial<Record<BoxState, string>> = {
+  inherited: 'From Everyone',
+  'not-admin': 'Given through other roles',
+}
 const dirty = computed(() => {
   if (creating.value) return true
   if (!role.value) return false
@@ -42,28 +57,26 @@ const dirty = computed(() => {
   )
 })
 
-/** What someone holding only this role (and Everyone) sees, for the preview. */
+/** What someone holding only this role (and Everyone) sees, for the preview. Mirrors the menu's own rules. */
 const preview = computed(() => {
-  const perms = new Set(form.value.permissions)
-  const base = roles.value.find((r) => r.is_base)
-  base?.permissions.forEach((p) => perms.add(p))
-  if (locked.value) catalogue.value.forEach((p) => perms.add(p.key))
-  const code = creating.value ? '' : (role.value?.code ?? '')
-  const approves = ['TEAM_LEADER', 'DIRECTOR', 'OPS_MANAGER'].includes(code)
+  const perms = new Set([...form.value.permissions, ...inherited.value])
+  if (locked.value) catalogue.value.filter((p) => !p.duty).forEach((p) => perms.add(p.key))
   const has = (p: string) => perms.has(p)
+  const resources = [...perms].some((p) => p.startsWith('resources.') && p !== 'resources.admin')
   return {
     menu: [
       ['Home', true],
-      ['Approvals', approves],
-      ['Resource requests', true],
-      ['Resource load', has('resources.overview') || code === 'TEAM_LEADER'],
+      ['Approvals', has('resources.review') || has('resources.approve') || has('inventory.approve')],
+      ['Resource requests', resources],
+      ['Resource load', has('resources.load')],
       ['Inventory', has('inventory.view')],
       ['Withdrawals', has('inventory.view')],
-      ['Reports', has('resources.overview') || code === 'TEAM_LEADER'],
-      ['Administration', has('core.admin')],
+      ['Reports', has('resources.reports')],
+      ['Administration', has('core.admin') || has('resources.admin') || has('inventory.admin')],
     ].filter(([, show]) => show).map(([label]) => label as string),
+    scoped: (has('resources.load') || has('resources.reports')) && !has('resources.view_all'),
     create: [
-      ['Resource request', true],
+      ['Resource request', has('resources.request')],
       ['Register device', has('inventory.register')],
       ['Request withdrawal', has('inventory.withdraw')],
     ].filter(([, show]) => show).map(([label]) => label as string),
@@ -191,9 +204,14 @@ onMounted(() => load())
         </div>
       </div>
 
-      <el-alert v-if="locked" type="info" :closable="false" show-icon title="Administrator always has every permission and cannot be changed." />
-      <el-alert v-if="!creating && role?.duty" type="info" :closable="false" show-icon :title="`Also: ${role.duty}`">
-        <template #default>This duty comes with the role itself and is not a permission.</template>
+      <el-alert
+        v-if="locked"
+        type="info"
+        :closable="false"
+        show-icon
+        title="Administrator always has every permission except responsibilities, and cannot be changed."
+      >
+        <template #default>Responsibilities, such as giving final approval, are given through other roles so that administrators do not receive every approval.</template>
       </el-alert>
 
       <el-form label-position="top" @submit.prevent>
@@ -209,17 +227,25 @@ onMounted(() => load())
 
       <div v-for="m in modules" :key="m.name" class="module">
         <h4>{{ m.name }}</h4>
-        <label v-for="p in m.items" :key="p.key" class="perm" :class="{ on: locked || form.permissions.includes(p.key) }">
-          <el-checkbox
-            :model-value="locked || form.permissions.includes(p.key)"
-            :disabled="locked"
-            @update:model-value="(v) => toggle(p.key, !!v)"
-          />
-          <span>
-            <b>{{ p.label }}</b>
-            <small>{{ p.description }}</small>
-          </span>
-        </label>
+        <template v-for="(list, kind) in { access: m.access, duties: m.duties }" :key="kind">
+          <span v-if="kind === 'duties' && list.length" class="sub">Responsibilities</span>
+          <label
+            v-for="p in list"
+            :key="p.key"
+            class="perm"
+            :class="{ on: ['on', 'admin', 'inherited'].includes(state(p)), fixed: ['admin', 'inherited', 'not-admin'].includes(state(p)) }"
+          >
+            <el-checkbox
+              :model-value="['on', 'admin', 'inherited'].includes(state(p))"
+              :disabled="['admin', 'inherited', 'not-admin'].includes(state(p))"
+              @update:model-value="(v) => toggle(p.key, !!v)"
+            />
+            <span>
+              <b>{{ p.label }} <em v-if="NOTE[state(p)]">{{ NOTE[state(p)] }}</em></b>
+              <small>{{ p.description }}</small>
+            </span>
+          </label>
+        </template>
       </div>
 
       <div class="preview">
@@ -227,7 +253,8 @@ onMounted(() => load())
         <p class="small"><b>Menu:</b> {{ preview.menu.join(' · ') }}</p>
         <p class="small"><b>+ New:</b> {{ preview.create.join(' · ') }}</p>
         <p class="small"><b>On an item:</b> {{ preview.item.length ? preview.item.join(' · ') : 'view only' }}</p>
-        <p class="muted small">Together with what everyone can do. A person with several roles gets all of their permissions.</p>
+        <p v-if="preview.scoped" class="muted small">Resource load and reports show only the teams the person reviews, because the role does not see all resource requests.</p>
+        <p class="muted small">This includes what everyone can do. A person with several roles gets the permissions of all of them.</p>
       </div>
 
       <el-alert v-if="formError" :title="formError" type="error" :closable="false" show-icon />
@@ -370,6 +397,22 @@ onMounted(() => load())
 .perm.on {
   border-color: color-mix(in srgb, var(--erf-accent) 45%, transparent);
   background: color-mix(in srgb, var(--erf-accent) 5%, transparent);
+}
+.perm.fixed {
+  cursor: default;
+}
+.perm em {
+  font-style: normal;
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--erf-muted);
+  margin-left: 6px;
+}
+.sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--erf-muted);
+  margin: 6px 0 0;
 }
 .perm span {
   display: grid;

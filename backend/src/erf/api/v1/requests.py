@@ -3,10 +3,12 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
-from erf.api.deps import Ctx, CurrentUser
+from erf.api.deps import Ctx, CurrentUser, require_permission
+from erf.db.models import User
 from erf.domain.enums import Action, RequestStatus
+from erf.domain.permissions import Permission
 from erf.schemas.common import Page
 from erf.schemas.requests import (
     AllocationCandidate,
@@ -30,6 +32,7 @@ from erf.services.resource_service import ResourceService
 from erf.services.workflow_service import WorkflowService
 
 router = APIRouter(prefix="/requests", tags=["requests"])
+Requester = Annotated[User, Depends(require_permission(Permission.RESOURCES_REQUEST))]
 tasks_router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 StatusFilter = Annotated[list[RequestStatus] | None, Query(alias="status")]
@@ -70,7 +73,7 @@ def notice_preview(body: NoticePreviewIn, user: CurrentUser, ctx: Ctx) -> Notice
 
 
 @router.post("", response_model=RequestDetail, status_code=status.HTTP_201_CREATED)
-def create_request(body: RequestIn, user: CurrentUser, ctx: Ctx, submit: bool = False) -> RequestDetail:
+def create_request(body: RequestIn, user: Requester, ctx: Ctx, submit: bool = False) -> RequestDetail:
     service = RequestService(ctx)
     request = service.create_and_submit(user, body) if submit else service.create_draft(user, body)
     ctx.session.flush()

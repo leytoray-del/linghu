@@ -16,7 +16,7 @@ const router = useRouter()
 const auth = useAuthStore()
 const scopes = computed(() => {
   const list: { value: Scope; label: string }[] = []
-  if ((auth.me?.withdrawal_task_count ?? 0) > 0 || auth.hasRole('OPS_MANAGER')) list.push({ value: 'waiting', label: 'Waiting for me' })
+  if ((auth.me?.withdrawal_task_count ?? 0) > 0 || auth.can('inventory.approve')) list.push({ value: 'waiting', label: 'Waiting for me' })
   list.push({ value: 'mine', label: 'My requests' })
   list.push({ value: 'all', label: 'All I can see' })
   return list

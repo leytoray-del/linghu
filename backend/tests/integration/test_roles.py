@@ -22,14 +22,19 @@ def test_roles_screen_lists_roles_and_the_catalogue(login) -> None:  # type: ign
     data = admin.get("/admin/roles").json()
     roles = {r["code"]: r for r in data["roles"]}
     assert [r["name"] for r in data["roles"]][:3] == ["Everyone", "Engineer", "Team leader"]
-    assert roles["ADMIN"]["is_locked"] and len(roles["ADMIN"]["permissions"]) == len(data["permissions"])
+    duties = {p["key"] for p in data["permissions"] if p["duty"]}
+    assert duties == {"resources.review", "resources.approve", "resources.assignable", "inventory.approve"}
+    assert roles["ADMIN"]["is_locked"] and set(roles["ADMIN"]["permissions"]) == {
+        p["key"] for p in data["permissions"] if not p["duty"]
+    }, "Administrator has everything except responsibilities"
+    assert roles["REQUESTER"]["permissions"] == ["inventory.view", "resources.request"]
     assert roles["ENGINEER"]["permissions"] == [
         "inventory.register",
         "inventory.return",
-        "inventory.view",
         "inventory.withdraw",
+        "resources.assignable",
     ]
-    assert roles["DIRECTOR"]["duty"] == "Gives final approval of resource requests."
+    assert "resources.approve" in roles["DIRECTOR"]["permissions"]
     assert roles["REQUESTER"]["is_base"] and roles["REQUESTER"]["user_count"] >= 17
     assert {p["module_name"] for p in data["permissions"]} == {"Platform", "Resources", "Inventory"}
     assert login(ENGINEER).get("/admin/roles").status_code == 403
@@ -119,3 +124,45 @@ def test_at_least_one_administrator_remains(login) -> None:  # type: ignore[no-u
         "another administrator remains"
     )
     assert "core.admin" not in login(ADMIN).me["permissions"]
+
+
+def test_responsibilities_and_menus_follow_permissions(login) -> None:  # type: ignore[no-untyped-def]
+    admin = login(ADMIN)
+    roles = {r["code"]: r for r in admin.get("/admin/roles").json()["roles"]}
+    # Administrator is not a final approver unless a role gives it that responsibility.
+    assert "resources.approve" not in admin.me["permissions"]
+
+    # Without "Raise resource requests", a person cannot raise one.
+    everyone = roles["REQUESTER"]
+    body = {"name": "Everyone", "description": everyone["description"], "permissions": ["inventory.view"]}
+    assert admin.put("/admin/roles/REQUESTER", json=body).status_code == 200
+    eng = login(ENGINEER)
+    assert "resources.request" not in eng.me["permissions"]
+    assert eng.post("/requests", json={}).status_code == 403
+    assert "assigned" in eng.me["scopes"], "assignable engineers still see their work"
+    body["permissions"] = everyone["permissions"]
+    assert admin.put("/admin/roles/REQUESTER", json=body).status_code == 200
+
+
+def test_replaced_permission_carries_over(container) -> None:  # type: ignore[no-untyped-def]
+    """An installation from before the split keeps who could see everything."""
+    from sqlalchemy import delete, select
+
+    from erf.db.models import KnownPermission, RolePermission
+    from erf.db.session import session_scope
+    from erf.services.role_service import ensure_roles
+
+    new = ["resources.view_all", "resources.load", "resources.reports"]
+    with session_scope(container.factory) as s:
+        s.execute(delete(RolePermission).where(RolePermission.permission.in_(new)))
+        s.execute(delete(KnownPermission).where(KnownPermission.permission.in_(new)))
+        s.add(KnownPermission(permission="resources.overview"))
+        s.add(RolePermission(role_code="VIEWER", permission="resources.overview"))  # Director's was removed
+    with session_scope(container.factory) as s:
+        ensure_roles(s)
+    with session_scope(container.factory) as s:
+        grants = {(g.role_code, g.permission) for g in s.scalars(select(RolePermission))}
+    assert {("VIEWER", p) for p in new} <= grants
+    assert not any(r == "DIRECTOR" and p in new for r, p in grants)
+    assert {("TEAM_LEADER", "resources.load"), ("TEAM_LEADER", "resources.reports")} <= grants
+    assert not any(p == "resources.overview" for _, p in grants)

@@ -14,6 +14,8 @@ import UserImportDialog from './UserImportDialog.vue'
 const roleList = ref<RoleInfo[]>([])
 const ROLE_OPTIONS = computed(() => roleList.value.filter((r) => !r.is_base).map((r) => ({ value: r.code, label: r.name, hint: r.description })))
 const roleLabel = (code: string) => roleList.value.find((r) => r.code === code)?.name ?? code
+/** Whether the chosen roles grant a permission, such as being a team's reviewer. */
+const grants = (permission: string) => roleList.value.some((r) => form.roles.includes(r.code) && r.permissions.includes(permission))
 
 const auth = useAuthStore()
 const users = ref<AdminUser[]>([])
@@ -226,14 +228,14 @@ onMounted(load)
           </el-checkbox-group>
         </el-form-item>
         <el-alert
-          v-if="form.roles.includes('TEAM_LEADER')"
+          v-if="grants('resources.review')"
           type="info"
           :closable="false"
           show-icon
           class="role-hint"
-          title="A team leader receives requests only after being added as an approver in Teams and approvers."
+          title="This person receives a team's requests only after being added as its approver in Teams and approvers."
         />
-        <el-form-item v-if="form.roles.includes('ENGINEER')" label="Skills (shown to team leaders when assigning)" for="u-skills">
+        <el-form-item v-if="grants('resources.assignable')" label="Skills (shown to team leaders when assigning)" for="u-skills">
           <el-input id="u-skills" v-model="form.skills" placeholder="e.g. Network, on-site" />
         </el-form-item>
         <el-form-item v-if="editing" label="Status">

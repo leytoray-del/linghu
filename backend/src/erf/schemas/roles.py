@@ -11,6 +11,7 @@ class PermissionOut(Schema):
     module_name: str
     label: str
     description: str
+    duty: bool
 
 
 class RoleOut(Schema):
@@ -20,7 +21,6 @@ class RoleOut(Schema):
     is_system: bool
     is_locked: bool
     is_base: bool
-    duty: str | None
     permissions: list[str]
     user_count: int
 

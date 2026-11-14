@@ -51,7 +51,7 @@ onMounted(async () => {
           urgent and needs a justification.
         </p>
       </div>
-      <el-button type="primary" @click="$router.push('/requests/new')">New resource request</el-button>
+      <el-button v-if="auth.can('resources.request')" type="primary" @click="$router.push('/requests/new')">New resource request</el-button>
     </div>
 
     <div v-if="stats" class="tiles">

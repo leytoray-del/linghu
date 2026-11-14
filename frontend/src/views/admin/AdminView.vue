@@ -2,6 +2,8 @@
 import { type Component, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import { useAuthStore } from '@/stores/auth'
+
 import CategoriesTab from '@/modules/inventory/admin/CategoriesTab.vue'
 import ModelsTab from '@/modules/inventory/admin/ModelsTab.vue'
 
@@ -22,10 +24,18 @@ interface Section {
   component: Component
 }
 
+interface Group {
+  title: string
+  /** The permission that opens every section of the group. */
+  permission: string
+  sections: Section[]
+}
+
 /** Settings grouped by area. A module adds its own group here. */
-const GROUPS: { title: string; sections: Section[] }[] = [
+const ALL_GROUPS: Group[] = [
   {
     title: 'People and organisation',
+    permission: 'core.admin',
     sections: [
       { key: 'users', label: 'Users', hint: 'Accounts, roles and passwords.', component: UsersTab },
       { key: 'roles', label: 'Roles and permissions', hint: 'What each role may see and do. A person gets all the permissions of their roles.', component: RolesTab },
@@ -36,6 +46,7 @@ const GROUPS: { title: string; sections: Section[] }[] = [
   },
   {
     title: 'Resources',
+    permission: 'resources.admin',
     sections: [
       { key: 'types', label: 'Types of support', hint: 'The options of "Type of support" and the team each one goes to.', component: SupportTypesTab },
       { key: 'settings', label: 'Workflow rules', hint: 'Notice period, reminders and email link validity.', component: SettingsTab },
@@ -44,6 +55,7 @@ const GROUPS: { title: string; sections: Section[] }[] = [
   },
   {
     title: 'Inventory',
+    permission: 'inventory.admin',
     sections: [
       { key: 'inv-categories', label: 'Kinds of equipment', hint: 'Categories and the fields each one records.', component: CategoriesTab },
       { key: 'inv-models', label: 'Models', hint: 'Device models and their serial number formats.', component: ModelsTab },
@@ -51,14 +63,18 @@ const GROUPS: { title: string; sections: Section[] }[] = [
   },
   {
     title: 'System',
+    permission: 'core.admin',
     sections: [{ key: 'email', label: 'Email delivery', hint: 'Sending status, test email and retries.', component: EmailTab }],
   },
 ]
-const ALL = GROUPS.flatMap((g) => g.sections)
+const auth = useAuthStore()
+/** Only the groups the person's permissions open. */
+const GROUPS = computed(() => ALL_GROUPS.filter((g) => auth.can(g.permission)))
+const ALL = computed(() => GROUPS.value.flatMap((g) => g.sections))
 
 const route = useRoute()
 const router = useRouter()
-const current = computed(() => ALL.find((s) => s.key === route.query.section) ?? ALL[0]!)
+const current = computed(() => ALL.value.find((s) => s.key === route.query.section) ?? ALL.value[0]!)
 
 function open(key: string): void {
   router.replace({ query: { ...route.query, section: key } })

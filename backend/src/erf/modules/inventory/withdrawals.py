@@ -15,8 +15,8 @@ from typing import Any
 from sqlalchemy import func, select
 
 from erf.core.errors import Conflict, Forbidden, NotFound, ValidationFailed
-from erf.db.models import Location, User, UserRole
-from erf.domain.enums import LocationKind, Role
+from erf.db.models import Location, User
+from erf.domain.enums import LocationKind
 from erf.domain.permissions import Permission
 from erf.modules.inventory.domain import (
     OPEN_WITHDRAWAL,
@@ -49,7 +49,7 @@ from erf.modules.inventory.service import item_out
 from erf.repositories.settings import SettingsRepository
 from erf.services.context import ServiceContext
 from erf.services.org_service import OrgService, location_out, project_out
-from erf.services.permission_service import can
+from erf.services.permission_service import can, users_with
 from erf.services.presenters import user_ref
 
 PENDING_STEP = {
@@ -68,14 +68,7 @@ class WithdrawalService:
     # ---- who decides --------------------------------------------------------------------
 
     def operations_managers(self) -> list[User]:
-        return list(
-            self.s.scalars(
-                select(User)
-                .join(UserRole, UserRole.user_id == User.id)
-                .where(UserRole.role == Role.OPS_MANAGER.value, User.is_active.is_(True))
-                .order_by(User.display_name)
-            )
-        )
+        return users_with(self.s, Permission.INVENTORY_APPROVE)
 
     def approvers(self, w: InvWithdrawal, step: WithdrawalStep) -> list[User]:
         if step == WithdrawalStep.PM:
@@ -106,7 +99,7 @@ class WithdrawalService:
         return (
             w.requester_id == user.id
             or w.project.pm_user_id == user.id
-            or user.has_role(Role.OPS_MANAGER)
+            or can(self.s, user, Permission.INVENTORY_APPROVE)
             or can(self.s, user, Permission.INVENTORY_WITHDRAWALS_ALL)
         )
 

@@ -103,7 +103,7 @@ const exportHref = computed(() => requestApi.exportUrl({ scope: scope.value, sta
       <h1>Requests</h1>
       <div class="actions">
         <el-button tag="a" :href="exportHref">Export to Excel</el-button>
-        <el-button type="primary" @click="$router.push('/requests/new')">New request</el-button>
+        <el-button v-if="auth.can('resources.request')" type="primary" @click="$router.push('/requests/new')">New request</el-button>
       </div>
     </div>
 

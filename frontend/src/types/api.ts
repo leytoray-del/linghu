@@ -439,6 +439,8 @@ export interface PermissionInfo {
   module_name: string
   label: string
   description: string
+  /** A responsibility: it puts the person among the approvers or assignable people. */
+  duty: boolean
 }
 
 export interface RoleInfo {
@@ -448,7 +450,6 @@ export interface RoleInfo {
   is_system: boolean
   is_locked: boolean
   is_base: boolean
-  duty: string | null
   permissions: string[]
   user_count: number
 }

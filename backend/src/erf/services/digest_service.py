@@ -9,11 +9,13 @@ from datetime import UTC, date, datetime, time, timedelta
 from sqlalchemy import select
 
 from erf.db.models import ApprovalTask, NotificationOutbox, ResourceRequest, User
-from erf.domain.enums import ChangeStatus, OutboxStatus, RequestStatus, Role, TaskStatus
+from erf.domain.enums import ChangeStatus, OutboxStatus, RequestStatus, TaskStatus
+from erf.domain.permissions import Permission
 from erf.repositories.users import UserRepository
 from erf.services.action_links import review_url
 from erf.services.context import ServiceContext
 from erf.services.notifications import NotificationService
+from erf.services.permission_service import users_with
 from erf.services.workflow_service import WorkflowService
 
 STEP_LABEL = {
@@ -219,7 +221,7 @@ class DigestService:
         }
         sent = 0
         since = now - timedelta(days=6)
-        for director in UserRepository(self.s).with_role(Role.DIRECTOR):
+        for director in users_with(self.s, Permission.RESOURCES_APPROVE):
             if self._already_sent("WEEKLY_SUMMARY", director.email, since):
                 continue
             self._enqueue(

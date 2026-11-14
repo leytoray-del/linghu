@@ -19,11 +19,12 @@ router = APIRouter(tags=["reports"])
 @router.get("/lookups", response_model=Lookups)
 def lookups(user: CurrentUser, ctx: Ctx) -> Lookups:
     """Reference data the request form needs: support types, teams with engineers, and the notice rule."""
-    from erf.domain.enums import Role
+    from erf.domain.permissions import Permission
     from erf.repositories.users import UserRepository
+    from erf.services.permission_service import users_with
 
     users = UserRepository(ctx.session)
-    engineers = users.with_role(Role.ENGINEER)
+    engineers = users_with(ctx.session, Permission.RESOURCES_ASSIGNABLE)
     teams = [
         {
             "id": t.id,
@@ -45,7 +46,7 @@ def lookups(user: CurrentUser, ctx: Ctx) -> Lookups:
             for s in SupportTypeRepository(ctx.session).list_all(active_only=True)
         ],
         teams=teams,
-        directors=[u.display_name for u in users.with_role(Role.DIRECTOR)],
+        directors=[u.display_name for u in users_with(ctx.session, Permission.RESOURCES_APPROVE)],
         min_notice_working_days=ctx.config.get_int("min_notice_working_days"),
         today=ctx.clock.today(),
     )

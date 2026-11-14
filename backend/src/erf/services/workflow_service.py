@@ -31,9 +31,9 @@ from erf.domain.enums import (
     Priority,
     RequestStatus,
     RequestType,
-    Role,
     TaskStatus,
 )
+from erf.domain.permissions import Permission
 from erf.domain.urgency import evaluate_urgency
 from erf.domain.validation import SubmissionFields, validate_submission
 from erf.domain.workflow import STEP_FOR_STATUS, Actor, Transition, find_transition
@@ -45,6 +45,7 @@ from erf.services.access import AccessPolicy
 from erf.services.action_links import links_for
 from erf.services.context import ServiceContext
 from erf.services.notifications import Event, NotificationService
+from erf.services.permission_service import can, users_with
 
 AllocationSpec = tuple[int, int]
 """(engineer id, allocation percentage)."""
@@ -138,10 +139,14 @@ class WorkflowService:
         team = TeamRepository(self.s).get(request.team_id)
         if team is None:
             return []
-        return [u for u in self.users.get_many(team.approver_ids) if u.is_active]
+        return [
+            u
+            for u in self.users.get_many(team.approver_ids)
+            if u.is_active and can(self.s, u, Permission.RESOURCES_REVIEW)
+        ]
 
     def directors(self) -> list[User]:
-        return list(self.users.with_role(Role.DIRECTOR))
+        return users_with(self.s, Permission.RESOURCES_APPROVE)
 
     def _due_at(self, request: ResourceRequest, step: ApprovalStep) -> Any:
         cfg = self.ctx.config
@@ -450,7 +455,7 @@ class WorkflowService:
         if any(
             e not in engineers
             or not engineers[e].is_active
-            or not engineers[e].has_role(Role.ENGINEER)
+            or not can(self.s, engineers[e], Permission.RESOURCES_ASSIGNABLE)
             or engineers[e].team_id != request.team_id
             for e, _ in specs
         ):

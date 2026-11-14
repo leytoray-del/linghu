@@ -1,4 +1,4 @@
-# Inventory Module: Design (revision 4, as built)
+# Inventory Module: Design (revision 5, as built)
 
 | Item | Value |
 |---|---|
@@ -52,18 +52,21 @@ Menu: Inventory section with Inventory and Withdrawals. + New offers Register de
 
 ## 3. Permissions
 
+Access is granted in one way only, for every module: a role is a set of permissions, and a person has every permission of every role they hold. Menus, pages, buttons and endpoints check permissions, never role names. Roles and their permissions are changed under Administration, Roles and permissions.
+
 | Permission | Allows | Default roles |
 |---|---|---|
 | `inventory.view` | Inventory, item details and history, export, withdrawals one may see | Everyone |
-| `inventory.register` | Register devices; add a model while registering | Engineer, Inventory editor, Administrator |
-| `inventory.edit` | Change a saved item's details | Inventory editor, Administrator |
-| `inventory.delete` | Delete an item (hidden from lists; record and history kept) | Administrator |
-| `inventory.return` | Return a deployed item to a store | Engineer, Inventory editor, Administrator |
-| `inventory.withdraw` | Request withdrawals; add a new site while doing so | Engineer, Inventory editor, Administrator |
-| `inventory.withdrawals.all` | See every withdrawal request | Operations manager, Director, Viewer, Administrator |
-| `inventory.admin` | Kinds of equipment and their fields, models | Administrator |
+| `inventory.register` | Register devices; add a model while registering | Engineer, Inventory editor |
+| `inventory.edit` | Change a saved item's details | Inventory editor |
+| `inventory.delete` | Delete an item (hidden from lists; record and history kept) | Administrator only |
+| `inventory.return` | Return a deployed item to a store | Engineer, Inventory editor |
+| `inventory.withdraw` | Request withdrawals; add a new site while doing so | Engineer, Inventory editor |
+| `inventory.withdrawals.all` | See every withdrawal request | Operations manager, Director, Viewer |
+| `inventory.approve` (responsibility) | Give final approval of withdrawals | Operations manager |
+| `inventory.admin` | Kinds of equipment and their fields, models | Administrator only |
 
-Approving is decided by assignment: the PM named on the project gives the first approval, and anyone with the Operations manager role gives the final approval. Nobody approves their own request. The configurable Roles and permissions screen is described in `permissions-design.html`.
+Administrator always has every permission except responsibilities. Responsibilities (reviewing a team's requests, giving final approval, being assignable to work) put a person among the approvers or assignable people, so they are given through other roles; otherwise every administrator would receive every approval. The first withdrawal approval goes to the PM named on the project, which is a matter of data rather than permission, and nobody approves their own request.
 
 ## 4. Data
 

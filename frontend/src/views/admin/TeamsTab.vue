@@ -2,17 +2,22 @@
 import { computed, onMounted, ref } from 'vue'
 
 import { adminApi } from '@/api'
-import type { AdminTeam, AdminUser } from '@/types/api'
+import type { AdminTeam, AdminUser, RoleInfo } from '@/types/api'
 import { errorMessage, showError, showSuccess } from '@/utils/feedback'
 
 const teams = ref<AdminTeam[]>([])
 const users = ref<AdminUser[]>([])
+const roles = ref<RoleInfo[]>([])
 const selection = ref<Record<number, number[]>>({})
 const loading = ref(true)
 const saving = ref<number | null>(null)
 const error = ref<string | null>(null)
 
-const leaders = computed(() => users.value.filter((u) => u.is_active && u.roles.includes('TEAM_LEADER')))
+/** People whose roles include "Review a team's requests"; only they can be approvers. */
+const leaders = computed(() => {
+  const reviewing = new Set(roles.value.filter((r) => r.permissions.includes('resources.review')).map((r) => r.code))
+  return users.value.filter((u) => u.is_active && u.roles.some((c) => reviewing.has(c)))
+})
 
 /** Team leaders who belong to a team but are not its approvers, so they receive no requests. */
 function notApprovers(team: AdminTeam): string[] {
@@ -23,7 +28,7 @@ function notApprovers(team: AdminTeam): string[] {
 async function load(): Promise<void> {
   loading.value = true
   try {
-    ;[teams.value, users.value] = await Promise.all([adminApi.teams(), adminApi.users()])
+    ;[teams.value, users.value, roles.value] = await Promise.all([adminApi.teams(), adminApi.users(), adminApi.roles().then((r) => r.roles)])
     selection.value = Object.fromEntries(teams.value.map((t) => [t.id, t.approvers.map((a) => a.id)]))
   } catch (e) {
     showError(e)
@@ -58,8 +63,8 @@ onMounted(load)
   <div v-loading="loading" class="tab">
     <p class="muted intro">
       Requests are routed to the approvers of the team that owns the type of support. If a team has several approvers,
-      any one of them can act, and the others' tasks close automatically. Only users with the team leader role can be
-      chosen. When you change the approvers, requests that are still waiting move to the new approvers.
+      any one of them can act, and the others' tasks close automatically. Only people whose roles include “Review a
+      team's requests” can be chosen. When you change the approvers, requests that are still waiting move to the new approvers.
     </p>
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
     <div v-for="t in teams" :key="t.id" class="team">
@@ -77,7 +82,7 @@ onMounted(load)
         :closable="false"
         show-icon
         class="hint"
-        :title="`${notApprovers(t).join(', ')} ${notApprovers(t).length === 1 ? 'is a team leader' : 'are team leaders'} in this team but not an approver, so no requests reach them. Add them above and save.`"
+        :title="`${notApprovers(t).join(', ')} ${notApprovers(t).length === 1 ? 'may review requests and belongs' : 'may review requests and belong'} to this team but not as an approver, so no requests reach them. Add them above and save.`"
       />
     </div>
   </div>

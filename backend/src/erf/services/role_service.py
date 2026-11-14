@@ -9,8 +9,16 @@ from sqlalchemy.orm import Session
 
 from erf.core.errors import Conflict, NotFound, ValidationFailed
 from erf.db.models import KnownPermission, RolePermission, RoleRow, User, UserRole
-from erf.domain.enums import Role
-from erf.domain.permissions import BASE_ROLE, CATALOGUE, LOCKED_ROLE, MODULES, SYSTEM_ROLES, Permission
+from erf.domain.permissions import (
+    ADMIN_PERMISSIONS,
+    BASE_ROLE,
+    CATALOGUE,
+    LOCKED_ROLE,
+    MODULES,
+    REPLACES,
+    SYSTEM_ROLES,
+    Permission,
+)
 from erf.schemas.roles import PermissionOut, RoleIn, RoleOut
 from erf.services.permission_service import forget
 
@@ -29,10 +37,24 @@ def ensure_roles(session: Session) -> None:
     for permission in Permission:
         if permission.value in known:
             continue
-        for role, spec in SYSTEM_ROLES.items():
-            if role != LOCKED_ROLE and permission in spec.defaults:
-                session.merge(RolePermission(role_code=role.value, permission=permission.value))
+        codes = {
+            r.value for r, spec in SYSTEM_ROLES.items() if r != LOCKED_ROLE and permission in spec.defaults
+        }
+        if permission in REPLACES and REPLACES[permission][0] in known:
+            # Keep what administrators chose for the permission this one replaces.
+            old, old_defaults = REPLACES[permission]
+            codes -= {r.value for r in old_defaults}
+            holders = session.scalars(
+                select(RolePermission.role_code).where(RolePermission.permission == old)
+            )
+            codes |= {c for c in holders if c != LOCKED_ROLE.value}
+        for code in codes:
+            session.merge(RolePermission(role_code=code, permission=permission.value))
         session.add(KnownPermission(permission=permission.value))
+    session.flush()
+    current = [p.value for p in Permission]
+    session.execute(delete(RolePermission).where(RolePermission.permission.not_in(current)))
+    session.execute(delete(KnownPermission).where(KnownPermission.permission.not_in(current)))
     session.flush()
     users_without_base = session.scalars(
         select(User).where(~User.role_rows.any(UserRole.role == BASE_ROLE.value))
@@ -59,12 +81,12 @@ class RoleService:
                 module_name=MODULES[info.module],
                 label=info.label,
                 description=info.description,
+                duty=info.duty,
             )
             for p, info in CATALOGUE.items()
         ]
 
     def _out(self, row: RoleRow, counts: dict[str, int]) -> RoleOut:
-        system = SYSTEM_ROLES.get(Role(row.code)) if row.code in Role._value2member_map_ else None
         locked = row.code == LOCKED_ROLE.value
         return RoleOut(
             code=row.code,
@@ -73,8 +95,7 @@ class RoleService:
             is_system=row.is_system,
             is_locked=locked,
             is_base=row.code == BASE_ROLE.value,
-            duty=system.duty if system else None,
-            permissions=sorted(p.value for p in Permission)
+            permissions=sorted(p.value for p in ADMIN_PERMISSIONS)
             if locked
             else sorted(g.permission for g in row.grants),
             user_count=counts.get(row.code, 0),

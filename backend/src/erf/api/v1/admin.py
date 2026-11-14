@@ -40,6 +40,7 @@ from erf.services.user_import_service import UserImportService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 Admin = Annotated[User, Depends(require_permission(Permission.CORE_ADMIN))]
+ResourceAdmin = Annotated[User, Depends(require_permission(Permission.RESOURCES_ADMIN))]
 
 
 def user_out(u: User) -> UserOut:
@@ -110,43 +111,43 @@ def set_approvers(team_id: int, body: TeamApproversIn, admin: Admin, ctx: Ctx) -
 
 
 @router.get("/support-types", response_model=list[SupportTypeOut])
-def list_support_types(admin: Admin, ctx: Ctx) -> list[SupportTypeOut]:
+def list_support_types(admin: ResourceAdmin, ctx: Ctx) -> list[SupportTypeOut]:
     return [SupportTypeOut.model_validate(s) for s in SupportTypeRepository(ctx.session).list_all()]
 
 
 @router.post("/support-types", response_model=SupportTypeOut, status_code=status.HTTP_201_CREATED)
-def create_support_type(body: SupportTypeIn, admin: Admin, ctx: Ctx) -> SupportTypeOut:
+def create_support_type(body: SupportTypeIn, admin: ResourceAdmin, ctx: Ctx) -> SupportTypeOut:
     return SupportTypeOut.model_validate(AdminService(ctx, admin).save_support_type(body))
 
 
 @router.put("/support-types/{type_id}", response_model=SupportTypeOut)
-def update_support_type(type_id: int, body: SupportTypeIn, admin: Admin, ctx: Ctx) -> SupportTypeOut:
+def update_support_type(type_id: int, body: SupportTypeIn, admin: ResourceAdmin, ctx: Ctx) -> SupportTypeOut:
     return SupportTypeOut.model_validate(AdminService(ctx, admin).save_support_type(body, type_id))
 
 
 @router.get("/holidays", response_model=list[HolidayAdminOut])
-def list_holidays(admin: Admin, ctx: Ctx, year: int | None = None) -> list[HolidayAdminOut]:
+def list_holidays(admin: ResourceAdmin, ctx: Ctx, year: int | None = None) -> list[HolidayAdminOut]:
     return [HolidayAdminOut.model_validate(h) for h in AdminService(ctx, admin).holidays(year)]
 
 
 @router.post("/holidays", response_model=HolidayAdminOut, status_code=status.HTTP_201_CREATED)
-def add_holiday(body: HolidayIn, admin: Admin, ctx: Ctx) -> HolidayAdminOut:
+def add_holiday(body: HolidayIn, admin: ResourceAdmin, ctx: Ctx) -> HolidayAdminOut:
     return HolidayAdminOut.model_validate(AdminService(ctx, admin).add_holiday(body))
 
 
 @router.delete("/holidays/{holiday_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_holiday(holiday_id: int, admin: Admin, ctx: Ctx) -> Response:
+def delete_holiday(holiday_id: int, admin: ResourceAdmin, ctx: Ctx) -> Response:
     AdminService(ctx, admin).delete_holiday(holiday_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/settings", response_model=list[SettingOut])
-def list_settings(admin: Admin, ctx: Ctx) -> list[SettingOut]:
+def list_settings(admin: ResourceAdmin, ctx: Ctx) -> list[SettingOut]:
     return AdminService(ctx, admin).settings()
 
 
 @router.put("/settings/{key}", response_model=list[SettingOut])
-def update_setting(key: str, body: SettingIn, admin: Admin, ctx: Ctx) -> list[SettingOut]:
+def update_setting(key: str, body: SettingIn, admin: ResourceAdmin, ctx: Ctx) -> list[SettingOut]:
     return AdminService(ctx, admin).set_setting(key, body.value)
 
 

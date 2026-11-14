@@ -153,8 +153,12 @@ class AdminService:
         if not ids:
             raise ValidationFailed("A team needs at least one approver.")
         users = self.users.get_many(ids)
-        if len(users) != len(ids) or any(not u.is_active or not u.has_role(Role.TEAM_LEADER) for u in users):
-            raise ValidationFailed("Approvers must be active users with the team leader role.")
+        if len(users) != len(ids) or any(
+            not u.is_active or not can(self.s, u, Permission.RESOURCES_REVIEW) for u in users
+        ):
+            raise ValidationFailed(
+                "Approvers must be active users whose roles include “Review a team's requests”."
+            )
         team.approver_rows = [TeamApprover(user_id=i) for i in ids]
         self.s.flush()
         moved = WorkflowService(self.ctx).reassign_team_reviews(self.actor, team_id, list(users))

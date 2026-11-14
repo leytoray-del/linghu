@@ -6,7 +6,8 @@ from datetime import date
 
 from erf.core.errors import Forbidden, NotFound, ValidationFailed
 from erf.db.models import RequestEvent, RequestPreferredEngineer, ResourceRequest, User
-from erf.domain.enums import RequestStatus, Role, TaskStatus
+from erf.domain.enums import RequestStatus, TaskStatus
+from erf.domain.permissions import Permission
 from erf.domain.workflow import available_actions
 from erf.repositories.requests import RequestFilter, RequestRepository, TaskRepository
 from erf.repositories.settings import HolidayRepository, SupportTypeRepository
@@ -23,6 +24,7 @@ from erf.schemas.requests import (
 from erf.services import presenters
 from erf.services.access import AccessPolicy, ListScope
 from erf.services.context import ServiceContext
+from erf.services.permission_service import can
 from erf.services.workflow_service import WorkflowService
 
 EDITABLE_STATUSES = (RequestStatus.DRAFT, RequestStatus.RETURNED)
@@ -84,7 +86,7 @@ class RequestService:
         if data.preferred_engineer_ids:
             engineers = UserRepository(self.s).get_many(data.preferred_engineer_ids)
             if len(engineers) != len(set(data.preferred_engineer_ids)) or any(
-                not u.has_role(Role.ENGINEER) for u in engineers
+                not can(self.s, u, Permission.RESOURCES_ASSIGNABLE) for u in engineers
             ):
                 raise ValidationFailed(
                     "Preferred engineers must be chosen from the engineer list.",

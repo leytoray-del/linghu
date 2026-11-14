@@ -37,15 +37,15 @@ const routes: RouteRecordRaw[] = [
     component: AppLayout,
     children: [
       { path: '', name: 'dashboard', component: () => import('@/views/dashboard/DashboardView.vue'), meta: { title: 'Home' } },
-      { path: 'requests', name: 'requests', component: () => import('@/views/requests/RequestListView.vue'), meta: { title: 'Resource requests' } },
-      { path: 'requests/new', name: 'request-new', component: () => import('@/views/requests/RequestFormView.vue'), meta: { title: 'New resource request' } },
+      { path: 'requests', name: 'requests', component: () => import('@/views/requests/RequestListView.vue'), meta: { title: 'Resource requests', allow: (a) => a.canSeeRequests } },
+      { path: 'requests/new', name: 'request-new', component: () => import('@/views/requests/RequestFormView.vue'), meta: { title: 'New resource request', allow: (a) => a.can('resources.request') } },
       { path: 'requests/:id(\\d+)', name: 'request-detail', component: () => import('@/views/requests/RequestDetailView.vue'), meta: { title: 'Request' } },
       { path: 'requests/:id(\\d+)/edit', name: 'request-edit', component: () => import('@/views/requests/RequestFormView.vue'), meta: { title: 'Edit request' } },
       {
         path: 'approvals',
         name: 'approvals',
         component: () => import('@/views/approvals/ApprovalInboxView.vue'),
-        meta: { title: 'Approvals', allow: (a) => a.isApprover || a.hasRole('OPS_MANAGER') || (a.me?.withdrawal_task_count ?? 0) > 0 },
+        meta: { title: 'Approvals', allow: (a) => a.showApprovals },
       },
       {
         path: 'resources',
@@ -63,7 +63,7 @@ const routes: RouteRecordRaw[] = [
         path: 'admin',
         name: 'admin',
         component: () => import('@/views/admin/AdminView.vue'),
-        meta: { title: 'Administration', allow: (a) => a.can('core.admin') },
+        meta: { title: 'Administration', allow: (a) => a.canAdminister },
       },
       ...inventoryRoutes,
       {
