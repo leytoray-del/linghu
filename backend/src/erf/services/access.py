@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 from erf.core.errors import Forbidden
 from erf.db.models import ResourceRequest, User
 from erf.domain.enums import AllocationStatus, RequestStatus, Role, TaskStatus
+from erf.domain.permissions import Permission
 from erf.domain.workflow import STEP_FOR_STATUS, Actor
 from erf.repositories.users import TeamRepository
+from erf.services.permission_service import can
 
 
 class ListScope(StrEnum):
@@ -22,9 +24,6 @@ class ListScope(StrEnum):
     """Every submitted request (director, administrator, viewer)."""
     ASSIGNED = "assigned"
     """Requests I am allocated to as an engineer."""
-
-
-GLOBAL_READERS = (Role.DIRECTOR, Role.ADMIN, Role.VIEWER)
 
 
 class AccessPolicy:
@@ -41,7 +40,7 @@ class AccessPolicy:
         scopes = [ListScope.MINE]
         if self.led_team_ids(user):
             scopes.append(ListScope.TEAM)
-        if user.has_role(*GLOBAL_READERS):
+        if can(self.s, user, Permission.RESOURCES_OVERVIEW):
             scopes.append(ListScope.ALL)
         if user.has_role(Role.ENGINEER):
             scopes.append(ListScope.ASSIGNED)
@@ -56,7 +55,7 @@ class AccessPolicy:
             return True
         if request.status == RequestStatus.DRAFT.value:
             return False
-        if user.has_role(*GLOBAL_READERS):
+        if can(self.s, user, Permission.RESOURCES_OVERVIEW):
             return True
         if request.team_id is not None and request.team_id in self.led_team_ids(user):
             return True

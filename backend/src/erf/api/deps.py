@@ -13,9 +13,10 @@ from erf.core.errors import Forbidden, Unauthorized
 from erf.db.models import User
 from erf.db.session import session_scope
 from erf.domain.enums import Role
-from erf.domain.permissions import Permission, permissions_for
+from erf.domain.permissions import Permission
 from erf.services.auth_service import AuthService
 from erf.services.context import ServiceContext
+from erf.services.permission_service import can
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 CSRF_HEADER = "X-CSRF-Token"
@@ -64,9 +65,9 @@ def require_roles(*roles: Role) -> Callable[[User], User]:
     return checker
 
 
-def require_permission(permission: Permission) -> Callable[[User], User]:
-    def checker(user: CurrentUser) -> User:
-        if permission not in permissions_for(user.roles):
+def require_permission(permission: Permission) -> Callable[..., User]:
+    def checker(user: CurrentUser, ctx: Ctx) -> User:
+        if not can(ctx.session, user, permission):
             raise Forbidden("You do not have permission for this page.")
         return user
 

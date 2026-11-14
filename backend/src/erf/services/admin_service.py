@@ -13,6 +13,7 @@ from erf.core.errors import Conflict, Forbidden, NotFound, ValidationFailed
 from erf.core.security import hash_password
 from erf.db.models import Holiday, NotificationOutbox, SupportType, TeamApprover, User
 from erf.domain.enums import OutboxStatus, Role
+from erf.domain.permissions import BASE_ROLE, Permission
 from erf.infrastructure.mail.senders import OutgoingMail, build_sender, redirect
 from erf.repositories.requests import OutboxRepository
 from erf.repositories.settings import SETTING_DEFAULTS, HolidayRepository, SupportTypeRepository
@@ -29,7 +30,9 @@ from erf.schemas.admin import (
     UserUpdateIn,
 )
 from erf.services.context import ServiceContext
+from erf.services.permission_service import can
 from erf.services.presenters import user_ref
+from erf.services.role_service import RoleService
 from erf.services.workflow_service import WorkflowService
 
 INT_SETTINGS = {k for k in SETTING_DEFAULTS if k != "request_no_prefix"}
@@ -42,7 +45,7 @@ def temporary_password() -> str:
 
 class AdminService:
     def __init__(self, ctx: ServiceContext, actor: User):
-        if not actor.has_role(Role.ADMIN):
+        if not can(ctx.session, actor, Permission.CORE_ADMIN):
             raise Forbidden("Only administrators can change system settings.")
         self.ctx = ctx
         self.s = ctx.session
@@ -81,16 +84,31 @@ class AdminService:
             must_change_password=True,
             is_active=True,
         )
-        user.set_roles(set(data.roles) | {Role.REQUESTER})
+        user.set_roles(self._roles(data.roles))
         self.users.add(user)
         return user, password
+
+    def _roles(self, codes: list[str]) -> set[str]:
+        """Check the role codes exist; every user also holds the base role."""
+        wanted = {c.strip().upper() for c in codes if c.strip()}
+        unknown = wanted - RoleService(self.s).codes()
+        if unknown:
+            raise ValidationFailed(
+                "Some roles do not exist: " + ", ".join(sorted(unknown)) + ".",
+                details={"fields": {"roles": "Choose roles from the list."}},
+            )
+        return wanted | {BASE_ROLE.value}
 
     def update_user(self, user_id: int, data: UserUpdateIn) -> User:
         user = self._user(user_id)
         self._check_team(data.team_id)
-        roles = set(data.roles)
-        if user.id == self.actor.id and (Role.ADMIN not in roles or not data.is_active):
+        roles = self._roles(data.roles)
+        if user.id == self.actor.id and (Role.ADMIN.value not in roles or not data.is_active):
             raise ValidationFailed("You cannot remove your own administrator access or deactivate yourself.")
+        if user.has_role(Role.ADMIN) and (Role.ADMIN.value not in roles or not data.is_active):
+            others = [u for u in self.users.with_role(Role.ADMIN) if u.id != user.id and u.is_active]
+            if not others:
+                raise ValidationFailed("At least one active administrator must remain.")
         user.display_name = data.display_name.strip()
         user.job_title = data.job_title
         user.team_id = data.team_id

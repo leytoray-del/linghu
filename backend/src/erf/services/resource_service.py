@@ -8,12 +8,14 @@ from datetime import date, timedelta
 from erf.core.errors import Forbidden, ValidationFailed
 from erf.db.models import ResourceAllocation, User
 from erf.domain.enums import Role
+from erf.domain.permissions import Permission
 from erf.repositories.requests import AllocationRepository
 from erf.repositories.users import TeamRepository, UserRepository
 from erf.schemas.reports import EngineerLoad, LoadAssignment, LoadOut
 from erf.schemas.requests import AllocationCandidate, CandidateAssignment
 from erf.services.access import AccessPolicy
 from erf.services.context import ServiceContext
+from erf.services.permission_service import can
 from erf.services.presenters import user_ref
 from erf.services.request_service import RequestService
 
@@ -76,7 +78,7 @@ class ResourceService:
             raise ValidationFailed("The end date must be on or after the start date.")
         if (end - start).days > MAX_LOAD_DAYS:
             raise ValidationFailed("Choose a period of at most one year.")
-        if user.has_role(Role.DIRECTOR, Role.ADMIN, Role.VIEWER):
+        if can(self.s, user, Permission.RESOURCES_OVERVIEW):
             team_ids = [team_id] if team_id else None
         else:
             led = self.access.led_team_ids(user)

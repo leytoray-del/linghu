@@ -14,10 +14,12 @@ from openpyxl.utils import get_column_letter
 from erf.core.errors import Forbidden
 from erf.db.models import ResourceRequest, User
 from erf.domain.enums import AllocationStatus, ApprovalStep, RequestStatus, Role
+from erf.domain.permissions import Permission
 from erf.repositories.requests import RequestFilter, RequestRepository, TaskRepository
 from erf.schemas.reports import DashboardOut, MonthCount, NamedCount, ReportSummary
 from erf.services.access import AccessPolicy, ListScope
 from erf.services.context import ServiceContext
+from erf.services.permission_service import can
 from erf.services.request_service import RequestService
 
 STATUS_LABEL = {
@@ -77,7 +79,7 @@ class ReportService:
         )
 
     def _report_filter(self, user: User) -> RequestFilter:
-        if user.has_role(Role.DIRECTOR, Role.ADMIN, Role.VIEWER):
+        if can(self.s, user, Permission.RESOURCES_OVERVIEW):
             return RequestFilter(exclude_drafts=True)
         led = self.access.led_team_ids(user)
         if not led:

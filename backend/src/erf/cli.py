@@ -63,7 +63,7 @@ def cmd_create_admin(args: argparse.Namespace) -> None:
             repo.add(user)
         user.password_hash = hash_password(password)
         user.must_change_password = True
-        user.set_roles(user.roles | {Role.ADMIN, Role.REQUESTER})
+        user.set_roles(user.roles | {Role.ADMIN.value, Role.REQUESTER.value})
     print(f"Administrator {args.email} is ready. Temporary password: {password}")
     print("The password must be changed at first sign-in.")
 

@@ -70,6 +70,9 @@ class Session:
     def put(self, url: str, json=None, **kw):  # type: ignore[no-untyped-def]
         return self.client.put(f"/api/v1{url}", json=json, **kw)
 
+    def delete(self, url: str, **kw):  # type: ignore[no-untyped-def]
+        return self.client.delete(f"/api/v1{url}", **kw)
+
 
 @pytest.fixture
 def login(app):  # type: ignore[no-untyped-def]

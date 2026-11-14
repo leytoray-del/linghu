@@ -2,6 +2,7 @@
 
 from erf.db.models.org import Location, Project
 from erf.db.models.request import RequestPreferredEngineer, ResourceRequest
+from erf.db.models.role import KnownPermission, RolePermission, RoleRow
 from erf.db.models.settings import Holiday, Sequence, SystemSetting
 from erf.db.models.team import SupportType, Team, TeamApprover
 from erf.db.models.user import User, UserRole, UserSession
@@ -16,6 +17,7 @@ from erf.db.models.workflow import (
 __all__ = [
     "ApprovalTask",
     "Holiday",
+    "KnownPermission",
     "Location",
     "NotificationOutbox",
     "Project",
@@ -24,6 +26,8 @@ __all__ = [
     "RequestPreferredEngineer",
     "ResourceAllocation",
     "ResourceRequest",
+    "RolePermission",
+    "RoleRow",
     "Sequence",
     "SupportType",
     "SystemSetting",

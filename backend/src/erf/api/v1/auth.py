@@ -5,13 +5,13 @@ from fastapi import APIRouter, Request, Response
 from erf.api.deps import Ctx, CurrentUser
 from erf.core.errors import Unauthorized
 from erf.db.models import User
-from erf.domain.permissions import permissions_for
 from erf.modules.inventory.withdrawals import WithdrawalService
 from erf.schemas.auth import ChangePasswordIn, LoginIn, Me, TeamBrief
 from erf.schemas.common import Message
 from erf.services.access import AccessPolicy
 from erf.services.auth_service import AuthService
 from erf.services.context import ServiceContext
+from erf.services.permission_service import permissions_of
 from erf.services.request_service import RequestService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -28,7 +28,7 @@ def build_me(ctx: ServiceContext, user: User) -> Me:
         roles=sorted(user.roles),
         led_team_ids=access.led_team_ids(user),
         scopes=[s.value for s in access.allowed_scopes(user)],
-        permissions=sorted(p.value for p in permissions_for(user.roles)),
+        permissions=sorted(p.value for p in permissions_of(ctx.session, user)),
         must_change_password=user.must_change_password,
         pending_task_count=RequestService(ctx).pending_task_count(user),
         withdrawal_task_count=WithdrawalService(ctx).pending_count(user),

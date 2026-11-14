@@ -6,10 +6,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 
-from erf.api.deps import Ctx, require_roles
+from erf.api.deps import Ctx, require_permission
 from erf.core.errors import ValidationFailed
 from erf.db.models import User
-from erf.domain.enums import OutboxStatus, Role
+from erf.domain.enums import OutboxStatus
+from erf.domain.permissions import Permission
 from erf.repositories.settings import SupportTypeRepository
 from erf.repositories.users import TeamRepository, UserRepository
 from erf.schemas.admin import (
@@ -32,11 +33,13 @@ from erf.schemas.admin import (
     UserUpdateIn,
 )
 from erf.schemas.auth import TeamBrief
+from erf.schemas.roles import RoleIn, RoleOut, RolesOut
 from erf.services.admin_service import AdminService
+from erf.services.role_service import RoleService
 from erf.services.user_import_service import UserImportService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-Admin = Annotated[User, Depends(require_roles(Role.ADMIN))]
+Admin = Annotated[User, Depends(require_permission(Permission.CORE_ADMIN))]
 
 
 def user_out(u: User) -> UserOut:
@@ -160,4 +163,29 @@ def send_test_email(body: EmailTestIn, admin: Admin, ctx: Ctx) -> EmailTestOut:
 @router.post("/outbox/{row_id}/retry", status_code=status.HTTP_204_NO_CONTENT)
 def retry_outbox(row_id: int, admin: Admin, ctx: Ctx) -> Response:
     AdminService(ctx, admin).retry_email(row_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---- roles and permissions ----
+
+
+@router.get("/roles", response_model=RolesOut)
+def roles(admin: Admin, ctx: Ctx) -> RolesOut:
+    service = RoleService(ctx.session)
+    return RolesOut(roles=service.list_roles(), permissions=service.catalogue())
+
+
+@router.post("/roles", response_model=RoleOut, status_code=status.HTTP_201_CREATED)
+def create_role(body: RoleIn, admin: Admin, ctx: Ctx) -> RoleOut:
+    return RoleService(ctx.session).create(body)
+
+
+@router.put("/roles/{code}", response_model=RoleOut)
+def update_role(code: str, body: RoleIn, admin: Admin, ctx: Ctx) -> RoleOut:
+    return RoleService(ctx.session).update(code, body)
+
+
+@router.delete("/roles/{code}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_role(code: str, admin: Admin, ctx: Ctx) -> Response:
+    RoleService(ctx.session).delete(code)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pydantic import Field
 
-from erf.domain.enums import Role
 from erf.schemas.common import Schema
 
 
@@ -28,7 +27,7 @@ class Me(Schema):
     display_name: str
     job_title: str | None
     team: TeamBrief | None
-    roles: list[Role]
+    roles: list[str]
     led_team_ids: list[int]
     scopes: list[str]
     permissions: list[str]

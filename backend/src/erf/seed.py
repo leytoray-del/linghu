@@ -24,6 +24,7 @@ from erf.modules.inventory.seed import seed_inventory_demo, seed_inventory_refer
 from erf.schemas.requests import RequestIn
 from erf.services.context import ServiceContext
 from erf.services.request_service import RequestService
+from erf.services.role_service import ensure_roles
 from erf.services.workflow_service import WorkflowService
 
 log = logging.getLogger(__name__)
@@ -348,10 +349,12 @@ def seed_demo_requests(session: Session, settings: Settings, users: dict[str, Us
 
 def seed_all(session: Session, settings: Settings, *, demo: bool, clock: Clock | None = None) -> str:
     seed_reference(session)
+    ensure_roles(session)
     seed_inventory_reference(session)
     if not demo:
         return "Reference data is in place."
     users = seed_demo_users(session)
+    ensure_roles(session)  # give the new demo accounts the base role
     today = (clock or Clock(settings.timezone)).today()
     n = seed_demo_requests(session, settings, users, today)
     items = seed_inventory_demo(session, settings, users, today, clock)

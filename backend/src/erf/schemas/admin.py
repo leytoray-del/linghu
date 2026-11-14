@@ -16,7 +16,7 @@ class UserOut(Schema):
     job_title: str | None
     team: TeamBrief | None
     skills: str | None
-    roles: list[Role]
+    roles: list[str]
     is_active: bool
     must_change_password: bool
     last_login_at: datetime | None
@@ -28,7 +28,7 @@ class UserCreateIn(Schema):
     job_title: str | None = Field(default=None, max_length=120)
     team_id: int | None = None
     skills: str | None = Field(default=None, max_length=200)
-    roles: list[Role] = Field(default_factory=lambda: [Role.REQUESTER])
+    roles: list[str] = Field(default_factory=lambda: [Role.REQUESTER.value], max_length=20)
 
 
 class UserUpdateIn(Schema):
@@ -36,7 +36,7 @@ class UserUpdateIn(Schema):
     job_title: str | None = Field(default=None, max_length=120)
     team_id: int | None = None
     skills: str | None = Field(default=None, max_length=200)
-    roles: list[Role]
+    roles: list[str] = Field(max_length=20)
     is_active: bool
 
 

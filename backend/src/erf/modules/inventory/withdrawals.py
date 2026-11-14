@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from erf.core.errors import Conflict, Forbidden, NotFound, ValidationFailed
 from erf.db.models import Location, User, UserRole
 from erf.domain.enums import LocationKind, Role
-from erf.domain.permissions import Permission, permissions_for
+from erf.domain.permissions import Permission
 from erf.modules.inventory.domain import (
     OPEN_WITHDRAWAL,
     FieldDef,
@@ -49,6 +49,7 @@ from erf.modules.inventory.service import item_out
 from erf.repositories.settings import SettingsRepository
 from erf.services.context import ServiceContext
 from erf.services.org_service import OrgService, location_out, project_out
+from erf.services.permission_service import can
 from erf.services.presenters import user_ref
 
 PENDING_STEP = {
@@ -106,7 +107,7 @@ class WithdrawalService:
             w.requester_id == user.id
             or w.project.pm_user_id == user.id
             or user.has_role(Role.OPS_MANAGER)
-            or Permission.INVENTORY_WITHDRAWALS_ALL in permissions_for(user.roles)
+            or can(self.s, user, Permission.INVENTORY_WITHDRAWALS_ALL)
         )
 
     def out(self, w: InvWithdrawal) -> WithdrawalOut:

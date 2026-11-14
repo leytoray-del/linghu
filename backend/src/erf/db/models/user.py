@@ -35,20 +35,22 @@ class User(TimestampMixin, Base):
     )
 
     @property
-    def roles(self) -> set[Role]:
-        return {Role(r.role) for r in self.role_rows}
+    def roles(self) -> set[str]:
+        """Role codes: the system roles of ``Role`` and any custom roles an administrator added."""
+        return {r.role for r in self.role_rows}
 
-    def has_role(self, *roles: Role) -> bool:
-        return bool(self.roles & set(roles))
+    def has_role(self, *roles: Role | str) -> bool:
+        return bool(self.roles & {str(r) for r in roles})
 
-    def set_roles(self, roles: set[Role]) -> None:
+    def set_roles(self, roles: set[str] | set[Role]) -> None:
+        wanted = {str(r) for r in roles}
         current = {r.role: r for r in self.role_rows}
         for code in list(current):
-            if Role(code) not in roles:
+            if code not in wanted:
                 self.role_rows.remove(current[code])
-        for role in roles:
-            if role.value not in current:
-                self.role_rows.append(UserRole(role=role.value))
+        for code in sorted(wanted):
+            if code not in current:
+                self.role_rows.append(UserRole(role=code))
 
 
 class UserRole(Base):

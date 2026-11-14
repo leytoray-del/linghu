@@ -28,29 +28,22 @@ from erf.domain.enums import Role
 from erf.repositories.users import TeamRepository, UserRepository
 from erf.schemas.admin import UserImportOut, UserImportRow
 from erf.services.context import ServiceContext
+from erf.services.role_service import RoleService
 
 MAX_ROWS = 2000
-DEFAULT_ROLES = {Role.REQUESTER, Role.ENGINEER}
 HEADERS = ["Email", "Name", "Job title", "Team", "Roles"]
-ROLE_NAMES: dict[Role, str] = {
-    Role.REQUESTER: "Requester",
-    Role.ENGINEER: "Engineer",
-    Role.TEAM_LEADER: "Team leader",
-    Role.DIRECTOR: "Director",
-    Role.VIEWER: "Viewer",
-    Role.ADMIN: "Administrator",
-    Role.INVENTORY_CLERK: "Inventory editor",
-    Role.OPS_MANAGER: "Operations manager",
-}
-_ROLE_WORDS = {name.lower(): role for role, name in ROLE_NAMES.items()} | {
-    "admin": Role.ADMIN,
-    "tl": Role.TEAM_LEADER,
-    "teamleader": Role.TEAM_LEADER,
-    "team_leader": Role.TEAM_LEADER,
-    "om": Role.OPS_MANAGER,
-    "clerk": Role.INVENTORY_CLERK,
-    "inventory clerk": Role.INVENTORY_CLERK,
-    "editor": Role.INVENTORY_CLERK,
+DEFAULT_ROLES = {Role.REQUESTER.value, Role.ENGINEER.value}
+# Short names people commonly type, in addition to each role's name and code.
+_ALIASES = {
+    "admin": Role.ADMIN.value,
+    "administrator": Role.ADMIN.value,
+    "requester": Role.REQUESTER.value,
+    "tl": Role.TEAM_LEADER.value,
+    "teamleader": Role.TEAM_LEADER.value,
+    "om": Role.OPS_MANAGER.value,
+    "clerk": Role.INVENTORY_CLERK.value,
+    "inventory clerk": Role.INVENTORY_CLERK.value,
+    "editor": Role.INVENTORY_CLERK.value,
 }
 _HEADER_KEYS = {
     "email": "email",
@@ -81,6 +74,15 @@ class UserImportService:
         self.ctx = ctx
         self.s = ctx.session
         self.users = UserRepository(self.s)
+        # Role names, in the order of the roles screen. The base role is held by everyone, so it is not listed.
+        self.role_names = {r.code: r.name for r in RoleService(self.s).list_roles() if not r.is_base}
+        self._words = {name.lower(): code for code, name in self.role_names.items()}
+        self._words |= {code.lower(): code for code in self.role_names}
+        self._words |= {
+            word: code
+            for word, code in _ALIASES.items()
+            if code in self.role_names or code == Role.REQUESTER.value
+        }
 
     # ---- template -------------------------------------------------------------------------
 
@@ -105,7 +107,7 @@ class UserImportService:
             cell.font = Font(bold=True)
         for i, name in enumerate([t.name for t in teams] or [""], start=2):
             lists.cell(row=i, column=1, value=name)
-        for i, name in enumerate(ROLE_NAMES.values(), start=2):
+        for i, name in enumerate(self.role_names.values(), start=2):
             lists.cell(row=i, column=3, value=name)
         lists.column_dimensions["A"].width = 30
         lists.column_dimensions["C"].width = 18
@@ -127,10 +129,10 @@ class UserImportService:
             "Job title: optional. Leave it blank to keep the current job title.",
             "Team: optional. Choose from the list. Leave it blank to keep the current team.",
             "Roles: optional. Separate several roles with commas, for example: Engineer, Team leader.",
-            "   New people with no roles get Requester and Engineer.",
+            "   New people with no roles get Engineer. Every user also has the Everyone role.",
             "   For existing people, the roles are added to the ones they already have. "
             "Remove roles on the Users page.",
-            "   Roles: " + ", ".join(ROLE_NAMES.values()) + ".",
+            "   Roles: " + ", ".join(self.role_names.values()) + ".",
             "",
             "New people sign in with the initial password you enter when you import the file, "
             "and must choose their own password the first time.",
@@ -178,16 +180,15 @@ class UserImportService:
             raise ValidationFailed("The file has no people to import.")
         return result
 
-    @staticmethod
-    def _roles(text: str) -> set[Role]:
-        roles: set[Role] = set()
+    def _roles(self, text: str) -> set[str]:
+        roles: set[str] = set()
         for word in text.replace(";", ",").split(","):
             word = word.strip().lower()
             if not word:
                 continue
-            role = _ROLE_WORDS.get(word)
+            role = self._words.get(word)
             if role is None:
-                raise ValueError(f'"{word}" is not a role. Use: ' + ", ".join(ROLE_NAMES.values()) + ".")
+                raise ValueError(f'"{word}" is not a role. Use: ' + ", ".join(self.role_names.values()) + ".")
             roles.add(role)
         return roles
 
@@ -241,10 +242,10 @@ class UserImportService:
                     result.error = "A name is needed to add a new person."
                     continue
                 result.outcome = "create"
-                new_roles = (roles or DEFAULT_ROLES) | {Role.REQUESTER}
+                new_roles = (roles or DEFAULT_ROLES) | {Role.REQUESTER.value}
                 result.changes = [
                     "New account",
-                    "Roles: " + ", ".join(ROLE_NAMES[r] for r in ROLE_NAMES if r in new_roles),
+                    "Roles: " + ", ".join(self.role_names[r] for r in self.role_names if r in new_roles),
                 ]
                 if team:
                     result.changes.append(f"Team: {team.name}")
@@ -273,7 +274,9 @@ class UserImportService:
                 changes.append(f"Team: {user.team.name if user.team else '(none)'} → {team.name}")
             added = roles - set(user.roles)
             if added:
-                changes.append("Roles added: " + ", ".join(ROLE_NAMES[r] for r in ROLE_NAMES if r in added))
+                changes.append(
+                    "Roles added: " + ", ".join(self.role_names[r] for r in self.role_names if r in added)
+                )
             if not user.is_active:
                 changes.append("Note: this account is deactivated and stays deactivated")
             real_changes = [c for c in changes if not c.startswith("Note:")]
