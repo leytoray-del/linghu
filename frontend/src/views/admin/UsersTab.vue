@@ -4,23 +4,16 @@ import { computed, onMounted, reactive, ref } from 'vue'
 
 import { adminApi, type UserForm } from '@/api'
 import { useAuthStore } from '@/stores/auth'
-import type { AdminTeam, AdminUser, Role } from '@/types/api'
+import type { AdminTeam, AdminUser, RoleInfo } from '@/types/api'
 import { errorMessage, fieldErrors, showError, showSuccess } from '@/utils/feedback'
 import { fmtDateTime } from '@/utils/format'
 
 import UserImportDialog from './UserImportDialog.vue'
 
-const ROLE_OPTIONS: { value: Role; label: string }[] = [
-  { value: 'REQUESTER', label: 'Requester' },
-  { value: 'TEAM_LEADER', label: 'Team leader' },
-  { value: 'DIRECTOR', label: 'Director' },
-  { value: 'ENGINEER', label: 'Engineer' },
-  { value: 'INVENTORY_CLERK', label: 'Inventory editor (can change saved items)' },
-  { value: 'OPS_MANAGER', label: 'Operations manager' },
-  { value: 'VIEWER', label: 'Viewer (reports)' },
-  { value: 'ADMIN', label: 'Administrator' },
-]
-const roleLabel = (r: Role) => ROLE_OPTIONS.find((o) => o.value === r)?.label ?? r
+/** Roles come from the roles screen, so custom roles appear here too. Everyone holds the base role. */
+const roleList = ref<RoleInfo[]>([])
+const ROLE_OPTIONS = computed(() => roleList.value.filter((r) => !r.is_base).map((r) => ({ value: r.code, label: r.name, hint: r.description })))
+const roleLabel = (code: string) => roleList.value.find((r) => r.code === code)?.name ?? code
 
 const auth = useAuthStore()
 const users = ref<AdminUser[]>([])
@@ -55,7 +48,10 @@ const filtered = computed(() => {
 async function load(): Promise<void> {
   loading.value = true
   try {
-    ;[users.value, teams.value] = await Promise.all([adminApi.users(), adminApi.teams()])
+    const [u, t, r] = await Promise.all([adminApi.users(), adminApi.teams(), adminApi.roles()])
+    users.value = u
+    teams.value = t
+    roleList.value = r.roles
   } catch (e) {
     showError(e)
   } finally {
@@ -189,8 +185,8 @@ onMounted(load)
       </el-table-column>
       <el-table-column label="Roles" min-width="220">
         <template #default="{ row }">
-          <el-tag v-for="r in row.roles.filter((x: Role) => x !== 'REQUESTER')" :key="r" size="small" class="role">{{ roleLabel(r) }}</el-tag>
-          <span v-if="row.roles.length === 1" class="muted">Requester</span>
+          <el-tag v-for="r in row.roles.filter((x: string) => x !== 'REQUESTER')" :key="r" size="small" class="role">{{ roleLabel(r) }}</el-tag>
+          <span v-if="row.roles.length === 1" class="muted">Everyone only</span>
         </template>
       </el-table-column>
       <el-table-column label="Last sign-in" width="170">
@@ -226,7 +222,7 @@ onMounted(load)
         </div>
         <el-form-item label="Roles">
           <el-checkbox-group v-model="form.roles">
-            <el-checkbox v-for="o in ROLE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</el-checkbox>
+            <el-checkbox v-for="o in ROLE_OPTIONS" :key="o.value" :value="o.value" :title="o.hint ?? ''">{{ o.label }}</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
         <el-alert

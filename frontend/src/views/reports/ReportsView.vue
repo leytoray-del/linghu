@@ -46,7 +46,7 @@ onMounted(load)
       <div>
         <h1>Reports</h1>
         <p class="sub">
-          Requests first submitted in the selected year{{ auth.hasRole('DIRECTOR', 'ADMIN', 'VIEWER') ? '' : ' for the teams you lead' }}.
+          Requests first submitted in the selected year{{ auth.can('resources.overview') ? '' : ' for the teams you lead' }}.
           Drafts are not counted.
         </p>
       </div>

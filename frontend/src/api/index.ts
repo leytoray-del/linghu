@@ -19,14 +19,15 @@ import type {
   NoticePreview,
   OutboxSummary,
   Page,
+  PermissionInfo,
   Project,
   ProjectInput,
   ReportSummary,
+  RoleInfo,
   RequestDetail,
   RequestInput,
   RequestStatus,
   RequestSummary,
-  Role,
   TaskInboxItem,
   UserImportResult,
 } from '@/types/api'
@@ -126,11 +127,21 @@ export interface UserForm {
   job_title: string | null
   team_id: number | null
   skills: string | null
-  roles: Role[]
+  roles: string[]
   is_active?: boolean
 }
 
+export interface RoleInput {
+  name: string
+  description: string | null
+  permissions: string[]
+}
+
 export const adminApi = {
+  roles: () => http.get<{ roles: RoleInfo[]; permissions: PermissionInfo[] }>('/admin/roles').then((r) => r.data),
+  saveRole: (body: RoleInput, code?: string) =>
+    (code ? http.put<RoleInfo>(`/admin/roles/${code}`, body) : http.post<RoleInfo>('/admin/roles', body)).then((r) => r.data),
+  deleteRole: (code: string) => http.delete(`/admin/roles/${code}`),
   users: () => http.get<AdminUser[]>('/admin/users').then((r) => r.data),
   createUser: (body: UserForm) =>
     http

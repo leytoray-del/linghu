@@ -24,8 +24,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const isTeamLeader = computed(() => (me.value?.led_team_ids.length ?? 0) > 0)
-  const canSeeReports = computed(() => isTeamLeader.value || hasRole('DIRECTOR', 'ADMIN', 'VIEWER'))
-  const canSeeLoad = computed(() => isTeamLeader.value || hasRole('DIRECTOR', 'ADMIN', 'VIEWER'))
+  const canSeeReports = computed(() => isTeamLeader.value || can('resources.overview'))
+  const canSeeLoad = computed(() => isTeamLeader.value || can('resources.overview'))
   const isApprover = computed(() => isTeamLeader.value || hasRole('DIRECTOR'))
 
   /** Load the session once at start-up; a 401 simply means nobody is signed in. */

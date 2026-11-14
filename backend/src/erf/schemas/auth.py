@@ -28,6 +28,8 @@ class Me(Schema):
     job_title: str | None
     team: TeamBrief | None
     roles: list[str]
+    role_names: list[str]
+    """Names of the person's roles, without the base role every user has."""
     led_team_ids: list[int]
     scopes: list[str]
     permissions: list[str]

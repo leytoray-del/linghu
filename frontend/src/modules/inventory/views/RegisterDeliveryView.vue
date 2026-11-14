@@ -5,7 +5,7 @@
  */
 import dayjs from 'dayjs'
 import { ElMessageBox } from 'element-plus'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import SensitiveNote from '@/components/SensitiveNote.vue'
@@ -65,7 +65,7 @@ const header = reactive({
   supplier_id: null as number | null,
   delivery_order_no: '',
   warranty_start: dayjs().format('YYYY-MM-DD') as string | null,
-  warranty_end: dayjs().add(1, 'year').format('YYYY-MM-DD') as string | null,
+  warranty_end: dayjs().add(1, 'year').subtract(1, 'day').format('YYYY-MM-DD') as string | null,
   remarks: '',
 })
 
@@ -73,7 +73,8 @@ const header = reactive({
 const WARRANTY_YEARS = 1
 /** True while the warranty dates still follow the received date; false once someone changes them. */
 const warrantyFollows = ref(true)
-const plusYears = (d: string) => dayjs(d).add(WARRANTY_YEARS, 'year').format('YYYY-MM-DD')
+/** The last day covered: a one-year warranty from 16 Nov 2026 ends on 15 Nov 2027. */
+const plusYears = (d: string) => dayjs(d).add(WARRANTY_YEARS, 'year').subtract(1, 'day').format('YYYY-MM-DD')
 watch(
   () => header.received_on,
   (d) => {
@@ -111,7 +112,6 @@ const saving = ref(false)
 const restored = ref(false)
 const projectQuery = ref('')
 const modelQuery = ref('')
-const commonOpen = ref(false)
 const listOpen = ref(false)
 const newModelOpen = ref(false)
 const newModelSample = ref('')
@@ -193,9 +193,26 @@ function deliveryNext(): void {
   go(rows.value.length && modelId.value ? 'scan' : 'model')
 }
 
+const hasFields = computed(() => !!category.value?.fields.some((f) => !f.retired))
+
+/** Choosing a model shows its details on the same step when the kind of equipment has any; otherwise scanning starts. */
 function chooseModel(id: number): void {
   modelId.value = id
   notice.value = null
+  errors.value = {}
+  if (hasFields.value) nextTick(() => document.getElementById('model-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  else go('scan')
+}
+
+function modelNext(): void {
+  const missing = (category.value?.fields ?? []).filter((f) => {
+    const v = commonValues.value[f.key]
+    return f.required && !f.retired && (v === undefined || v === null || v === '')
+  })
+  if (missing.length) {
+    formError.value = `Fill in ${missing.map((f) => f.label).join(', ')} before scanning.`
+    return
+  }
   go('scan')
 }
 
@@ -343,8 +360,10 @@ async function onModelCreated(m: ItemModel): Promise<void> {
   modelId.value = m.id
   const pending = newModelSample.value
   newModelSample.value = ''
-  if (step.value !== 'scan') go('scan')
-  if (pending) await add(pending, true)
+  if (pending) {
+    if (step.value !== 'scan') go('scan')
+    await add(pending, true)
+  } else chooseModel(m.id)
 }
 
 function openNewModel(): void {
@@ -583,6 +602,15 @@ onMounted(async () => {
         <b>+ Add a new model</b>
         <small>For a device type that is not in the list yet</small>
       </button>
+      <div v-if="model && hasFields" id="model-details" class="model-details">
+        <h2>Details of every {{ model.model_no }}</h2>
+        <p class="muted small">These are recorded on each {{ model.model_no }} you scan next. You can change one item on the Review step.</p>
+        <SensitiveNote text="Record equipment details only. Do not enter passwords, IP addresses or network details." />
+        <el-form label-position="top">
+          <AttributeFields v-model="commonValues" :fields="category?.fields ?? []" id-prefix="common" />
+        </el-form>
+        <el-alert v-if="formError" :title="formError" type="error" :closable="false" show-icon />
+      </div>
     </section>
 
     <!-- 4. Scan -->
@@ -606,8 +634,7 @@ onMounted(async () => {
         <template #append><el-button @click="add(typed, false)">Add</el-button></template>
       </el-input>
       <div class="tools">
-        <el-button @click="go('model')">Change model</el-button>
-        <el-button v-if="category?.fields.some((f) => !f.retired)" @click="commonOpen = true">Same details for every {{ model?.model_no }}</el-button>
+        <el-button @click="go('model')">Change model or its details</el-button>
       </div>
     </section>
 
@@ -654,18 +681,10 @@ onMounted(async () => {
       <el-button v-if="step === 'delivery'" size="large" type="primary" @click="deliveryNext">Next</el-button>
       <el-button v-else-if="step === 'scan'" size="large" type="primary" :disabled="!rows.length" @click="go('review')">Review ({{ rows.length }})</el-button>
       <el-button v-else-if="step === 'review'" size="large" type="primary" :loading="saving" :disabled="!rows.length" @click="save">Save</el-button>
-      <el-button v-else-if="step === 'model' && modelId" size="large" type="primary" @click="go('scan')">Continue scanning</el-button>
+      <el-button v-else-if="step === 'model' && modelId" size="large" type="primary" @click="modelNext">Next: scan</el-button>
       <span v-else />
     </div>
 
-    <el-drawer v-model="commonOpen" direction="btt" size="80%" :title="`Same details for every ${model?.model_no}`" append-to-body>
-      <SensitiveNote text="Record equipment details only. Do not enter passwords, IP addresses or network details." />
-      <el-form label-position="top">
-        <AttributeFields v-model="commonValues" :fields="category?.fields ?? []" id-prefix="common" />
-      </el-form>
-      <p class="muted small">Applied to the items you scan from now on. Items already scanned keep their details.</p>
-      <template #footer><el-button size="large" type="primary" class="wide" @click="commonOpen = false">Done</el-button></template>
-    </el-drawer>
 
     <el-drawer v-model="listOpen" direction="btt" size="85%" :title="`${rows.length} scanned`" append-to-body>
       <ol class="rows full">
@@ -756,6 +775,16 @@ onMounted(async () => {
   background: var(--erf-ok);
   border-color: var(--erf-ok);
   color: #fff;
+}
+.model-details {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--erf-line);
+  padding-top: 16px;
+  scroll-margin-top: 16px;
+}
+.model-details h2 {
+  margin: 0;
 }
 .step {
   display: grid;

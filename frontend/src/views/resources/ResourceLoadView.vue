@@ -19,7 +19,7 @@ const weekStart = ref(dayjs().startOf('week').add(1, 'day'))
 
 const teams = computed(() => {
   const all = lookups.data?.teams ?? []
-  if (auth.hasRole('DIRECTOR', 'ADMIN', 'VIEWER')) return all
+  if (auth.can('resources.overview')) return all
   return all.filter((t) => auth.me?.led_team_ids.includes(t.id))
 })
 

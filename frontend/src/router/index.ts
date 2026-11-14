@@ -63,7 +63,7 @@ const routes: RouteRecordRaw[] = [
         path: 'admin',
         name: 'admin',
         component: () => import('@/views/admin/AdminView.vue'),
-        meta: { title: 'Administration', roles: ['ADMIN'] },
+        meta: { title: 'Administration', allow: (a) => a.can('core.admin') },
       },
       ...inventoryRoutes,
       {

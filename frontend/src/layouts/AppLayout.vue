@@ -105,7 +105,7 @@ const groups = computed<NavGroup[]>(() =>
     },
     {
       title: 'System',
-      items: [{ to: '/admin', label: 'Administration', show: auth.hasRole('ADMIN') }],
+      items: [{ to: '/admin', label: 'Administration', show: auth.can('core.admin') }],
     },
   ]
     .map((g) => ({ ...g, items: g.items.filter((i) => i.show) }))
@@ -139,19 +139,7 @@ function isActive(item: NavItem): boolean {
   return path.startsWith(item.to)
 }
 
-const roleLabel = computed(() => {
-  const names: Record<string, string> = {
-    ADMIN: 'Administrator',
-    DIRECTOR: 'Director',
-    TEAM_LEADER: 'Team leader',
-    ENGINEER: 'Engineer',
-    VIEWER: 'Viewer',
-    INVENTORY_CLERK: 'Inventory editor',
-    OPS_MANAGER: 'Operations manager',
-  }
-  const shown = (auth.me?.roles ?? []).filter((r) => r in names).map((r) => names[r])
-  return shown.length ? shown.join(', ') : 'Requester'
-})
+const roleLabel = computed(() => (auth.me?.role_names.length ? auth.me.role_names.join(', ') : 'Requester'))
 
 // Keep the approvals badge current as the user moves around.
 watch(

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response
+from sqlalchemy import select
 
 from erf.api.deps import Ctx, CurrentUser
 from erf.core.errors import Unauthorized
-from erf.db.models import User
+from erf.db.models import RoleRow, User
+from erf.domain.permissions import BASE_ROLE
 from erf.modules.inventory.withdrawals import WithdrawalService
 from erf.schemas.auth import ChangePasswordIn, LoginIn, Me, TeamBrief
 from erf.schemas.common import Message
@@ -17,6 +19,11 @@ from erf.services.request_service import RequestService
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _role_names(ctx: ServiceContext, user: User) -> list[str]:
+    rows = ctx.session.scalars(select(RoleRow).where(RoleRow.code.in_(user.roles - {BASE_ROLE.value})))
+    return sorted(r.name for r in rows)
+
+
 def build_me(ctx: ServiceContext, user: User) -> Me:
     access = AccessPolicy(ctx.session)
     return Me(
@@ -26,6 +33,7 @@ def build_me(ctx: ServiceContext, user: User) -> Me:
         job_title=user.job_title,
         team=TeamBrief.model_validate(user.team) if user.team else None,
         roles=sorted(user.roles),
+        role_names=_role_names(ctx, user),
         led_team_ids=access.led_team_ids(user),
         scopes=[s.value for s in access.allowed_scopes(user)],
         permissions=sorted(p.value for p in permissions_of(ctx.session, user)),

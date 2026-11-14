@@ -9,6 +9,7 @@ import EmailTab from './EmailTab.vue'
 import HolidaysTab from './HolidaysTab.vue'
 import LocationsTab from './LocationsTab.vue'
 import ProjectsTab from './ProjectsTab.vue'
+import RolesTab from './RolesTab.vue'
 import SettingsTab from './SettingsTab.vue'
 import SupportTypesTab from './SupportTypesTab.vue'
 import TeamsTab from './TeamsTab.vue'
@@ -27,6 +28,7 @@ const GROUPS: { title: string; sections: Section[] }[] = [
     title: 'People and organisation',
     sections: [
       { key: 'users', label: 'Users', hint: 'Accounts, roles and passwords.', component: UsersTab },
+      { key: 'roles', label: 'Roles and permissions', hint: 'What each role may see and do. A person gets all the permissions of their roles.', component: RolesTab },
       { key: 'projects', label: 'Projects', hint: 'Projects and their project managers, shared by every module.', component: ProjectsTab },
       { key: 'locations', label: 'Locations', hint: 'Stores, sites and repair centres.', component: LocationsTab },
       { key: 'teams', label: 'Teams and approvers', hint: 'Who reviews requests for each team.', component: TeamsTab },

@@ -43,7 +43,9 @@ export interface Me {
   display_name: string
   job_title: string | null
   team: TeamBrief | null
-  roles: Role[]
+  /** Role codes, including custom roles. */
+  roles: string[]
+  role_names: string[]
   led_team_ids: number[]
   scopes: ListScope[]
   /** Permissions granted by the user's roles, such as inventory.view. Pages check these, not role names. */
@@ -312,7 +314,7 @@ export interface AdminUser {
   job_title: string | null
   team: TeamBrief | null
   skills: string | null
-  roles: Role[]
+  roles: string[]
   is_active: boolean
   must_change_password: boolean
   last_login_at: string | null
@@ -428,4 +430,25 @@ export interface Location {
   name: string
   kind: LocationKind
   is_active: boolean
+}
+
+// Roles and permissions
+export interface PermissionInfo {
+  key: string
+  module: string
+  module_name: string
+  label: string
+  description: string
+}
+
+export interface RoleInfo {
+  code: string
+  name: string
+  description: string | null
+  is_system: boolean
+  is_locked: boolean
+  is_base: boolean
+  duty: string | null
+  permissions: string[]
+  user_count: number
 }
