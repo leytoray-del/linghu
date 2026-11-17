@@ -74,6 +74,13 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # After a move to a new server, deploy/target.env names the server, its host key and the domain.
+          # These are public facts, so they live in the repository and override the older secrets.
+          if [ -f deploy/target.env ]; then
+            set -a; . deploy/target.env; set +a
+            printf '%s\n' "$TARGET_KNOWN_HOST" > ~/.ssh/known_hosts
+            { echo "TARGET_HOST=$TARGET_HOST"; echo "TARGET_DOMAIN=$TARGET_DOMAIN"; } >> "$GITHUB_ENV"
+          fi
       - name: Install the release on the server
         if: vars.DEPLOY_ENABLED == 'true'
         env:
@@ -84,6 +91,7 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.ERF_SMTP_PASSWORD }}
         run: |
           SSH_OPTS="-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes"
+          HOST="${TARGET_HOST:-$HOST}"; DOMAIN="${TARGET_DOMAIN:-$DOMAIN}"
           NAME="$(basename "$ARCHIVE")"
           scp $SSH_OPTS "$ARCHIVE" "$DEPLOY_USER@$HOST:/tmp/$NAME"
 
@@ -136,6 +144,7 @@ jobs:
         env:
           DOMAIN: ${{ vars.ERF_DOMAIN }}
         run: |
+          DOMAIN="${TARGET_DOMAIN:-$DOMAIN}"
           for i in $(seq 1 20); do
             if curl -fsS "https://$DOMAIN/api/health"; then echo; exit 0; fi
             sleep 3

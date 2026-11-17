@@ -1,26 +1,230 @@
 name: Migrate server
-# Moves the system to a new server. Driven by deploy/migration.env, so it runs from a push and needs no
-# new secrets: the new server accepts the same deployment key as the current one.
+# Moves the system, with all its data, from the current server to a new one. It is driven by
+# deploy/migration.env, so it runs from a push and needs no new secrets: the new server accepts the same
+# deployment key as the current one.
+#
+#   STEP=check    Reads both servers and the domain, and prints the new server's host key. Changes nothing.
+#   STEP=migrate  Prepares the new server, stops the current one, copies the database and settings,
+#                 starts the system on the new server, and makes the old address redirect to the new one.
+#                 If the new server does not come up, the current server is started again.
 on:
   push:
     branches: [claude/server-inspection]
-    paths: [deploy/migration.env, .github/workflows/migrate.yml]
+    paths: [deploy/migration.env]
 
 concurrency:
   group: deploy-production
   cancel-in-progress: false
 
 jobs:
-  public-key:
+  migrate:
     runs-on: ubuntu-latest
+    env:
+      OLD_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      OLD_DOMAIN: ${{ vars.ERF_DOMAIN }}
+      DEMO_MODE: ${{ vars.ERF_DEMO }}
     steps:
-      - name: Show the public half of the deployment key
+      - uses: actions/checkout@v4
+
+      - name: Read the migration settings
+        run: |
+          set -a; . deploy/migration.env; set +a
+          for v in STEP NEW_HOST NEW_DOMAIN; do
+            [ -n "${!v:-}" ] || { echo "$v is missing from deploy/migration.env" >&2; exit 1; }
+          done
+          { echo "STEP=$STEP"; echo "NEW_HOST=$NEW_HOST"; echo "NEW_DOMAIN=$NEW_DOMAIN"; } >> "$GITHUB_ENV"
+          printf '%s\n' "${NEW_KNOWN_HOST:-}" > new_known_host
+          echo "Step: $STEP. Moving from $OLD_DOMAIN to $NEW_DOMAIN ($NEW_HOST)."
+
+      - name: Configure SSH
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          if [ "$STEP" = "check" ]; then
+            # First contact: record the new server's host key so that it can be pinned for the move.
+            ssh-keyscan -t ed25519 -T 15 "$NEW_HOST" 2>/dev/null | grep -v '^#' > scanned || true
+            [ -s scanned ] || { echo "The new server $NEW_HOST does not answer on port 22." >&2; exit 1; }
+            echo "New server host key (pin this as NEW_KNOWN_HOST):"
+            cat scanned
+            cat scanned >> ~/.ssh/known_hosts
+          else
+            [ -s new_known_host ] && [ "$(cat new_known_host)" != "" ] || { echo "NEW_KNOWN_HOST is missing; run the check step first." >&2; exit 1; }
+            cat new_known_host >> ~/.ssh/known_hosts
+          fi
+          echo "SSH_OPTS=-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20" >> "$GITHUB_ENV"
+
+      - name: Check both servers and the domain
+        run: |
+          echo "== Deployment user"
+          [ "$DEPLOY_USER" = "github-deploy" ] && echo "github-deploy" || echo "The deployment user is not github-deploy; add the key on the new server under the same user name as on the current one."
+          echo "== New server"
+          ssh $SSH_OPTS "$DEPLOY_USER@$NEW_HOST" 'set -e
+            . /etc/os-release; echo "System: $PRETTY_NAME, $(uname -m)"
+            echo "Memory: $(free -m | awk "/Mem:/{print \$2}") MB, swap: $(free -m | awk "/Swap:/{print \$2}") MB"
+            echo "Free disk: $(df -h / | awk "NR==2{print \$4}")"
+            sudo -n true && echo "Administrator rights: yes"
+            command -v caddy >/dev/null && echo "Caddy: installed" || echo "Caddy: not installed yet"
+            [ -f /var/lib/erf/erf.db ] && echo "WARNING: this server already has a database at /var/lib/erf/erf.db" || echo "Database: none yet (expected)"'
+          echo "== Current server"
+          ssh $SSH_OPTS "$DEPLOY_USER@$OLD_HOST" 'set -e
+            echo "Service: $(systemctl is-active erf)"
+            echo "Database size: $(sudo du -h /var/lib/erf/erf.db | cut -f1)"'
+          echo "== Domain"
+          RESOLVED="$(getent ahostsv4 "$NEW_DOMAIN" | awk "NR==1{print \$1}" || true)"
+          echo "$NEW_DOMAIN resolves to: ${RESOLVED:-nothing}"
+          if [ "$RESOLVED" != "$NEW_HOST" ]; then
+            echo "The domain must point to $NEW_HOST before the move, so that the HTTPS certificate can be issued." >&2
+            [ "$STEP" = "check" ] || exit 1
+          fi
+          echo "== HTTP port on the new server"
+          if curl -s -o /dev/null -m 10 "http://$NEW_HOST/"; then echo "Port 80 answers"; else echo "Port 80 does not answer yet (normal before Caddy is installed; the VM must allow HTTP and HTTPS traffic)."; fi
+
+      - name: Prepare the new server
+        if: env.STEP == 'migrate'
+        run: |
+          ssh $SSH_OPTS "$DEPLOY_USER@$NEW_HOST" 'set -euo pipefail
+            if ! swapon --show | grep -q .; then
+              echo "Adding 2 GB of swap…"
+              sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile >/dev/null && sudo swapon /swapfile
+              grep -q "^/swapfile " /etc/fstab || echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab >/dev/null
+            fi
+            if ! command -v caddy >/dev/null; then
+              echo "Installing Caddy…"
+              export DEBIAN_FRONTEND=noninteractive
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https curl gnupg >/dev/null
+              curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+              curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
+              sudo chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg /etc/apt/sources.list.d/caddy-stable.list
+              sudo apt-get update -qq && sudo apt-get install -y -qq caddy >/dev/null
+            fi
+            sudo mkdir -p /etc/caddy/sites
+            if ! grep -q "import /etc/caddy/sites/\*.caddy" /etc/caddy/Caddyfile 2>/dev/null; then
+              echo "import /etc/caddy/sites/*.caddy" | sudo tee /etc/caddy/Caddyfile >/dev/null
+              sudo systemctl reload caddy
+            fi
+            echo "New server prepared."'
+
+      - uses: actions/setup-node@v4
+        if: env.STEP == 'migrate'
+        with:
+          node-version: 22
+      - name: Build the release
+        if: env.STEP == 'migrate'
+        run: |
+          if [ "$DEMO_MODE" = "true" ]; then bash deploy/scripts/build-release.sh --demo; else bash deploy/scripts/build-release.sh; fi
+          echo "ARCHIVE=$(ls release/*.tar.gz)" >> "$GITHUB_ENV"
+
+      - name: Install the system files on the new server
+        if: env.STEP == 'migrate'
+        run: |
+          NAME="$(basename "$ARCHIVE")"
+          scp $SSH_OPTS "$ARCHIVE" "$DEPLOY_USER@$NEW_HOST:/tmp/$NAME"
+          ssh $SSH_OPTS "$DEPLOY_USER@$NEW_HOST" bash -s -- "$NAME" "$NEW_DOMAIN" <<'REMOTE'
+          set -euo pipefail
+          WORK="$(mktemp -d)"; tar -xzf "/tmp/$1" -C "$WORK"
+          sudo bash "$WORK/deploy/scripts/install.sh" --domain "$2"
+          sudo systemctl stop erf 2>/dev/null || true
+          rm -rf "$WORK"
+          REMOTE
+
+      - name: Stop the current server and copy its data
+        if: env.STEP == 'migrate'
         run: |
           umask 077
-          printf '%s\n' "$SSH_KEY" > key
-          echo "Add this line to the new server (VM → Edit → SSH keys → Add item):"
-          echo "$(ssh-keygen -y -f key | cut -d' ' -f1,2) $DEPLOY_USER"
-          rm -f key
+          # From here on nobody can change data on the current server, so nothing is lost in the move.
+          ssh $SSH_OPTS "$DEPLOY_USER@$OLD_HOST" 'set -euo pipefail
+            sudo systemctl stop erf
+            sudo python3 - <<PY
+          import sqlite3
+          src = sqlite3.connect("file:/var/lib/erf/erf.db?mode=ro", uri=True)
+          dst = sqlite3.connect("/tmp/erf-migrate.db")
+          src.backup(dst); dst.close()
+          print("Integrity:", sqlite3.connect("/tmp/erf-migrate.db").execute("PRAGMA integrity_check").fetchone()[0])
+          PY
+            sudo cp /etc/erf/erf.env /tmp/erf-migrate.env
+            sudo chown "$USER" /tmp/erf-migrate.db /tmp/erf-migrate.env
+            chmod 600 /tmp/erf-migrate.db /tmp/erf-migrate.env'
+          scp $SSH_OPTS "$DEPLOY_USER@$OLD_HOST:/tmp/erf-migrate.db" erf.db
+          scp $SSH_OPTS "$DEPLOY_USER@$OLD_HOST:/tmp/erf-migrate.env" erf.env
+          ssh $SSH_OPTS "$DEPLOY_USER@$OLD_HOST" 'rm -f /tmp/erf-migrate.db /tmp/erf-migrate.env'
+          # The settings move as they are, with the old address replaced by the new one.
+          sed -i "s/$(printf '%s' "$OLD_DOMAIN" | sed 's/\./\\./g')/$NEW_DOMAIN/g" erf.env
+          python3 - <<'PY'
+          import sqlite3
+          db = sqlite3.connect("erf.db")
+          for t in ("users", "resource_requests", "inv_items", "inv_withdrawals"):
+              try:
+                  print(f"{t}: {db.execute(f'select count(*) from {t}').fetchone()[0]} rows")
+              except sqlite3.Error:
+                  pass
+          PY
+
+      - name: Start the system on the new server
+        id: start
+        if: env.STEP == 'migrate'
+        env:
+          SMTP_USER: ${{ vars.ERF_SMTP_USERNAME || secrets.ERF_SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.ERF_SMTP_PASSWORD }}
+        run: |
+          umask 077
+          NAME="$(basename "$ARCHIVE")"
+          scp $SSH_OPTS erf.db erf.env "$DEPLOY_USER@$NEW_HOST:/tmp/"
+          MAIL_OPT=""
+          if [ -n "$SMTP_USER" ] && [ -n "$SMTP_PASSWORD" ]; then
+            REDIRECT=""; [ "$DEMO_MODE" = "true" ] && REDIRECT="$SMTP_USER"
+            printf '%s\n' "ERF_MAIL_BACKEND=smtp" "ERF_SMTP_HOST=smtp.gmail.com" "ERF_SMTP_PORT=587" \
+              "ERF_SMTP_USERNAME=$SMTP_USER" "ERF_SMTP_PASSWORD=${SMTP_PASSWORD// /}" \
+              "ERF_MAIL_FROM=Engineering Resource Requests <$SMTP_USER>" "ERF_MAIL_REDIRECT_TO=$REDIRECT" > erf-mail.env
+            scp -p $SSH_OPTS erf-mail.env "$DEPLOY_USER@$NEW_HOST:/tmp/erf-mail.env"
+            MAIL_OPT="--mail-env /tmp/erf-mail.env"
+          fi
+          rm -f erf.db erf.env erf-mail.env
+          ssh $SSH_OPTS "$DEPLOY_USER@$NEW_HOST" bash -s -- "$NAME" "$NEW_DOMAIN" "$DEMO_MODE" "$MAIL_OPT" <<'REMOTE'
+          set -euo pipefail
+          NAME="$1"; DOMAIN="$2"; DEMO="$3"; MAIL_OPT="${4:-}"
+          sudo systemctl stop erf 2>/dev/null || true
+          sudo install -o erf -g erf -m 640 /tmp/erf.db /var/lib/erf/erf.db
+          sudo rm -f /var/lib/erf/erf.db-wal /var/lib/erf/erf.db-shm
+          sudo install -o root -g erf -m 640 /tmp/erf.env /etc/erf/erf.env
+          rm -f /tmp/erf.db /tmp/erf.env
+          WORK="$(mktemp -d)"; tar -xzf "/tmp/$NAME" -C "$WORK"
+          sudo bash "$WORK/deploy/scripts/install.sh" --domain "$DOMAIN" $MAIL_OPT
+          if [ "$DEMO" = "true" ]; then
+            sudo bash "$WORK/deploy/scripts/release.sh" "/tmp/$NAME" --seed-demo
+          else
+            sudo bash "$WORK/deploy/scripts/release.sh" "/tmp/$NAME"
+          fi
+          rm -rf "$WORK" "/tmp/$NAME"
+          REMOTE
+          for i in $(seq 1 40); do
+            if curl -fsS "https://$NEW_DOMAIN/api/health"; then echo; echo "https://$NEW_DOMAIN is up."; exit 0; fi
+            sleep 3
+          done
+          echo "https://$NEW_DOMAIN/api/health did not respond." >&2
+          exit 1
+
+      - name: Point the old address to the new one
+        if: env.STEP == 'migrate' && success()
+        run: |
+          # The current server keeps its data on disk, but its address now forwards to the new server.
+          ssh $SSH_OPTS "$DEPLOY_USER@$OLD_HOST" bash -s -- "$OLD_DOMAIN" "$NEW_DOMAIN" <<'REMOTE'
+          set -euo pipefail
+          sudo cp /etc/caddy/sites/erf.caddy /var/lib/erf/erf.caddy.before-move
+          printf '%s {\n\tredir https://%s{uri} permanent\n}\n' "$1" "$2" | sudo tee /etc/caddy/sites/erf.caddy >/dev/null
+          sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
+          sudo systemctl reload caddy
+          sudo systemctl disable erf erf-backup.timer >/dev/null 2>&1 || true
+          echo "https://$1 now forwards to https://$2. The old database is kept at /var/lib/erf/erf.db."
+          REMOTE
+
+      - name: Start the current server again if the move failed
+        if: env.STEP == 'migrate' && failure()
+        run: |
+          ssh $SSH_OPTS "$DEPLOY_USER@$OLD_HOST" 'sudo systemctl start erf && echo "The current server is running again, with its data unchanged."'
