@@ -1,0 +1,26 @@
+name: Migrate server
+# Moves the system to a new server. Driven by deploy/migration.env, so it runs from a push and needs no
+# new secrets: the new server accepts the same deployment key as the current one.
+on:
+  push:
+    branches: [claude/server-inspection]
+    paths: [deploy/migration.env, .github/workflows/migrate.yml]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  public-key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show the public half of the deployment key
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          umask 077
+          printf '%s\n' "$SSH_KEY" > key
+          echo "Add this line to the new server (VM → Edit → SSH keys → Add item):"
+          echo "$(ssh-keygen -y -f key | cut -d' ' -f1,2) $DEPLOY_USER"
+          rm -f key
