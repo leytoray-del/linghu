@@ -48,12 +48,22 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     env:
-      DEMO_MODE: ${{ vars.ERF_DEMO }}
+      DEMO_SETTING: ${{ vars.ERF_DEMO }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Decide on demo mode
+        run: |
+          # deploy/target.env can switch demo mode off for good, whatever the ERF_DEMO variable says.
+          DEMO_MODE="$DEMO_SETTING"
+          if [ -f deploy/target.env ]; then
+            TARGET_DEMO="$(sed -n 's/^TARGET_DEMO=//p' deploy/target.env)"
+            [ -n "$TARGET_DEMO" ] && DEMO_MODE="$TARGET_DEMO"
+          fi
+          echo "DEMO_MODE=$DEMO_MODE" >> "$GITHUB_ENV"
+          echo "Demo mode: $DEMO_MODE"
       - name: Build release archive
         run: |
           if [ "$DEMO_MODE" = "true" ]; then bash deploy/scripts/build-release.sh --demo; else bash deploy/scripts/build-release.sh; fi

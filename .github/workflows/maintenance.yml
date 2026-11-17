@@ -1,0 +1,71 @@
+name: Maintenance
+# One-off data tasks on the production server, driven by deploy/maintenance.env.
+#
+#   TASK=clear-demo-check  Reports what clearing the demo data would remove. Changes nothing.
+#   TASK=clear-demo        Backs up the database, then removes the demo data and every user except the
+#                          people named in KEEP (SHA-256 fingerprints of an email address or full name).
+#   TASK=done              Nothing runs.
+on:
+  push:
+    branches: [claude/server-inspection]
+    paths: [deploy/maintenance.env]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the task
+        run: |
+          set -a; . deploy/maintenance.env; . deploy/target.env; set +a
+          echo "TASK=$TASK" >> "$GITHUB_ENV"
+          echo "KEEP=$KEEP" >> "$GITHUB_ENV"
+          echo "HOST=$TARGET_HOST" >> "$GITHUB_ENV"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$TARGET_KNOWN_HOST" > ~/.ssh/known_hosts
+          echo "Task: $TASK on $TARGET_DOMAIN"
+      - name: Run it on the server
+        if: env.TASK != 'done'
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          SSH_OPTS="-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20"
+          ssh $SSH_OPTS "$DEPLOY_USER@$HOST" bash -s -- "$TASK" $KEEP <<'REMOTE'
+          set -euo pipefail
+          TASK="$1"; shift
+          ARGS=()
+          for k in "$@"; do ARGS+=(--keep "$k"); done
+          erf() {
+            ( cd /opt/erf/current/backend && sudo runuser -u erf -- bash -c 'umask 027; set -a; . /etc/erf/erf.env; set +a; exec .venv/bin/erf "$@"' _ "$@" )
+          }
+          case "$TASK" in
+            clear-demo-check)
+              erf clear-demo "${ARGS[@]}"
+              ;;
+            clear-demo)
+              # A backup that the daily rotation never deletes.
+              erf backup --dest /var/lib/erf/backups-before-clearing-demo --keep 10
+              sudo systemctl stop erf
+              if erf clear-demo "${ARGS[@]}" --apply; then
+                sudo systemctl start erf
+              else
+                sudo systemctl start erf
+                echo "Clearing failed; the database was not changed." >&2
+                exit 1
+              fi
+              for _ in $(seq 1 30); do
+                curl -fsS http://127.0.0.1:8100/api/health >/dev/null 2>&1 && { echo "The system is running."; exit 0; }
+                sleep 1
+              done
+              echo "The system did not come back up." >&2
+              exit 1
+              ;;
+            *) echo "Unknown task: $TASK" >&2; exit 2 ;;
+          esac
+          REMOTE

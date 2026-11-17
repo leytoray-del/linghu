@@ -91,6 +91,33 @@ def cmd_backup(args: argparse.Namespace) -> None:
     print(f"Backup written to {target} ({target.stat().st_size // 1024} KB); keeping the newest {args.keep}.")
 
 
+def cmd_clear_demo(args: argparse.Namespace) -> None:
+    """Remove demo data and every user except the ones named by fingerprint. Back up first."""
+    from erf.api.container import Container
+    from erf.db.session import session_scope
+    from erf.services.demo_cleanup import clear_demo
+
+    settings = get_settings()
+    factory = Container.build(settings).factory
+    keep = {k.strip().lower() for k in args.keep if k.strip()}
+    if not keep:
+        sys.exit("Name at least one person to keep with --keep.")
+    with session_scope(factory) as session:
+        report = clear_demo(session, keep, apply=args.apply)
+        for line in report.lines():
+            print(line)
+        if report.problem:
+            session.rollback()
+            sys.exit(1)
+        if not args.apply:
+            session.rollback()
+            print("Check only: nothing was changed.")
+            return
+    with sqlite3.connect(Path(settings.database_url.split("///", 1)[1])) as db:
+        db.execute("VACUUM")
+    print("Demo data cleared.")
+
+
 def cmd_run_jobs(_: argparse.Namespace) -> None:
     from erf.api.container import Container
     from erf.infrastructure.mail.senders import build_sender
@@ -128,6 +155,13 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--dest", required=True)
     p.add_argument("--keep", type=int, default=30)
     p.set_defaults(func=cmd_backup)
+
+    p = sub.add_parser("clear-demo", help="Remove demo data, keeping the users named by fingerprint.")
+    p.add_argument(
+        "--keep", action="append", default=[], help="SHA-256 fingerprint of an email or full name."
+    )
+    p.add_argument("--apply", action="store_true", help="Make the change; without it, only report.")
+    p.set_defaults(func=cmd_clear_demo)
 
     sub.add_parser("run-jobs", help="Run reminders, auto-close and email delivery once.").set_defaults(
         func=cmd_run_jobs
