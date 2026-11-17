@@ -97,12 +97,11 @@ jobs:
             if ! command -v caddy >/dev/null; then
               echo "Installing Caddy…"
               export DEBIAN_FRONTEND=noninteractive
-              sudo apt-get update -qq
-              sudo apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https curl gnupg >/dev/null
-              curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-              curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
-              sudo chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg /etc/apt/sources.list.d/caddy-stable.list
-              sudo apt-get update -qq && sudo apt-get install -y -qq caddy >/dev/null
+              # Only Caddy'"'"'s own repository is used, with its key in text form, so no helper packages are needed.
+              curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | sudo tee /usr/share/keyrings/caddy-stable.asc >/dev/null
+              echo "deb [signed-by=/usr/share/keyrings/caddy-stable.asc] https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version main" | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
+              sudo apt-get update -qq || true
+              sudo apt-get install -y -qq --no-install-recommends caddy >/dev/null
             fi
             sudo mkdir -p /etc/caddy/sites
             if ! grep -q "import /etc/caddy/sites/\*.caddy" /etc/caddy/Caddyfile 2>/dev/null; then
