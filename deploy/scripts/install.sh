@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # One-time server preparation. Safe to run again; it never overwrites /etc/erf/erf.env.
 #
-#   sudo bash deploy/scripts/install.sh --domain erf-example.duckdns.org [--mail-env /tmp/erf-mail.env]
+#   sudo bash deploy/scripts/install.sh --domain erf-example.duckdns.org[,other.example.org] [--mail-env /tmp/erf-mail.env]
+#
+# --domain takes one or more host names separated by commas. The first is the main address, used in the
+# links of emails; the site answers on all of them.
 #
 # It creates the "erf" system user and directories, installs uv, the systemd units and the
 # Caddy site file, and validates and reloads Caddy. Other sites served by Caddy are not touched.
@@ -21,6 +24,9 @@ while [[ $# -gt 0 ]]; do
 done
 [[ $EUID -eq 0 ]] || { echo "Run this script with sudo." >&2; exit 1; }
 [[ -n "$DOMAIN" ]] || { echo "Pass the public host name with --domain." >&2; exit 2; }
+NAMES="${DOMAIN// /}"
+PRIMARY="${NAMES%%,*}"
+SITE_ADDRESSES="${NAMES//,/, }"
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -36,7 +42,7 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 if [[ ! -f /etc/erf/erf.env ]]; then
-  sed "s/ERF_DOMAIN/$DOMAIN/g" "$SRC/env/erf.env.example" > /etc/erf/erf.env
+  sed "s/ERF_DOMAIN/$PRIMARY/g" "$SRC/env/erf.env.example" > /etc/erf/erf.env
   echo "Wrote /etc/erf/erf.env. Review it, especially the email settings."
 else
   echo "Keeping the existing /etc/erf/erf.env."
@@ -53,12 +59,19 @@ install -m 644 "$SRC/systemd/erf.service" "$SRC/systemd/erf-backup.service" "$SR
 systemctl daemon-reload
 systemctl enable erf.service erf-backup.timer >/dev/null
 
-echo "Installing the Caddy site for $DOMAIN…"
+# Email links always use the main address.
+if grep -q "^ERF_BASE_URL=" /etc/erf/erf.env; then
+  sed -i "s#^ERF_BASE_URL=.*#ERF_BASE_URL=https://$PRIMARY#" /etc/erf/erf.env
+else
+  echo "ERF_BASE_URL=https://$PRIMARY" >> /etc/erf/erf.env
+fi
+
+echo "Installing the Caddy site for $SITE_ADDRESSES…"
 install -d -m 755 /etc/caddy/sites
 SITE=/etc/caddy/sites/erf.caddy
 PREVIOUS_SITE="$(mktemp)"
 if [[ -f "$SITE" ]]; then cp "$SITE" "$PREVIOUS_SITE"; fi
-sed "s/ERF_DOMAIN/$DOMAIN/g" "$SRC/caddy/erf.caddy" > "$SITE"
+sed "s/ERF_DOMAIN/$SITE_ADDRESSES/g" "$SRC/caddy/erf.caddy" > "$SITE"
 if ! caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then
   # Keep the running site intact: put the previous file back and stop the deployment.
   if [[ -s "$PREVIOUS_SITE" ]]; then cp "$PREVIOUS_SITE" "$SITE"; fi

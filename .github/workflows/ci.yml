@@ -89,7 +89,7 @@ jobs:
           if [ -f deploy/target.env ]; then
             set -a; . deploy/target.env; set +a
             printf '%s\n' "$TARGET_KNOWN_HOST" > ~/.ssh/known_hosts
-            { echo "TARGET_HOST=$TARGET_HOST"; echo "TARGET_DOMAIN=$TARGET_DOMAIN"; } >> "$GITHUB_ENV"
+            { echo "TARGET_HOST=$TARGET_HOST"; echo "TARGET_DOMAIN=$TARGET_DOMAIN"; echo "TARGET_ALIASES=${TARGET_ALIASES:-}"; } >> "$GITHUB_ENV"
           fi
       - name: Install the release on the server
         if: vars.DEPLOY_ENABLED == 'true'
@@ -102,6 +102,8 @@ jobs:
         run: |
           SSH_OPTS="-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes"
           HOST="${TARGET_HOST:-$HOST}"; DOMAIN="${TARGET_DOMAIN:-$DOMAIN}"
+          # The main address first, then any other names the site answers on.
+          if [ -n "${TARGET_ALIASES:-}" ]; then DOMAIN="$DOMAIN,${TARGET_ALIASES// /}"; fi
           NAME="$(basename "$ARCHIVE")"
           scp $SSH_OPTS "$ARCHIVE" "$DEPLOY_USER@$HOST:/tmp/$NAME"
 
@@ -155,9 +157,16 @@ jobs:
           DOMAIN: ${{ vars.ERF_DOMAIN }}
         run: |
           DOMAIN="${TARGET_DOMAIN:-$DOMAIN}"
+          # Every name is checked; the site passes when at least one answers, because a name whose DNS
+          # has just been changed can take a few minutes to get its certificate.
+          NAMES="$DOMAIN ${TARGET_ALIASES//,/ }"
           for i in $(seq 1 20); do
-            if curl -fsS "https://$DOMAIN/api/health"; then echo; exit 0; fi
+            UP=""
+            for n in $NAMES; do
+              if curl -fsS -o /dev/null "https://$n/api/health"; then UP="$UP $n"; fi
+            done
+            if [ -n "$UP" ]; then echo "Answering:$UP"; exit 0; fi
             sleep 3
           done
-          echo "https://$DOMAIN/api/health did not respond." >&2
+          echo "None of $NAMES responded." >&2
           exit 1
