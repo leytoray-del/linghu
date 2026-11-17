@@ -4,6 +4,8 @@ name: Migrate server
 # deployment key as the current one.
 #
 #   STEP=check    Reads both servers and the domain, and prints the new server's host key. Changes nothing.
+#   STEP=done     The move has been made; nothing runs. Never set it back to migrate after the new server is
+#                 in use, because that would copy the old server's data over the new one.
 #   STEP=migrate  Prepares the new server, stops the current one, copies the database and settings,
 #                 starts the system on the new server, and makes the old address redirect to the new one.
 #                 If the new server does not come up, the current server is started again.
@@ -35,9 +37,11 @@ jobs:
           done
           { echo "STEP=$STEP"; echo "NEW_HOST=$NEW_HOST"; echo "NEW_DOMAIN=$NEW_DOMAIN"; } >> "$GITHUB_ENV"
           printf '%s\n' "${NEW_KNOWN_HOST:-}" > new_known_host
+          if [ "$STEP" = "done" ]; then echo "The move has been made; nothing to do."; fi
           echo "Step: $STEP. Moving from $OLD_DOMAIN to $NEW_DOMAIN ($NEW_HOST)."
 
       - name: Configure SSH
+        if: env.STEP != 'done'
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
@@ -60,6 +64,7 @@ jobs:
           echo "SSH_OPTS=-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=20" >> "$GITHUB_ENV"
 
       - name: Check both servers and the domain
+        if: env.STEP != 'done'
         run: |
           echo "== Deployment user"
           [ "$DEPLOY_USER" = "github-deploy" ] && echo "github-deploy" || echo "The deployment user is not github-deploy; add the key on the new server under the same user name as on the current one."
